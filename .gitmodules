@@ -1,0 +1,3 @@
+[submodule "MiniLib"]
+	path = MiniLib
+	url = http://github.com/SirJonthe/MiniLib.git
