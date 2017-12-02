@@ -1,0 +1,10 @@
+Font info:
+Total buffer size (in bytes): 760
+Total buffer size (in words): 380
+Image dimensions (in bits): 8x760
+Character cell dimensions (in bits): 8x8
+Character dimensions (in bits): 6x6
+Total character count: 95
+Character grid dimensions (in chars): 1x95
+Start character: !
+Character sequence: ASCII

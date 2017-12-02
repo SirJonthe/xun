@@ -1,0 +1,16 @@
+SET @0, H:00FF.
+SET B, 0. 
+JE B, 1, /SWIZZLE.
+SWIZZLE:
+{
+	SET @0, H:F0F0.
+}
+
+# here we make the assumption that an X Display is connected at port 1 #
+SET A, 1. # port 1 #
+LSU A, 8. # shift the port number to the port bits #
+OR A, 16. # flip bits corresponding to 16, ie. the function number #
+INT 0, A.
+ADD A, 1. # add one, flipping bits corresponding to 17, ie. the function number #
+INT 0, A.
+

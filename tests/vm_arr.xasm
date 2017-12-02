@@ -1,0 +1,46 @@
+DISP; W, H, FH, FP, PP, CH[3]:
+{
+	# basic video data #
+	SET W, 16.
+	SET H, 256.
+	
+	# set what char to render #
+	SET CH[0], 15.
+	SET CH[1], 16.
+	SET CH[2], 17. 
+	
+	SET FH, 4.
+	SET C, 0.
+	SET FP, 4096.
+	MOV A, CH.
+	MUL A, FH.
+	ADD FP, A.
+	SET PP, 0.
+	FOR:
+	{
+		MOV A, @FP.
+		MOV B, A.
+		AND A, H:00FF.
+		AND B, H:FF00.
+		RSU B, 8.
+		
+		MOV @PP, A.
+		ADD PP, W.
+		MOV @PP, B.
+		ADD PP, W.
+		
+		ADD FP, 1.
+		ADD C, 1.
+		
+		JL C, FH, FOR.
+	}
+	
+	# here we make the assumption that an X Display is connected at port 1 #
+	MOV A, 1. # port 1 #
+	LSU A, 8. # shift the port number to the port bits #
+	OR A, 16. # flip bits corresponding to 16, ie. the function number #
+	INT 0, A.
+	ADD A, 1. # add one, flipping bits corresponding to 17, ie. the function number #
+	INT 0, A.
+}
+

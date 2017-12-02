@@ -1,0 +1,74 @@
+DISP; W, H, FH, FP, PP, CH, X, Y, BPW:
+{
+	# basic video data #
+	SET BPW, 16. # bits per word #
+	SET W, 256.
+	DIV W, BPW.
+	SET H, 256.
+	
+	SET CH, 33.
+	SET Y, 126. # 0-255 #
+	SET X, 126. # 0-255 #
+	
+	SET FH, 4. # font height / 2 #
+	
+	SET FP, 4096. # address of font pixel data #
+	
+	# compute pointer to pixel buffer offset #
+	MOV A, CH.
+	MUL A, FH.
+	ADD FP, A.
+	MOV A, W.
+	MUL A, Y.
+	MOV B, X.
+	DIV B, BPW.
+	ADD A, B.
+	MOV PP, A.
+	
+	SUB W, 1.
+	
+	MOV Y, 0.
+	MOD X, BPW.
+	MOV C, BPW.
+	SUB C, X.
+	
+	FOR; AA, AB, BA, BB:
+	{
+		MOV A, @FP.
+		MOV B, A.
+		AND B, H:FF00.
+		RSU B, 8.
+		AND A, H:00FF.
+		MOV AA, A.
+		LSU AA, X.
+		MOV AB, A.
+		RSU AB, C.
+		MOV BA, B.
+		LSU BA, X.
+		MOV BB, B.
+		RSU BB, C.
+		
+		OR @PP, AA.
+		ADD PP, 1.
+		OR @PP, AB.
+		ADD PP, W.
+		OR @PP, BA.
+		ADD PP, 1.
+		OR @PP, BB.
+		ADD PP, W.
+		
+		ADD FP, 1.
+		ADD Y, 1.
+		
+		JL Y, FH, FOR.
+	}
+
+	# here we make the assumption that an X Display is connected at port 1 #
+	MOV A, 1. # port 1 #
+	LSU A, 8. # shift the port number to the port bits #
+	OR A, 16. # flip bits corresponding to 16, ie. the function number #
+	INT 0, A.
+	ADD A, 1. # add one, flipping bits corresponding to 17, ie. the function number #
+	INT 0, A.
+}
+

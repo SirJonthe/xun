@@ -1,0 +1,48 @@
+DISP; W, H, FH, FP, PP, PSHIFT:
+{
+	# basic video data #
+	SET W, 16.
+	SET H, 256.
+	
+	SET FH, 380.
+	SET C, 0.
+	SET FP, 4096.
+	SET PP, 0.
+	SET PSHIFT, 0.
+	FOR:
+	{
+		MOV A, @FP.
+		MOV B, A.
+		AND A, H:00FF.
+		AND B, H:FF00.
+		RSU B, 8.
+		
+		MOV @PP, A.
+		ADD PP, W.
+		MOV @PP, B.
+		ADD PP, W.
+		
+		ADD FP, 1.
+		ADD C, 1.
+		
+		# determine if we need to shift the rendering one step to right #
+		MOV A, C.
+		MUL A, 2.
+		MOD A, H.
+		JNE A, 0, SKIP_ADD_X.
+		ADD PSHIFT, 1.
+		MOV PP, PSHIFT.
+		SKIP_ADD_X:
+		
+		JL C, FH, FOR.
+	}
+	
+	# here we make the assumption that an X Display is connected at port 1 #
+	MOV A, 1. # port 1 #
+	LSU A, 8. # shift the port number to the port bits #
+	OR A, 16. # flip bits corresponding to 16, ie. the function number #
+	INT 0, A.
+	ADD A, 1. # add one, flipping bits corresponding to 17, ie. the function number #
+	INT 0, A.
+}
+

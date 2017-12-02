@@ -1,0 +1,27 @@
+In XASM
+    Output
+	    Font
+		    1) Render all chars [COMPLETE]
+			2) Render any given char
+			3) Render any given char at arbitrary y position
+			4) Render any given char at arbitrary y position, arbitrary aligned x position
+			5) Render any given char at arbitrary x and y position
+		Feedback
+		    Store 20*40 words (40*40 chars) of font grid stored after display bits and *before* font bits
+			Routine for rendering font to display by using font grid as lookup in font bits
+
+XASM refinements
+    Either a functioning stack, or remove manual stack manipulation
+	Ability to input arguments to a program
+
+Virtual machine refinements
+    Enables one program to call another by "stacking" programs and runtime data on top of calling program
+
+Setup code
+    Write a class factory
+	    can produce instances of classes from strings, eg. "create class Device" returns a pointer to a newly created Device
+	Write a setup class
+	    contains all components needed for a good XUN experience, load setup from file, eg.
+		    Nanocontroller, freq=100, ram=100
+			    connect MonochromeDisplay, scale=3
+				connect etc etc etc...

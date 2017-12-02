@@ -1,0 +1,44 @@
+DISP; W, H, I:
+{
+	# basic video data #
+	SET W, 16.
+	SET H, 256.
+	
+	SET I, 0.
+		
+	# routine for setting individual pixel data #
+	SET_PX; X, Y:
+	{
+		MOV X, I.
+		MOV Y, I.
+	
+		# get word where pixel is located, store in A #
+		MOV A, Y.
+		MUL A, W.
+		MOV B, X.
+		DIV B, W.
+		ADD A, B.
+		
+		# get bit offset, store in B #
+		MOV C, X.
+		MOD C, W.
+		SET B, 1.
+		LSU B, C.
+		
+		# write pixel #
+		OR @A, B.
+		
+		# loop back #
+		ADD I, 1.
+		JL I, H, SET_PX.
+	}
+	
+	# here we make the assumption that an X Display is connected at port 1 #
+	MOV A, 1. # port 1 #
+	LSU A, 8. # shift the port number to the port bits #
+	OR A, 16. # flip bits corresponding to 16, ie. the function number #
+	INT 0, A.
+	ADD A, 1. # add one, flipping bits corresponding to 17, ie. the function number #
+	INT 0, A.
+}
+
