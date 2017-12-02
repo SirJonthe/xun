@@ -10,6 +10,7 @@
 
 # QtCreator files
 *.pro.user
+*.pro.user.*
 *.pro
 
 # Specific files
