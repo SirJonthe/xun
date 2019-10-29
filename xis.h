@@ -4,6 +4,8 @@
 namespace xerx
 {
 
+// @data InstructionSet
+// @info The list of instruction constants supported by the architecture.
 struct InstructionSet
 {
 	// LIT = 1234, 0xDEADBEEF, 01011b
