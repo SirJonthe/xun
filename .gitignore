@@ -9,7 +9,7 @@
 /tmp
 
 # QtCreator files
-*.pro.user
+*.user
 *.pro.user.*
 *.pro
 
