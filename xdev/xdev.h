@@ -12,14 +12,12 @@ namespace xerx
 	public:
 		enum Type
 		{
-			Compute  = 1,    // Internal modules inside the computer.
-			Storage  = 1<<1, // Storage devices.
-			Display  = 1<<2, // Display devices.
-			Keyboard = 1<<3, // Keyboard devices.
-			Audio    = 1<<4, // Audio devices.
-			Network  = 1<<5, // Network devices.
-			Power    = 1<<6, // Power management devices.
-			Other    = 1<<7  // Everything else.
+			Compute,
+			Storage,
+			Display,
+			Keyboard,
+			Audio,
+			Other
 		};
 		typedef mtlDuplex<Device,Device> Connection;
 
