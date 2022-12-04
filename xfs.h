@@ -1,6 +1,7 @@
 #ifndef XFS_H__
 #define XFS_H__
 
+#include "MiniLib/MTL/mtlString.h"
 #include "xbin.h"
 
 namespace xerx
@@ -54,7 +55,7 @@ public:
 	// @in hnd -> The handle of the virtual binary file.
 	// @inout size -> The size (in words) of the specified item.
 	// @out SUCCESS if the handle is valid and points to a binary item.
-	bool        GetSize(xerx::uword hnd, xerx::udword &size);
+	bool        GetSize(xerx::uword hnd, xerx::udword &size) const;
 	
 	// @algo CreateBin
 	// @info Creates a binary virtual file in the virtual file system.
@@ -114,9 +115,10 @@ public:
 #endif
 
 // File system format, serialized
+// IDX is a quick index for fast search.
 //IDX
 //{
-//	"NAME.EXT", BIN , SIZE @ LOC, HANDLE
+//	"NAME.EXT", BIN, SIZE @ LOC, HANDLE
 //	"NAME", DIR , SIZE @ LOC
 //}
 //"NAME.EXT", BIN, SIZE, HANDLE

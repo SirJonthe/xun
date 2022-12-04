@@ -18,16 +18,14 @@ struct InstructionSet
 		NOP, // nop. ; nothing
 		HALT, // end. ; terminate program
 
-//		INC, // inc VAR. ; VAR += 1
-//		DEC, // dec VAR. ; VAR -= 1
+//		JMP, // jmp 0xLIT. ; set I to LIT                                    - DEPRECATED; Can manipulate $I via math ops below.
 
-//		JMP, // jmp 0xLIT. ; set I to LIT
+//		SV, // sv VAR. ; saves value of VAR in stack and increments S        - DEPRECATED; Can manipulate $S via math ops below.
+//		ST, // st 0xLIT ; stored value of LIT in stack and increments S      - DEPRECATED; Can manipulate $S via math ops below.
+//		LD, // ld VAR. ; loads value at top of stack to VAR and decrements S - DEPRECATED; Can manipulate $S via math ops below.
 
-//		SAV, // sav VAR. ; stores value of VAR in stack and increments S
-//		USE, // use VAR. ; loads value at top of stack to VAR and decrements S
-
-		PUSH, // push 0xLIT. ; adds LIT to S          - DEPRECATED; must implement relative addressing before this can be removed
-		POP, // pop 0xLIT. ; subtracts LIT from S     - DEPRECATED; must implement relative addressing before this can be removed
+		PUSH, // push 0xLIT. ; adds LIT to S                                 - DEPRECATED; Must implement relative addressing before this can be removed.
+		POP, // pop 0xLIT. ; subtracts LIT from S                            - DEPRECATED; Must implement relative addressing before this can be removed.
 
 		NOT, // not VAR. ; invert VAR bits
 		NEG, // neg VAR. ; VAR = -VAR
@@ -56,7 +54,7 @@ struct InstructionSet
 
 		INT, // int VAR, VAR. ; hand over control to hardware, where port and function is defined by VAR B, manipulate memory at VAR A
 
-		JE, // je VAR, VAR, 0xLIT. ; set I to LIT if A = B
+		JE,  // je VAR, VAR, 0xLIT. ; set I to LIT if A = B
 		JNE, // jne VAR, VAR, 0xLIT. ; set I to LIT if A != B
 		JL,  // jl VAR, VAR, 0xLIT. ; set I to LIT if A < B
 		JLE, // jle VAR, VAR, 0xLIT. ; set I to LIT if A <= B

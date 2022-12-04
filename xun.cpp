@@ -118,7 +118,7 @@ void xerx::NanoController::HACK_LoadFont( void )
 	// Or I provide a prebaked ROM image with the font in it, and XASM is used to load the font to RAM
 	std::ifstream fin("BIOS/font.bin", std::ios::binary);
 	if (fin.is_open()) {
-		fin.read(((char*)RAM) + VIDEO_MEM, FONT_MEM);
+		fin.read((reinterpret_cast<char*>(RAM)) + VIDEO_MEM, FONT_MEM);
 	} else {
 		std::cout << "Font not loaded" << std::endl;
 	}
@@ -142,7 +142,7 @@ void xerx::NanoController::HACK_Load(const xerx::Binary &bin)
 	xerx::udword b = 0;
 	xerx::uword  m = IP_START;
 	while (b < bin.GetSize()) {
-		RAM[m--] = bin[b++];
+		RAM[m--] = bin[xerx::uword(b++)];
 	}
 	ResetRegisters();
 }
@@ -159,7 +159,7 @@ void xerx::NanoController::Reset( void )
 		RAM[i].u = 0;
 	}
 	ResetRegisters();
-	RAM[I].u = (xerx::uword)xerx::InstructionSet::HALT;
+	RAM[I].u = xerx::uword(xerx::InstructionSet::HALT);
 
 	// Time for hacks
 	HACK_LoadFont();
@@ -183,21 +183,21 @@ bool xerx::NanoController::Run( void )
 //		READ1;
 //		I = VAR_X;
 //		break;
-//	case xerx::InstructionSet::SAV:
+//	case xerx::InstructionSet::SV:
 //		READ1;
 //		INC_S;
 //		VAR_S = VAR_X;
 //		break;
-//	case xerx::InstructionSet::USE:
+//	case xerx::InstructionSet::LD:
 //		READ1;
 //		VAR_X = VAR_S;
 //		DEC_S;
 //		break;
-	case xerx::InstructionSet::PUSH:
+	case xerx::InstructionSet::PUSH: // DEPRECATED
 		READ1;
 		S += LIT_X;
 		break;
-	case xerx::InstructionSet::POP:
+	case xerx::InstructionSet::POP: // DEPRECATED
 		READ1;
 		S -= LIT_X;
 		break;
@@ -358,15 +358,15 @@ bool xerx::NanoController::DebugRun( void )
 //		PEEK1;
 //		PrintInstruction("SAV", LIT_X, VAR1);
 //		break;
-//	case xerx::InstructionSet::USE:
+//	case xerx::InstructionSet::LD:
 //		PEEK1;
-//		PrintInstruction("USE", LIT_X, VAR1);
+//		PrintInstruction("LD", LIT_X, VAR1);
 //		break;
-	case xerx::InstructionSet::PUSH:
+	case xerx::InstructionSet::PUSH: // DEPRECATED
 		PEEK1;
 		PrintInstruction("PUSH", LIT_X, LIT1);
 		break;
-	case xerx::InstructionSet::POP:
+	case xerx::InstructionSet::POP: // DEPRECATED
 		PEEK1;
 		PrintInstruction("POP", LIT_X, LIT1);
 		break;
