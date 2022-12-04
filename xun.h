@@ -31,12 +31,9 @@ public:
 	// @info The symbolic constants of the machine's various registers.
 	enum reg_t
 	{
-		SP = (MEM_SIZE >> 1), // Stack pointer
-		IP,                   // Instruction pointer
-		X1, X2, X3, X4,       // Internal registers
-		MP,                   // Mark pointer (tells machine what state to return to coming off of a function)
-		PP,                   // Program pointer (tells machine what state to return to coming off of a program, also used to offset absolute addresses)
-		A, B, C               // General purpose registers
+		SP = (MEM_SIZE >> 1), IP,
+		X1, X2, X3, X4,
+		A, B, C
 	};
 	
 	// @data SP_START

@@ -16,7 +16,7 @@ private:
 	udword  size;
 
 public:
-	Binary( void ) : bin(nullptr), size(0) {}
+	Binary( void ) : bin(NULL), size(0) {}
 	~Binary( void ) { delete [] bin; }
 
 	// @algo GetSize
@@ -30,13 +30,13 @@ public:
 	// @out TRUE on success.
 	bool Allocate(udword size_) {
 		delete [] bin;
-		bin = nullptr;
+		bin = NULL;
 		size = 0;
 		if (size <= xerx::MEM_SIZE) {
 			size = size_;
 			bin = new word_t[size];
 		}
-		return bin != nullptr;
+		return bin != NULL;
 	}
 	
 	// @algo Delete
@@ -44,7 +44,7 @@ public:
 	void Delete( void )
 	{
 		delete [] bin;
-		bin = nullptr;
+		bin = NULL;
 		size = 0;
 	}
 	
