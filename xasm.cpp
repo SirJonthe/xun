@@ -635,7 +635,7 @@ bool AssembleLabel(const mtlChars &label, const mtlChars &defs, const mtlChars &
 
 bool LoadFile(const mtlChars &file, mtlString &code)
 {
-	if (!mtlSyntaxParser::BufferFile(file, code)) {
+	if (!mtlBufferFile(file, code)) {
 		PrintMsg("File not found", file);
 		return false;
 	}
