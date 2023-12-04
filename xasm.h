@@ -88,23 +88,12 @@ struct xtoken
 			KEYWORD_DIRECTIVE_HERE,
 			KEYWORD_DIRECTIVE_LIT,
 
-		ALIAS_VAR = token::ALIAS | (1<<8),
-		ALIAS_FUNC = token::ALIAS | (2<<8),
-		//ALIAS_TYPE, // the name of the type, not the instantiated variable (the instantiated variable would be an ALIAS_VAR)
-
-		OPERATOR_ARITHMETIC = token::OPERATOR | (1<<8),
-			OPERATOR_ARITHMETIC_ADD,
-			OPERATOR_ARITHMETIC_SUB,
-			OPERATOR_ARITHMETIC_MUL,
-			OPERATOR_ARITHMETIC_DIV,
-			OPERATOR_ARITHMETIC_MOD,
-
-		OPERATOR_DIRECTIVE = token::OPERATOR | (2<<8),
+		OPERATOR_DIRECTIVE = token::OPERATOR | (1<<8),
 			OPERATOR_DIRECTIVE_AT,
 			OPERATOR_DIRECTIVE_ADDR,
 			OPERATOR_DIRECTIVE_DOLLAR,
 		
-		OPERATOR_ENCLOSE = token::OPERATOR | (3<<8),
+		OPERATOR_ENCLOSE = token::OPERATOR | (2<<8),
 			OPERATOR_ENCLOSE_PARENTHESIS = OPERATOR_ENCLOSE | (1<<4),
 				OPERATOR_ENCLOSE_PARENTHESIS_L,
 				OPERATOR_ENCLOSE_PARENTHESIS_R,
@@ -117,7 +106,7 @@ struct xtoken
 				OPERATOR_ENCLOSE_BRACE_L,
 				OPERATOR_ENCLOSE_BRACE_R,
 		
-		OPERATOR_STOP = token::OPERATOR | 1,
+		OPERATOR_STOP = token::OPERATOR | (1<<8),
 		OPERATOR_COMMA,
 		OPERATOR_COLON,
 
@@ -130,8 +119,14 @@ struct xtoken
 /// @return The lexed token.
 token xlex(lexer *l);
 
+struct xasm_output
+{
+	U16 binary_size;
+	U16 max_token_index;
+};
+
 // assemble_xasm
 // Assembles extended assembly language. Lots of syntactic sugar.
-U16 assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
+xasm_output assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
 
 #endif

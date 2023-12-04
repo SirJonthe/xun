@@ -1,7 +1,7 @@
 #include "xasm.h"
 #include "lib/MiniLib/MTL/mtlList.h"
 
-const signed X_TOKEN_COUNT = 28;
+const signed X_TOKEN_COUNT = 33;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("put",                     3, xtoken::KEYWORD_INSTRUCTION_PUT),
@@ -15,6 +15,11 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("imul",                    4, xtoken::KEYWORD_INSTRUCTION_IMUL),
 	new_keyword ("idiv",                    4, xtoken::KEYWORD_INSTRUCTION_IDIV),
 	new_keyword ("imod",                    4, xtoken::KEYWORD_INSTRUCTION_IMOD),
+	new_keyword ("lsh",                     3, xtoken::KEYWORD_INSTRUCTION_LSH),
+	new_keyword ("rsh",                     3, xtoken::KEYWORD_INSTRUCTION_RSH),
+	new_keyword ("and",                     3, xtoken::KEYWORD_INSTRUCTION_AND),
+	new_keyword ("or",                      2, xtoken::KEYWORD_INSTRUCTION_OR),
+	new_keyword ("xor",                     3, xtoken::KEYWORD_INSTRUCTION_XOR),
 	//new_keyword ("movu",                    4, xtoken::KEYWORD_INSTRUCTION_MOVU),
 	//new_keyword ("movd",                    4, xtoken::KEYWORD_INSTRUCTION_MOVD),
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
@@ -78,6 +83,7 @@ struct scope
 		char     name[32];
 		XWORD    data;
 		unsigned lit;
+		U16      size;
 	};
 	mtlList<symbol> symbols;
 	U16             lsp; // local stack pointer
@@ -135,10 +141,15 @@ scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_sta
 	return NULL;
 }
 
-scope::symbol &add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope &s)
+scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope &s)
 {
+	for (mtlItem<scope::symbol> *i = s.symbols.GetFirst(); i != NULL; i = i->GetNext()) {
+		if (strcmp(i->GetItem().name, chcount(i->GetItem().name), name, name_char_count)) {
+			return NULL;
+		}
+	}
 	scope::symbol &sym = s.symbols.AddLast();
-	unsigned count = name_char_count < sizeof(sym.name) - 1 ? name_char_count : sizeof(sym.name) - 1;
+	const unsigned count = name_char_count < sizeof(sym.name) - 1 ? name_char_count : sizeof(sym.name) - 1;
 	unsigned i;
 	for (i = 0; i < count; ++i) {
 		sym.name[i] = name[i];
@@ -147,29 +158,31 @@ scope::symbol &add_symbol(const char *name, unsigned name_char_count, unsigned l
 		sym.name[i] = 0;
 	}
 	sym.lit = lit;
+	sym.size = 1;
 	if (!lit) {
 		sym.data.u = s.lsp;
 		++s.lsp;
 	}
-	return sym;
+	return &sym;
 }
 
-scope::symbol &add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope_stack &ss)
+scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope_stack &ss)
 {
 	return add_symbol(name, name_char_count, lit, ss.scopes[ss.index]);
 }
 
-bool add_var(const char *name, unsigned name_char_count, scope_stack &ss)
+scope::symbol *add_var(const char *name, unsigned name_char_count, scope_stack &ss)
 {
-	add_symbol(name, name_char_count, 0, ss);
-	return true;
+	return add_symbol(name, name_char_count, 0, ss);
 }
 
-bool add_lit(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
+scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
 {
-	scope::symbol &sym = add_symbol(name, name_char_count, 1, ss);
-	sym.data.u = value;
-	return true;
+	scope::symbol *sym = add_symbol(name, name_char_count, 1, ss);
+	if (sym != NULL) {
+		sym->data.u = value;
+	}
+	return sym;
 }
 
 struct parser
@@ -177,6 +190,7 @@ struct parser
 	input_tokens  in;
 	output_binary out;
 	scope_stack   scopes;
+	U16           max_token_index;
 };
 
 static bool match(parser *p, unsigned type)
@@ -186,6 +200,9 @@ static bool match(parser *p, unsigned type)
 	}
 	if (type == p->in.tokens[p->in.index].user_type) {
 		++p->in.index;
+		if (p->in.index > p->max_token_index) {
+			p->max_token_index = p->in.index;
+		}
 		return true;
 	}
 	return false;
@@ -205,18 +222,26 @@ struct parser_state
 
 static parser_state new_state(parser *p, unsigned end)
 {
-	return parser_state{ p, *p, end };
+	parser_state ps = { p, *p, end };
+	return ps;
 }
 
 static bool manage_state(parser_state &ps, bool success)
 {
 	if (!success) {
+		U16 max_index = ps.p->max_token_index;
 		*ps.p = ps.restore_point;
+		if (max_index > ps.p->max_token_index) {
+			ps.p->max_token_index = max_index;
+		}
 	}
 	return success;
 }
 
 static bool parse_instruction_nop  (parser_state ps);
+static bool parse_decl_var         (parser_state ps);
+static bool parse_decl_mem         (parser_state ps);
+static bool parse_decl_arr         (parser_state ps);
 static bool parse_decl_list        (parser_state ps);
 static bool parse_directive_scope  (parser_state ps);
 static bool parse_directive        (parser_state ps);
@@ -260,6 +285,19 @@ static bool parse_decl_mem(parser_state ps)
 	return false;
 }
 
+static bool parse_decl_arr(parser_state ps)
+{
+	U16 lsp = ps.p->scopes.scopes[ps.p->scopes.index].lsp;
+	if (manage_state(ps, parse_decl_var(new_state(ps.p, ps.end)) && parse_decl_mem(new_state(ps.p, ps.end)))) {
+		U16 size = ps.p->scopes.scopes[ps.p->scopes.index].lsp - lsp;
+		if (size == 0) { return false; }
+		ps.p->scopes.scopes[ps.p->scopes.index].lsp -= 1;
+		ps.p->scopes.scopes[ps.p->scopes.index].symbols.GetLast()->GetItem().size += (size - 1);
+		return true;
+	}
+	return false;
+}
+
 static bool parse_decl_list(parser_state ps)
 {
 	const token t = peek(ps.p);
@@ -267,6 +305,7 @@ static bool parse_decl_list(parser_state ps)
 	if (
 		manage_state(
 			ps,
+			parse_decl_arr(new_state(ps.p, ps.end)) ||
 			parse_decl_var(new_state(ps.p, ps.end)) ||
 			parse_decl_mem(new_state(ps.p, ps.end))
 		)
@@ -304,15 +343,28 @@ static bool parse_directive(parser_state ps)
 	return false;
 }
 
+static bool parse_lit_index(parser_state ps)
+{
+	if (manage_state(ps, match(ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_L) && parse_lit(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_R)) && match(ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_R))) {
+		// HACK: The top binary value is now the offset. We need to do something with this in the parent scope.
+		return true;
+	}
+	return false;
+}
+
 static bool parse_var(parser_state ps)
 {
 	token t = peek(ps.p);
 	if (match(ps.p, token::ALIAS)) {
+		U16 index = 0;
+		if (parse_lit_index(new_state(ps.p, ps.end))) { // NOTE: This is optional, so do NOT manage the state, i.e. roll-back to the previous index because we assume we can just resume reading at whatever position we left off.
+			index = ps.p->out.body.buffer[--ps.p->out.body.index].u;
+		}
 		U16 sp_offset = 0;
 		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
 		if (sym == NULL || sym->lit) { return false; }
 		return
-			write_word(ps.p->out.body, XWORD{(U16)(sym->data.u - sp_offset)}) &&
+			write_word(ps.p->out.body, XWORD{(U16)(sym->data.u - sp_offset + index)}) &&
 			write_word(ps.p->out.body, XWORD{XIS::CREL}) &&
 			write_word(ps.p->out.body, XWORD{XIS::AT});
 	}
@@ -321,6 +373,7 @@ static bool parse_var(parser_state ps)
 
 static bool parse_lit(parser_state ps)
 {
+	// TODO: Add support for index (especially useful for aliased literals and evals).
 	token t = peek(ps.p);
 	if (match(ps.p, xtoken::LITERAL_INT)) {
 		return write_word(ps.p->out.body, XWORD{(U16)t.hash});
@@ -339,7 +392,10 @@ static bool parse_lit(parser_state ps)
 
 static bool parse_param(parser_state ps)
 {
-	return (manage_state(ps, parse_directive_at(new_state(ps.p, ps.end)) || parse_directive_addr(new_state(ps.p, ps.end)) || parse_var(new_state(ps.p, ps.end)) || parse_lit(new_state(ps.p, ps.end))));
+	if (manage_state(ps, parse_directive_at(new_state(ps.p, ps.end)) || parse_directive_addr(new_state(ps.p, ps.end)) || parse_var(new_state(ps.p, ps.end)) || parse_lit(new_state(ps.p, ps.end)))) {
+		return true;
+	}
+	return false;
 }
 
 static bool parse_put_param(parser_state ps)
@@ -385,8 +441,8 @@ static bool parse_directive_addr(parser_state ps)
 
 static bool parse_instruction_put(parser_state ps)
 {
-	if (match(ps.p, xtoken::KEYWORD_INSTRUCTION_PUT)) {
-		return manage_state(ps, parse_put_param(new_state(ps.p, xtoken::OPERATOR_STOP)));
+	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_PUT) && parse_put_param(new_state(ps.p, xtoken::OPERATOR_STOP)))) {
+		return true;
 	}
 	return false;
 }
@@ -417,28 +473,34 @@ static bool parse_instruction_with_put(parser_state ps, unsigned token_type, U16
 
 static bool parse_instructions(parser_state ps)
 {
-	return manage_state(
-		ps,
-		(
-			parse_instruction_nop(new_state(ps.p, ps.end)) ||
-			parse_instruction_put(new_state(ps.p, ps.end)) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ADD , XIS::ADD) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_SUB , XIS::SUB) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MUL , XIS::MUL) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_DIV , XIS::DIV) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MOD , XIS::MOD) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IADD, XIS::IADD) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ISUB, XIS::ISUB) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IMUL, XIS::IMUL) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IDIV, XIS::IDIV) ||
-			parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IMOD, XIS::IMOD)
-		) &&
-		match(ps.p, xtoken::OPERATOR_STOP)
-	);
+	if (
+		manage_state(
+			ps,
+			(
+				parse_instruction_nop     (new_state(ps.p, ps.end))                                              ||
+				parse_instruction_put     (new_state(ps.p, ps.end))                                              ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ADD , XIS::ADD)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_SUB , XIS::SUB)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MUL , XIS::MUL)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_DIV , XIS::DIV)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MOD , XIS::MOD)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IADD, XIS::IADD) ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ISUB, XIS::ISUB) ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IMUL, XIS::IMUL) ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IDIV, XIS::IDIV) ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IMOD, XIS::IMOD)
+			) &&
+			match(ps.p, xtoken::OPERATOR_STOP)
+		)
+	) {
+		return true;
+	}
+	return false;
 }
 
 static bool parse_emit_lit_list(parser_state ps)
 {
+	// TODO: This will need an IP skip ahead - otherwise we may execute the binary data.
 	if (manage_state(ps, parse_lit(new_state(ps.p, ps.end)))) {
 		return match(ps.p, xtoken::OPERATOR_STOP) || (match(ps.p, xtoken::OPERATOR_COMMA) && parse_emit_lit_list(new_state(ps.p, ps.end)));
 	}
@@ -451,7 +513,7 @@ static bool parse_statements(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			parse_emit_lit_list(new_state(ps.p, ps.end)) ||
+//			parse_emit_lit_list(new_state(ps.p, ps.end)) || // TODO: Need to fix IP skip ahead before I let this stay.
 			parse_directive(new_state(ps.p, ps.end)) ||
 			parse_instructions(new_state(ps.p, ps.end))
 		)
@@ -485,13 +547,14 @@ static bool parse_program(parser_state ps)
 	return false;
 }
 
-U16 assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
+xasm_output assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
 {
-	parser       p  = { { tokens, max_tokens, 0 }, { { NULL, 0, 0 }, { body, max_binary_body, 0 }, { NULL, 0, 0 } } };
-	p.scopes.index = 0;
-	parser_state ps = new_state(&p, token::STOP_EOF);
+	parser p          = { { tokens, max_tokens, 0 }, { { NULL, 0, 0 }, { body, max_binary_body, 0 }, { NULL, 0, 0 } } };
+	p.max_token_index = 0;
+	p.scopes.index    = 0;
+	parser_state ps   = new_state(&p, token::STOP_EOF);
 	if (!manage_state(ps, parse_program(new_state(ps.p, ps.end)))) {
-		return 0;
+		return { 0, p.max_token_index };
 	}
-	return p.out.head.index + p.out.body.index + p.out.tail.index;
+	return { U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token_index };
 }
