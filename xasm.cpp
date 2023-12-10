@@ -1,7 +1,7 @@
 #include "xasm.h"
 #include "lib/MiniLib/MTL/mtlList.h"
 
-const signed X_TOKEN_COUNT = 33;
+const signed X_TOKEN_COUNT = 35;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("put",                     3, xtoken::KEYWORD_INSTRUCTION_PUT),
@@ -26,8 +26,10 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),
 	new_operator("$",                       1, xtoken::OPERATOR_DIRECTIVE_DOLLAR),
 	new_keyword ("eval",                    4, xtoken::KEYWORD_DIRECTIVE_EVAL),
+	new_keyword ("size",                    4, xtoken::KEYWORD_DIRECTIVE_SIZE),
 	new_keyword ("scope",                   5, xtoken::KEYWORD_DIRECTIVE_SCOPE),
 	new_keyword ("here",                    4, xtoken::KEYWORD_DIRECTIVE_HERE),
+	new_keyword ("syntax",                  6, xtoken::KEYWORD_DIRECTIVE_SYNTAX),
 	//new_keyword ("top",                     3, 0),
 	//new_keyword ("frame",                   5, 0),
 	//new_keyword ("entry",                   5, 0),
@@ -245,12 +247,12 @@ static bool parse_decl_arr         (parser_state ps);
 static bool parse_decl_list        (parser_state ps);
 static bool parse_directive_scope  (parser_state ps);
 static bool parse_directive        (parser_state ps);
+static bool parse_var_addr         (parser_state ps);
 static bool parse_var              (parser_state ps);
 static bool parse_lit              (parser_state ps);
 static bool parse_param            (parser_state ps);
 static bool parse_param_list       (parser_state ps);
 static bool parse_directive_at     (parser_state ps);
-static bool parse_directive_addr   (parser_state ps);
 static bool parse_instruction_put  (parser_state ps);
 static bool parse_instructions     (parser_state ps);
 static bool parse_emit_lit_list    (parser_state ps);
@@ -352,7 +354,7 @@ static bool parse_lit_index(parser_state ps)
 	return false;
 }
 
-static bool parse_var(parser_state ps)
+static bool parse_var_addr(parser_state ps)
 {
 	token t = peek(ps.p);
 	if (match(ps.p, token::ALIAS)) {
@@ -365,8 +367,76 @@ static bool parse_var(parser_state ps)
 		if (sym == NULL || sym->lit) { return false; }
 		return
 			write_word(ps.p->out.body, XWORD{(U16)(sym->data.u - sp_offset + index)}) &&
-			write_word(ps.p->out.body, XWORD{XIS::CREL}) &&
-			write_word(ps.p->out.body, XWORD{XIS::AT});
+			write_word(ps.p->out.body, XWORD{XIS::CREL});
+	}
+	return false;
+}
+
+static bool parse_var(parser_state ps)
+{
+	if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_ADDR) && parse_var_addr(new_state(ps.p, ps.end)))) {
+		return true;
+	}
+	if (manage_state(ps, parse_var_addr(new_state(ps.p, ps.end)))) {
+		return write_word(ps.p->out.body, XWORD{XIS::AT});
+	}
+	return false;
+}
+
+static bool parse_lit_expr(parser_state ps, U16 &x)
+{
+	return false;
+}
+
+static bool parse_directive_eval(parser_state ps)
+{
+	XWORD x;
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xtoken::KEYWORD_DIRECTIVE_EVAL) &&
+			match(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L) &&
+			parse_lit_expr(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), x.u) &&
+			match(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+		)
+	) {
+		return write_word(ps.p->out.body, x);
+	}
+	return false;
+}
+
+static bool parse_var_size(parser_state ps)
+{
+	token t = peek(ps.p);
+	if (match(ps.p, token::ALIAS)) {
+		U16 sp_offset; // unused
+		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
+		if (sym != NULL) { return false; }
+		return write_word(ps.p->out.body, XWORD{sym->size});
+	}
+	return false;
+}
+
+static bool parse_directive_size(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xtoken::KEYWORD_DIRECTIVE_SIZE) &&
+			match(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L) &&
+			parse_var_size(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool parse_lit_directive(parser_state ps)
+{
+	if (manage_state(ps, parse_directive_eval(new_state(ps.p, ps.end)) && parse_directive_size(new_state(ps.p, ps.end)))) {
+		return true;
 	}
 	return false;
 }
@@ -382,17 +452,23 @@ static bool parse_lit(parser_state ps)
 		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
 		if (sym == NULL || !sym->lit) { return false; }
 		return write_word(ps.p->out.body, XWORD{(U16)(sym->data.u)});
-	} else if (match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR) && match(ps.p, xtoken::KEYWORD_DIRECTIVE_EVAL)) {
-		// TODO: This is where we add support for $eval(expr)
-		// TODO: We want the compiler to precompute the expression inside and just emit the answer as a constant to the output binary.
-		return false; 
+	} else if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR) && parse_lit_directive(new_state(ps.p, ps.end)))) {
+		return true;
 	}
 	return false;
 }
 
 static bool parse_param(parser_state ps)
 {
-	if (manage_state(ps, parse_directive_at(new_state(ps.p, ps.end)) || parse_directive_addr(new_state(ps.p, ps.end)) || parse_var(new_state(ps.p, ps.end)) || parse_lit(new_state(ps.p, ps.end)))) {
+	// NOTE: The order of these can cause trouble as some functions consume tokens despite failing.
+	if (
+		manage_state(
+			ps,
+			parse_directive_at(new_state(ps.p, ps.end)) ||
+			parse_var(new_state(ps.p, ps.end)) ||
+			parse_lit(new_state(ps.p, ps.end))
+		)
+	) {
 		return true;
 	}
 	return false;
@@ -430,15 +506,6 @@ static bool parse_directive_at(parser_state ps)
 	return false;
 }
 
-static bool parse_directive_addr(parser_state ps)
-{
-	// TODO: This is not correctly implemented.
-	if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_ADDR) && parse_param(new_state(ps.p, ps.end)))) {
-		return true;
-	}
-	return false;
-}
-
 static bool parse_instruction_put(parser_state ps)
 {
 	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_PUT) && parse_put_param(new_state(ps.p, xtoken::OPERATOR_STOP)))) {
@@ -471,6 +538,14 @@ static bool parse_instruction_with_put(parser_state ps, unsigned token_type, U16
 	return false;
 }
 
+static bool parse_instruction_jmp(parser_state ps)
+{
+	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_JMP) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && parse_lit(new_state(ps.p, ps.end)))) {
+		return write_word(ps.p->out.body, XWORD{XIS::JMP});
+	}
+	return false;
+}
+
 static bool parse_instructions(parser_state ps)
 {
 	if (
@@ -479,16 +554,22 @@ static bool parse_instructions(parser_state ps)
 			(
 				parse_instruction_nop     (new_state(ps.p, ps.end))                                              ||
 				parse_instruction_put     (new_state(ps.p, ps.end))                                              ||
-				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ADD , XIS::ADD)  ||
-				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_SUB , XIS::SUB)  ||
-				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MUL , XIS::MUL)  ||
-				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_DIV , XIS::DIV)  ||
-				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MOD , XIS::MOD)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ADD,  XIS::ADD)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_SUB,  XIS::SUB)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MUL,  XIS::MUL)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_DIV,  XIS::DIV)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MOD,  XIS::MOD)  ||
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IADD, XIS::IADD) ||
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ISUB, XIS::ISUB) ||
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IMUL, XIS::IMUL) ||
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IDIV, XIS::IDIV) ||
-				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IMOD, XIS::IMOD)
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IMOD, XIS::IMOD) ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_LSH,  XIS::LSH)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_RSH,  XIS::RSH)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_AND,  XIS::AND)  ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_OR,   XIS::OR)   ||
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_XOR,  XIS::XOR)  ||
+				parse_instruction_jmp(new_state(ps.p, ps.end))
 			) &&
 			match(ps.p, xtoken::OPERATOR_STOP)
 		)
@@ -509,18 +590,19 @@ static bool parse_emit_lit_list(parser_state ps)
 
 static bool parse_statements(parser_state ps)
 {
-	if (peek(ps.p).user_type == ps.end) { return true; }
-	if (
-		manage_state(
-			ps,
-//			parse_emit_lit_list(new_state(ps.p, ps.end)) || // TODO: Need to fix IP skip ahead before I let this stay.
-			parse_directive(new_state(ps.p, ps.end)) ||
-			parse_instructions(new_state(ps.p, ps.end))
-		)
-	) {
-		return peek(ps.p).user_type == ps.end || parse_statements(new_state(ps.p, ps.end));
+	while (peek(ps.p).user_type != ps.end) {
+		if (
+			!manage_state(
+				ps,
+	//			parse_emit_lit_list(new_state(ps.p, ps.end)) || // TODO: Need to fix IP skip ahead before I let this stay.
+				parse_directive(new_state(ps.p, ps.end)) ||
+				parse_instructions(new_state(ps.p, ps.end))
+			)
+		) {
+			return false;
+		}
 	}
-	return false;
+	return true;
 }
 
 static bool parse_scoped_statements(parser_state ps, U16 stack_offset)

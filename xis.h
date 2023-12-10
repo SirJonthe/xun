@@ -7,6 +7,15 @@ struct XIS
 {
 	enum Enum
 	{
+		// IDENTITY BITS
+		// #1 Stack pointer manipulation
+		// #2 Instruction pointer manipulation
+		// #3 Address manipulation
+		// #4 Arithmetic
+		// #5 Tests
+		// #6 Signed
+		// #7 Register access
+		// #8 UNUSED
 		NOP   = 0,  // nothing
 		PUT   = 0b10000000 + ( 1<<8), // put a constant on the stack (use EREL/CREL + AT if you want to transform a constant address to a value)
 		EREL  = 0b00100000 + ( 2<<8), // transform constant on stack to address relative to EP
@@ -56,7 +65,17 @@ struct XIS
 		PEEK  = 0b00000000 + (46<<8), // store top constant from stack in specified absolute address (use EREL/CREL to transform relative address to absolute)
 		HALT  = 0b00000000 + (47<<8), // halt execution (deprecate with power controller)
 
-		COUNT = 48 // The number of instructions in the instruction set.
+		IP    = 0b00000010 + (48<<8), // puts PIP+IP on the top stack
+		SP    = 0b00000010 + (49<<8), // puts PSP+FSP+SP on the top stack
+		FSP   = 0b00000010 + (50<<8), // puts PSP+FSP on the top stack
+		PSP   = 0b00000010 + (51<<8), // puts PSP on the top stack
+
+		SAVP  = 0b10000010 + (52<<8), // save program register state
+		RSTP  = 0b11000010 + (53<<8), // restore program register state
+		SAVF  = 0b10000010 + (54<<8), // save frame register state
+		RSTF  = 0b11000010 + (55<<8), // restore frame register state
+
+		COUNT = 56 // The number of instructions in the instruction set.
 	};
 };
 
@@ -102,13 +121,21 @@ static const char *ISTR[XIS::COUNT] = {
 	TOSTR(REP),
 	TOSTR(CCP),
 	TOSTR(RCP),
-	TOSTR(HALT),
 	TOSTR(PUSH),
 	TOSTR(POP),
 	TOSTR(TOSS),
 	TOSTR(MOVD),
 	TOSTR(MOVU),
-	TOSTR(PEEK)
+	TOSTR(PEEK),
+	TOSTR(HALT),
+	TOSTR(IP),
+	TOSTR(SP),
+	TOSTR(FSP),
+	TOSTR(PSP),
+	TOSTR(SAVP),
+	TOSTR(RSTP),
+	TOSTR(SAVF),
+	TOSTR(RSTF)
 };
 
 #endif // XIS_H

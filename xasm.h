@@ -28,8 +28,11 @@
 // $frame -> call point stack pointer
 // $prog -> program point stack pointer
 
+/// @brief XASM token identifier.
 struct xtoken
 {
+	/// @brief The various constants representing an XASM token identifier.
+	/// @note The token constants do not correspond to the XIS constants.
 	enum tokentype
 	{
 		KEYWORD_INSTRUCTION = token::KEYWORD | (1<<8),
@@ -82,18 +85,23 @@ struct xtoken
 			KEYWORD_INSTRUCTION_MOVU,
 			KEYWORD_INSTRUCTION_PEEK,
 
-		KEYWORD_DIRECTIVE = token::KEYWORD | (2<<8),
-			KEYWORD_DIRECTIVE_EVAL,
-			KEYWORD_DIRECTIVE_SCOPE,
-			KEYWORD_DIRECTIVE_HERE,
-			KEYWORD_DIRECTIVE_LIT,
+		KEYWORD_DIRECTIVE = token::KEYWORD | (2<<8), // Directives are instructions intended for the assembler itself so that it can emit context sensitive code.
+			KEYWORD_DIRECTIVE_EVAL,    // Evaluates an expression of literals into a single literal.
+			KEYWORD_DIRECTIVE_SIZE,    // Evaluates the size of a given type.
+			KEYWORD_DIRECTIVE_SCOPE,   // Allows for the creation of variables with automatic storage duration.
+			KEYWORD_DIRECTIVE_HERE,    // Emits the absolute address of IP.
+			KEYWORD_DIRECTIVE_SYNTAX,  // Switch syntax modes (raw is the most verbose, but most efficient).
+			KEYWORD_DIRECTIVE_RAW,     // Raw syntax mode. Each token corresponds to either an instruction or a literal/alias.
+			KEYWORD_DIRECTIVE_SUGAR,   // Simplified syntax mode (default). Instructions can be repeated by providing several parameters. Less efficient than raw.
+			KEYWORD_DIRECTIVE_NOSTACK, // No-stack syntax mode. Gets rid of manual control of the stack. Most instructions take a destination and source parameter. Less efficient than sugar.
+			KEYWORD_DIRECTIVE_LIT,     // Defines a literal under a given alias.
 
-		OPERATOR_DIRECTIVE = token::OPERATOR | (1<<8),
+		OPERATOR_DIRECTIVE = token::OPERATOR | (3<<8),
 			OPERATOR_DIRECTIVE_AT,
 			OPERATOR_DIRECTIVE_ADDR,
 			OPERATOR_DIRECTIVE_DOLLAR,
 		
-		OPERATOR_ENCLOSE = token::OPERATOR | (2<<8),
+		OPERATOR_ENCLOSE = token::OPERATOR | (4<<8),
 			OPERATOR_ENCLOSE_PARENTHESIS = OPERATOR_ENCLOSE | (1<<4),
 				OPERATOR_ENCLOSE_PARENTHESIS_L,
 				OPERATOR_ENCLOSE_PARENTHESIS_R,
@@ -106,27 +114,33 @@ struct xtoken
 				OPERATOR_ENCLOSE_BRACE_L,
 				OPERATOR_ENCLOSE_BRACE_R,
 		
-		OPERATOR_STOP = token::OPERATOR | (1<<8),
+		OPERATOR_STOP = token::OPERATOR | (5<<8),
 		OPERATOR_COMMA,
 		OPERATOR_COLON,
 
-		LITERAL_INT = token::LITERAL | (1<<8)
+		LITERAL_INT = token::LITERAL | (6<<8)
 	};
 };
 
-/// @brief Lexes XASM code.
+/// @brief Lexes XASM assembly code.
 /// @param l The lexer.
 /// @return The lexed token.
 token xlex(lexer *l);
 
+/// @brief Contains metadata about an output XASM binary.
 struct xasm_output
 {
-	U16 binary_size;
-	U16 max_token_index;
+	U16 binary_size;     // The number of elements in the output binary. Zero if the assembly failed.
+	U16 max_token_index; // The highest reached index in the input token stream. Generally only interesting if the assembly failed.
 };
 
-// assemble_xasm
-// Assembles extended assembly language. Lots of syntactic sugar.
+/// @brief Assembles extended assembly language in the form of input tokens.
+/// @param max_tokens The maximum number of tokens that is allowed to be generated. Generally corresponds to the number of elements in the tokens parameter. If the assembler exceeds this limit the assembly fails.
+/// @param tokens The input token stream. 
+/// @param max_binary_body The maximum number of output words that is allowed to be generated. Generally corresponds to the number of elements in the body parameter. If the assember exceeds this limit the assembly fails.
+/// @param body The output binary write target.
+/// @return Metadata relating to the output assembly.
+/// @sa xlex
 xasm_output assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
 
 #endif
