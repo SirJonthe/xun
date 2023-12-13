@@ -1,7 +1,7 @@
 #include "xasm.h"
 #include "lib/MiniLib/MTL/mtlList.h"
 
-const signed X_TOKEN_COUNT = 35;
+const signed X_TOKEN_COUNT = 37;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("put",                     3, xtoken::KEYWORD_INSTRUCTION_PUT),
@@ -20,19 +20,20 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("and",                     3, xtoken::KEYWORD_INSTRUCTION_AND),
 	new_keyword ("or",                      2, xtoken::KEYWORD_INSTRUCTION_OR),
 	new_keyword ("xor",                     3, xtoken::KEYWORD_INSTRUCTION_XOR),
-	//new_keyword ("movu",                    4, xtoken::KEYWORD_INSTRUCTION_MOVU),
-	//new_keyword ("movd",                    4, xtoken::KEYWORD_INSTRUCTION_MOVD),
+	new_keyword ("movu",                    4, xtoken::KEYWORD_INSTRUCTION_MOVU), // as many as you want
+//	new_keyword ("movd",                    4, xtoken::KEYWORD_INSTRUCTION_MOVD), // no args
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),
 	new_operator("$",                       1, xtoken::OPERATOR_DIRECTIVE_DOLLAR),
 	new_keyword ("eval",                    4, xtoken::KEYWORD_DIRECTIVE_EVAL),
 	new_keyword ("size",                    4, xtoken::KEYWORD_DIRECTIVE_SIZE),
+	new_keyword ("bin",                     3, xtoken::KEYWORD_DIRECTIVE_BIN),
 	new_keyword ("scope",                   5, xtoken::KEYWORD_DIRECTIVE_SCOPE),
 	new_keyword ("here",                    4, xtoken::KEYWORD_DIRECTIVE_HERE),
 	new_keyword ("syntax",                  6, xtoken::KEYWORD_DIRECTIVE_SYNTAX),
-	//new_keyword ("top",                     3, 0),
-	//new_keyword ("frame",                   5, 0),
-	//new_keyword ("entry",                   5, 0),
+//	new_keyword ("top",                     3, 0),
+//	new_keyword ("frame",                   5, 0),
+//	new_keyword ("entry",                   5, 0),
 	new_keyword ("lit",                     3, xtoken::KEYWORD_DIRECTIVE_LIT),
 	new_operator(":",                       1, xtoken::OPERATOR_COLON),
 	new_operator("[",                       1, xtoken::OPERATOR_ENCLOSE_BRACKET_L),
@@ -293,8 +294,8 @@ static bool parse_decl_arr(parser_state ps)
 	if (manage_state(ps, parse_decl_var(new_state(ps.p, ps.end)) && parse_decl_mem(new_state(ps.p, ps.end)))) {
 		U16 size = ps.p->scopes.scopes[ps.p->scopes.index].lsp - lsp;
 		if (size == 0) { return false; }
-		ps.p->scopes.scopes[ps.p->scopes.index].lsp -= 1;
-		ps.p->scopes.scopes[ps.p->scopes.index].symbols.GetLast()->GetItem().size += (size - 1);
+		ps.p->scopes.scopes[ps.p->scopes.index].lsp -= 1; // TODO: Maybe LSP should not be modified at all. Verify.
+		ps.p->scopes.scopes[ps.p->scopes.index].symbols.GetLast()->GetItem().size = size - 1;
 		return true;
 	}
 	return false;
@@ -337,9 +338,38 @@ static bool parse_directive_scope(parser_state ps)
 	return false;
 }
 
+static bool parse_directive_bin(parser_state ps)
+{
+	if (!(write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{0}) && write_word(ps.p->out.body, XWORD{XIS::SKIP}))) {
+		return false;
+	}
+	U16 ip = ps.p->out.body.index;
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xtoken::KEYWORD_DIRECTIVE_BIN) &&
+			parse_emit_lit_list(new_state(ps.p, xtoken::OPERATOR_STOP)) &&
+			match(ps.p, xtoken::OPERATOR_STOP)
+		)
+	) {
+		ps.p->out.body.buffer[ip - 2].u = ps.p->out.body.index - ip;
+		return true;
+	}
+	return false;
+}
+
 static bool parse_directive(parser_state ps)
 {
-	if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR) && parse_directive_scope(new_state(ps.p, ps.end)))) {
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR) &&
+			(
+				parse_directive_scope(new_state(ps.p, ps.end)) ||
+				parse_directive_bin(new_state(ps.p, ps.end))
+			)
+		)
+	) {
 		return true;
 	}
 	return false;
@@ -411,7 +441,7 @@ static bool parse_var_size(parser_state ps)
 	if (match(ps.p, token::ALIAS)) {
 		U16 sp_offset; // unused
 		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
-		if (sym != NULL) { return false; }
+		if (sym == NULL) { return false; }
 		return write_word(ps.p->out.body, XWORD{sym->size});
 	}
 	return false;
@@ -435,7 +465,7 @@ static bool parse_directive_size(parser_state ps)
 
 static bool parse_lit_directive(parser_state ps)
 {
-	if (manage_state(ps, parse_directive_eval(new_state(ps.p, ps.end)) && parse_directive_size(new_state(ps.p, ps.end)))) {
+	if (manage_state(ps, parse_directive_eval(new_state(ps.p, ps.end)) || parse_directive_size(new_state(ps.p, ps.end)))) {
 		return true;
 	}
 	return false;
@@ -569,7 +599,8 @@ static bool parse_instructions(parser_state ps)
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_AND,  XIS::AND)  ||
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_OR,   XIS::OR)   ||
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_XOR,  XIS::XOR)  ||
-				parse_instruction_jmp(new_state(ps.p, ps.end))
+				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MOVU, XIS::MOVU) ||
+				parse_instruction_jmp     (new_state(ps.p, ps.end))
 			) &&
 			match(ps.p, xtoken::OPERATOR_STOP)
 		)
@@ -581,9 +612,8 @@ static bool parse_instructions(parser_state ps)
 
 static bool parse_emit_lit_list(parser_state ps)
 {
-	// TODO: This will need an IP skip ahead - otherwise we may execute the binary data.
 	if (manage_state(ps, parse_lit(new_state(ps.p, ps.end)))) {
-		return match(ps.p, xtoken::OPERATOR_STOP) || (match(ps.p, xtoken::OPERATOR_COMMA) && parse_emit_lit_list(new_state(ps.p, ps.end)));
+		return peek(ps.p).user_type == ps.end || (match(ps.p, xtoken::OPERATOR_COMMA) && parse_emit_lit_list(new_state(ps.p, ps.end)));
 	}
 	return false;
 }
@@ -594,7 +624,6 @@ static bool parse_statements(parser_state ps)
 		if (
 			!manage_state(
 				ps,
-	//			parse_emit_lit_list(new_state(ps.p, ps.end)) || // TODO: Need to fix IP skip ahead before I let this stay.
 				parse_directive(new_state(ps.p, ps.end)) ||
 				parse_instructions(new_state(ps.p, ps.end))
 			)

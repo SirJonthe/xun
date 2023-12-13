@@ -88,6 +88,7 @@ struct xtoken
 		KEYWORD_DIRECTIVE = token::KEYWORD | (2<<8), // Directives are instructions intended for the assembler itself so that it can emit context sensitive code.
 			KEYWORD_DIRECTIVE_EVAL,    // Evaluates an expression of literals into a single literal.
 			KEYWORD_DIRECTIVE_SIZE,    // Evaluates the size of a given type.
+			KEYWORD_DIRECTIVE_BIN,     // Allows for the dump of data inside the binary.
 			KEYWORD_DIRECTIVE_SCOPE,   // Allows for the creation of variables with automatic storage duration.
 			KEYWORD_DIRECTIVE_HERE,    // Emits the absolute address of IP.
 			KEYWORD_DIRECTIVE_SYNTAX,  // Switch syntax modes (raw is the most verbose, but most efficient).

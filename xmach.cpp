@@ -26,6 +26,14 @@ Machine::Machine( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]",
 // but can be any program.
 void Machine::Feed(const Binary &bin)
 {
+	return Feed(&bin[0], bin.GetSize());
+}
+
+// Flash memory with a program.
+// Ideally should be an OS that can load other programs,
+// but can be any program.
+void Machine::Feed(const XWORD *bin, U16 bin_count)
+{
 	// TODO:
 	// This feeds a bootloader into STORAGE
 	// When computer boots, the machine FIRMWARE (a small read-only program) pulls the main executable from STORAGE into RAM.
@@ -34,7 +42,7 @@ void Machine::Feed(const Binary &bin)
 	SP.u = U_MAX;
 	IP.u = 0;
 	EP.u = 0;
-	for (CP.u = 0; CP.u < bin.GetSize(); ++CP.u) {
+	for (CP.u = 0; CP.u < bin_count; ++CP.u) {
 		AT(CP) = bin[CP.u];
 	}
 }
@@ -71,9 +79,9 @@ XWORD Machine::PeekCP(U16 addr)
 
 XWORD Machine::Cycle( void )
 {
-	std::cout << "\tI" << IP.u << "=";
-	if (AT(IP).u < XIS::COUNT) { std::cout << ISTR[AT(IP).u] << std::endl; }
-	else                       { std::cout << "ERR(" << AT(IP).u << ")" << std::endl; }
+//	std::cout << "\tI" << IP.u << "=";
+//	if (AT(IP).u < XIS::COUNT) { std::cout << ISTR[AT(IP).u] << std::endl; }
+//	else                       { std::cout << "ERR(" << AT(IP).u << ")" << std::endl; }
 	switch (READI) {
 	case XIS::NOP:
 		break;
@@ -284,9 +292,9 @@ XWORD Machine::Cycle( void )
 		ERR.u |= ERR_UNDEF;
 		break;
 	}
-	std::cout << "\tS" << SP.u << "=" << TOP.u << std::endl;
-	std::cout << "\tE" << EP.u << "=" << AT(EP).u << std::endl;
-	std::cout << "\tC" << CP.u << "=" << AT(CP).u << std::endl;
+//	std::cout << "\tS" << SP.u << "=" << TOP.u << std::endl;
+//	std::cout << "\tE" << EP.u << "=" << AT(EP).u << std::endl;
+//	std::cout << "\tC" << CP.u << "=" << AT(CP).u << std::endl;
 	return RAM[IP.u];
 }
 
