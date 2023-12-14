@@ -24,15 +24,15 @@ Machine::Machine( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]",
 // Flash memory with a program.
 // Ideally should be an OS that can load other programs,
 // but can be any program.
-void Machine::Feed(const Binary &bin)
+void Machine::Feed(const Binary &bin, bool debug)
 {
-	return Feed(&bin[0], bin.GetSize());
+	return Feed(&bin[0], bin.GetSize(), debug);
 }
 
 // Flash memory with a program.
 // Ideally should be an OS that can load other programs,
 // but can be any program.
-void Machine::Feed(const XWORD *bin, U16 bin_count)
+void Machine::Feed(const XWORD *bin, U16 bin_count, bool debug)
 {
 	// TODO:
 	// This feeds a bootloader into STORAGE
@@ -44,6 +44,11 @@ void Machine::Feed(const XWORD *bin, U16 bin_count)
 	EP.u = 0;
 	for (CP.u = 0; CP.u < bin_count; ++CP.u) {
 		AT(CP) = bin[CP.u];
+	}
+	if (debug) {
+		for (unsigned i = CP.u; i < U_MAX; ++i) {
+			AT(XWORD{U16(i)}).u = 0;
+		}
 	}
 }
 

@@ -1,9 +1,10 @@
 #include "xasm.h"
 #include "lib/MiniLib/MTL/mtlList.h"
 
-const signed X_TOKEN_COUNT = 37;
+const signed X_TOKEN_COUNT = 39;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
+	new_keyword ("set",                     3, xtoken::KEYWORD_INSTRUCTION_SET),
 	new_keyword ("put",                     3, xtoken::KEYWORD_INSTRUCTION_PUT),
 	new_keyword ("add",                     3, xtoken::KEYWORD_INSTRUCTION_ADD),
 	new_keyword ("sub",                     3, xtoken::KEYWORD_INSTRUCTION_SUB),
@@ -22,6 +23,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("xor",                     3, xtoken::KEYWORD_INSTRUCTION_XOR),
 	new_keyword ("movu",                    4, xtoken::KEYWORD_INSTRUCTION_MOVU), // as many as you want
 //	new_keyword ("movd",                    4, xtoken::KEYWORD_INSTRUCTION_MOVD), // no args
+	new_keyword ("toss",                    4, xtoken::KEYWORD_INSTRUCTION_TOSS),
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),
 	new_operator("$",                       1, xtoken::OPERATOR_DIRECTIVE_DOLLAR),
@@ -273,7 +275,7 @@ static bool parse_decl_var(parser_state ps)
 {
 	const token t = peek(ps.p);
 	if (manage_state(ps, match(ps.p, token::ALIAS))) {
-		if (!add_var(t.chars, chcount(t.chars), ps.p->scopes)) { return false; }
+		if (add_var(t.chars, chcount(t.chars), ps.p->scopes) == NULL) { return false; }
 		return true;
 	}
 	return false;
@@ -358,6 +360,31 @@ static bool parse_directive_bin(parser_state ps)
 	return false;
 }
 
+static bool parse_decl_lit(parser_state ps)
+{
+	token t = peek(ps.p);
+	if (manage_state(ps, match(ps.p, token::ALIAS) && match(ps.p, xtoken::OPERATOR_COMMA) && parse_lit(new_state(ps.p, ps.end)))) {
+		if (add_lit(t.chars, chcount(t.chars), ps.p->out.body.buffer[--ps.p->out.body.index].u, ps.p->scopes) == NULL) { return false; }
+		return true;
+	}
+	return false;
+}
+
+static bool parse_directive_lit(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xtoken::KEYWORD_DIRECTIVE_LIT) &&
+			parse_decl_lit(new_state(ps.p, xtoken::OPERATOR_STOP)) &&
+			match(ps.p, xtoken::OPERATOR_STOP)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool parse_directive(parser_state ps)
 {
 	if (
@@ -366,7 +393,8 @@ static bool parse_directive(parser_state ps)
 			match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR) &&
 			(
 				parse_directive_scope(new_state(ps.p, ps.end)) ||
-				parse_directive_bin(new_state(ps.p, ps.end))
+				parse_directive_bin(new_state(ps.p, ps.end)) ||
+				parse_directive_lit(new_state(ps.p, ps.end))
 			)
 		)
 	) {
@@ -576,6 +604,30 @@ static bool parse_instruction_jmp(parser_state ps)
 	return false;
 }
 
+static bool parse_instruction_set(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xtoken::KEYWORD_INSTRUCTION_SET) &&
+			parse_var(new_state(ps.p, ps.end)) &&
+			match(ps.p, xtoken::OPERATOR_COMMA) &&
+			parse_param(new_state(ps.p, ps.end))
+		)
+	) {
+		return write_word(ps.p->out.body, XWORD{XIS::MOVD});
+	}
+	return false;
+}
+
+static bool parse_instruction_toss(parser_state ps)
+{
+	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_TOSS))) {
+		return write_word(ps.p->out.body, XWORD{XIS::TOSS});
+	}
+	return false;
+}
+
 static bool parse_instructions(parser_state ps)
 {
 	if (
@@ -600,7 +652,9 @@ static bool parse_instructions(parser_state ps)
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_OR,   XIS::OR)   ||
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_XOR,  XIS::XOR)  ||
 				parse_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MOVU, XIS::MOVU) ||
-				parse_instruction_jmp     (new_state(ps.p, ps.end))
+				parse_instruction_jmp     (new_state(ps.p, ps.end))                                              ||
+				parse_instruction_set     (new_state(ps.p, ps.end))                                              ||
+				parse_instruction_toss    (new_state(ps.p, ps.end))
 			) &&
 			match(ps.p, xtoken::OPERATOR_STOP)
 		)
