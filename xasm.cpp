@@ -1,7 +1,7 @@
 #include "xasm.h"
 #include "lib/MiniLib/MTL/mtlList.h"
 
-const signed X_TOKEN_COUNT = 39;
+const signed X_TOKEN_COUNT = 42;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("set",                     3, xtoken::KEYWORD_INSTRUCTION_SET),
@@ -21,7 +21,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("and",                     3, xtoken::KEYWORD_INSTRUCTION_AND),
 	new_keyword ("or",                      2, xtoken::KEYWORD_INSTRUCTION_OR),
 	new_keyword ("xor",                     3, xtoken::KEYWORD_INSTRUCTION_XOR),
-	new_keyword ("movu",                    4, xtoken::KEYWORD_INSTRUCTION_MOVU), // as many as you want
+	new_keyword ("movu",                    4, xtoken::KEYWORD_INSTRUCTION_MOVU),
 //	new_keyword ("movd",                    4, xtoken::KEYWORD_INSTRUCTION_MOVD), // no args
 	new_keyword ("toss",                    4, xtoken::KEYWORD_INSTRUCTION_TOSS),
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
@@ -31,11 +31,11 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("size",                    4, xtoken::KEYWORD_DIRECTIVE_SIZE),
 	new_keyword ("bin",                     3, xtoken::KEYWORD_DIRECTIVE_BIN),
 	new_keyword ("scope",                   5, xtoken::KEYWORD_DIRECTIVE_SCOPE),
-	new_keyword ("here",                    4, xtoken::KEYWORD_DIRECTIVE_HERE),
 	new_keyword ("syntax",                  6, xtoken::KEYWORD_DIRECTIVE_SYNTAX),
-//	new_keyword ("top",                     3, 0),
-//	new_keyword ("frame",                   5, 0),
-//	new_keyword ("entry",                   5, 0),
+	new_keyword ("here",                    4, xtoken::KEYWORD_DIRECTIVE_HERE),
+	new_keyword ("top",                     3, xtoken::KEYWORD_DIRECTIVE_TOP),
+	new_keyword ("frame",                   5, xtoken::KEYWORD_DIRECTIVE_FRAME),
+	new_keyword ("entry",                   5, xtoken::KEYWORD_DIRECTIVE_ENTRY),
 	new_keyword ("lit",                     3, xtoken::KEYWORD_DIRECTIVE_LIT),
 	new_operator(":",                       1, xtoken::OPERATOR_COLON),
 	new_operator("[",                       1, xtoken::OPERATOR_ENCLOSE_BRACKET_L),
@@ -254,7 +254,6 @@ static bool parse_var_addr         (parser_state ps);
 static bool parse_var              (parser_state ps);
 static bool parse_lit              (parser_state ps);
 static bool parse_param            (parser_state ps);
-static bool parse_param_list       (parser_state ps);
 static bool parse_directive_at     (parser_state ps);
 static bool parse_instruction_put  (parser_state ps);
 static bool parse_instructions     (parser_state ps);
@@ -412,14 +411,50 @@ static bool parse_lit_index(parser_state ps)
 	return false;
 }
 
+static U16 try_parse_index(parser_state &ps)
+{
+	U16 index = 0;
+	if (parse_lit_index(new_state(ps.p, ps.end))) {
+		index = ps.p->out.body.buffer[--ps.p->out.body.index].u;
+	}
+	return index;
+}
+
+static bool parse_register_addr(parser_state ps)
+{
+	if (match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR)) {
+		if (match(ps.p, xtoken::KEYWORD_DIRECTIVE_HERE)) {
+			U16 index = try_parse_index(ps);
+			--ps.p->out.body.index; // We have already written PUT to the output, but we need to change that to a PUTI.
+			return index == 0 ?
+				(write_word(ps.p->out.body, XWORD{XIS::PUTI})) :
+				(write_word(ps.p->out.body, XWORD{XIS::PUTI}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::ADD}));
+		} else if (match(ps.p, xtoken::KEYWORD_DIRECTIVE_TOP)) {
+			U16 index = try_parse_index(ps);
+			--ps.p->out.body.index; // We have already written PUT to the output, but we need to change that to a PUTS.
+			return index == 0 ?
+				(write_word(ps.p->out.body, XWORD{XIS::PUTS})) :
+				(write_word(ps.p->out.body, XWORD{XIS::PUTS}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::SUB}));
+		} else if (match(ps.p, xtoken::KEYWORD_DIRECTIVE_FRAME)) {
+			U16 index = try_parse_index(ps);
+			return index == 0 ?
+				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::CREL})) :
+				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::CREL}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::ADD}));
+		} else if (match(ps.p, xtoken::KEYWORD_DIRECTIVE_ENTRY)) {
+			U16 index = try_parse_index(ps);
+			return index == 0 ?
+				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::EREL})) :
+				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::EREL}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::ADD}));
+		}
+	}
+	return false;
+}
+
 static bool parse_var_addr(parser_state ps)
 {
 	token t = peek(ps.p);
 	if (match(ps.p, token::ALIAS)) {
-		U16 index = 0;
-		if (parse_lit_index(new_state(ps.p, ps.end))) { // NOTE: This is optional, so do NOT manage the state, i.e. roll-back to the previous index because we assume we can just resume reading at whatever position we left off.
-			index = ps.p->out.body.buffer[--ps.p->out.body.index].u;
-		}
+		U16 index = try_parse_index(ps);
 		U16 sp_offset = 0;
 		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
 		if (sym == NULL || sym->lit) { return false; }
@@ -432,7 +467,7 @@ static bool parse_var_addr(parser_state ps)
 
 static bool parse_var(parser_state ps)
 {
-	if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_ADDR) && parse_var_addr(new_state(ps.p, ps.end)))) {
+	if (manage_state(ps, parse_register_addr(new_state(ps.p, ps.end)) || (match(ps.p, xtoken::OPERATOR_DIRECTIVE_ADDR) && parse_var_addr(new_state(ps.p, ps.end))))) {
 		return true;
 	}
 	if (manage_state(ps, parse_var_addr(new_state(ps.p, ps.end)))) {
@@ -532,26 +567,24 @@ static bool parse_param(parser_state ps)
 	return false;
 }
 
-static bool parse_put_param(parser_state ps)
+static bool parse_putparam(parser_state ps)
 {
-	if (
-		manage_state(
-			ps,
-			write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
-			parse_param(new_state(ps.p, ps.end)) &&
-			(!match(ps.p, xtoken::OPERATOR_COMMA) || parse_put_param(new_state(ps.p, ps.end)))
-		)
-	) {
+	if (write_word(ps.p->out.body, XWORD{XIS::PUT}) && parse_param(new_state(ps.p, ps.end))) {
 		return true;
 	}
 	return false;
 }
 
-static bool parse_param_list(parser_state ps)
+static bool parse_put_param(parser_state ps)
 {
-	if (peek(ps.p).user_type == ps.end) { return true; }
-	if (manage_state(ps, parse_param(new_state(ps.p, ps.end)))) {
-		return match(ps.p, xtoken::OPERATOR_COMMA) ? parse_param_list(new_state(ps.p, ps.end)) : true;
+	if (
+		manage_state(
+			ps,
+			parse_putparam(new_state(ps.p, ps.end)) &&
+			(!match(ps.p, xtoken::OPERATOR_COMMA) || parse_put_param(new_state(ps.p, ps.end)))
+		)
+	) {
+		return true;
 	}
 	return false;
 }
@@ -577,8 +610,7 @@ static bool parse_repeat_param(parser_state ps, U16 repeat_instruction)
 	if (
 		manage_state(
 			ps,
-			write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
-			parse_param(new_state(ps.p, ps.end)) &&
+			parse_putparam(new_state(ps.p, ps.end)) &&
 			write_word(ps.p->out.body, XWORD{repeat_instruction}) &&
 			(!match(ps.p, xtoken::OPERATOR_COMMA) || parse_repeat_param(new_state(ps.p, ps.end), repeat_instruction))
 		)
@@ -610,9 +642,9 @@ static bool parse_instruction_set(parser_state ps)
 		manage_state(
 			ps,
 			match(ps.p, xtoken::KEYWORD_INSTRUCTION_SET) &&
-			parse_var(new_state(ps.p, ps.end)) &&
-			match(ps.p, xtoken::OPERATOR_COMMA) &&
-			parse_param(new_state(ps.p, ps.end))
+			parse_putparam(new_state(ps.p, ps.end))      &&
+			match(ps.p, xtoken::OPERATOR_COMMA)          &&
+			parse_putparam(new_state(ps.p, ps.end))
 		)
 	) {
 		return write_word(ps.p->out.body, XWORD{XIS::MOVD});

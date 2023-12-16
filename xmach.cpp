@@ -276,6 +276,14 @@ XWORD Machine::Cycle( void )
 		PUSH_STACK(1);
 		TOP.u = READI;
 		break;
+	case XIS::PUTS:
+		PUSH_STACK(1);
+		TOP.u = SP.u + CP.u;
+		break;
+	case XIS::PUTI:
+		PUSH_STACK(1);
+		TOP.u = IP.u;
+		break;
 	case XIS::TOSS:
 		POP_STACK(1);
 		break;

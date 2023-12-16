@@ -91,12 +91,15 @@ struct xtoken
 			KEYWORD_DIRECTIVE_SIZE,    // Evaluates the size of a given type.
 			KEYWORD_DIRECTIVE_BIN,     // Allows for the dump of data inside the binary.
 			KEYWORD_DIRECTIVE_SCOPE,   // Allows for the creation of variables with automatic storage duration.
-			KEYWORD_DIRECTIVE_HERE,    // Emits the absolute address of IP.
 			KEYWORD_DIRECTIVE_SYNTAX,  // Switch syntax modes (raw is the most verbose, but most efficient).
 			KEYWORD_DIRECTIVE_RAW,     // Raw syntax mode. Each token corresponds to either an instruction or a literal/alias.
 			KEYWORD_DIRECTIVE_SUGAR,   // Simplified syntax mode (default). Instructions can be repeated by providing several parameters. Less efficient than raw.
 			KEYWORD_DIRECTIVE_NOSTACK, // No-stack syntax mode. Gets rid of manual control of the stack. Most instructions take a destination and source parameter. Less efficient than sugar.
 			KEYWORD_DIRECTIVE_LIT,     // Defines a literal under a given alias.
+			KEYWORD_DIRECTIVE_HERE,    // Emits the absolute address of IP.
+			KEYWORD_DIRECTIVE_TOP,     // Emits the top stack value of SP
+			KEYWORD_DIRECTIVE_FRAME,   // Emtis the top stack value of the frame.
+			KEYWORD_DIRECTIVE_ENTRY,   // Emits the top stack value of the program stack entry point.
 
 		OPERATOR_DIRECTIVE = token::OPERATOR | (3<<8),
 			OPERATOR_DIRECTIVE_AT,
