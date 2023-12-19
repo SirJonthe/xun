@@ -99,7 +99,7 @@ struct xtoken
 			KEYWORD_DIRECTIVE_HERE,    // Emits the absolute address of IP.
 			KEYWORD_DIRECTIVE_TOP,     // Emits the top stack value of SP
 			KEYWORD_DIRECTIVE_FRAME,   // Emtis the top stack value of the frame.
-			KEYWORD_DIRECTIVE_ENTRY,   // Emits the top stack value of the program stack entry point.
+			KEYWORD_DIRECTIVE_BOTTOM,  // Emits the top stack value of the program stack entry point (the bottom at program start).
 
 		OPERATOR_DIRECTIVE = token::OPERATOR | (3<<8),
 			OPERATOR_DIRECTIVE_AT,
