@@ -132,11 +132,26 @@ struct xtoken
 /// @return The lexed token.
 token xlex(lexer *l);
 
+struct xbinary
+{
+	struct buffer
+	{
+		XWORD *buffer;
+		U16    capacity;
+		U16    index;
+	};
+	buffer head;
+	buffer body;
+	buffer tail;
+};
+
 /// @brief Contains metadata about an output XASM binary.
 struct xasm_output
 {
-	U16 binary_size;     // The number of elements in the output binary. Zero if the assembly failed.
-	U16 max_token_index; // The highest reached index in the input token stream. Generally only interesting if the assembly failed.
+	lexer   l;               // The state of the lexer when successfully exiting the assembler.
+	xbinary out;             // The state of the output binary when successfully existing the assembler.
+	U16     binary_size;     // The number of elements in the output binary. Zero if the assembly failed.
+	U16     max_token_index; // The highest reached index in the input token stream. Generally only interesting if the assembly failed.
 };
 
 /// @brief Assembles extended assembly language in the form of input tokens.
@@ -147,5 +162,12 @@ struct xasm_output
 /// @return Metadata relating to the output assembly.
 /// @sa xlex
 xasm_output assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
+
+/// @brief Assembles extended assembly language in the form of input tokens.
+/// @param l The lexer to be used to read code.
+/// @param memory The memory to write to.
+/// @return Metadata relating to the output assembly.
+/// @sa xlex
+xasm_output assemble_xasm(lexer l, xbinary memory);
 
 #endif
