@@ -299,6 +299,12 @@ XWORD Machine::Cycle( void )
 		RAM[TOP.u] = LST;
 		POP_STACK(1);
 		break;
+	case XIS::CJMP:
+		if (LST.u) {
+			IP.u = TOP.u;
+		}
+		POP_STACK(2);
+		break;
 
 	default:
 		// Generate a hardware exception here that will allow a potential OS to recover.

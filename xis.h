@@ -77,7 +77,9 @@ struct XIS
 		SAVF  = 0b10000010 + (56<<8), // save frame register state
 		RSTF  = 0b11000010 + (57<<8), // restore frame register state
 
-		COUNT = 58 // The number of instructions in the instruction set.
+		CJMP  = 0b01001000 + (58<<8), // Jump to the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
+
+		COUNT = 59 // The number of instructions in the instruction set.
 	};
 };
 
@@ -139,7 +141,8 @@ static const char *ISTR[XIS::COUNT] = {
 	TOSTR(SAVP),
 	TOSTR(RSTP),
 	TOSTR(SAVF),
-	TOSTR(RSTF)
+	TOSTR(RSTF),
+	TOSTR(CJMP)
 };
 
 #endif // XIS_H

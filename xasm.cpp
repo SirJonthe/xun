@@ -1,7 +1,7 @@
 #include "xasm.h"
 #include "lib/MiniLib/MTL/mtlList.h"
 
-const signed X_TOKEN_COUNT = 42;
+const signed X_TOKEN_COUNT = 56;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("set",                     3, xtoken::KEYWORD_INSTRUCTION_SET),
@@ -24,8 +24,20 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("movu",                    4, xtoken::KEYWORD_INSTRUCTION_MOVU),
 //	new_keyword ("movd",                    4, xtoken::KEYWORD_INSTRUCTION_MOVD), // no args
 	new_keyword ("toss",                    4, xtoken::KEYWORD_INSTRUCTION_TOSS),
+	new_keyword ("eq",                      2, xtoken::KEYWORD_INSTRUCTION_EQ),
+	new_keyword ("ne",                      2, xtoken::KEYWORD_INSTRUCTION_NE),
+	new_keyword ("gt",                      2, xtoken::KEYWORD_INSTRUCTION_GT),
+	new_keyword ("lt",                      2, xtoken::KEYWORD_INSTRUCTION_LT),
+	new_keyword ("ge",                      2, xtoken::KEYWORD_INSTRUCTION_GE),
+	new_keyword ("le",                      2, xtoken::KEYWORD_INSTRUCTION_LE),
+	new_keyword ("igt",                     3, xtoken::KEYWORD_INSTRUCTION_IGT),
+	new_keyword ("ilt",                     3, xtoken::KEYWORD_INSTRUCTION_ILT),
+	new_keyword ("ige",                     3, xtoken::KEYWORD_INSTRUCTION_IGE),
+	new_keyword ("ile",                     3, xtoken::KEYWORD_INSTRUCTION_ILE),
+	new_keyword ("do",                      2, xtoken::KEYWORD_INSTRUCTION_DO),
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),
+	new_operator("%",                       1, xtoken::OPERATOR_DIRECTIVE_LABEL),
 	new_operator("$",                       1, xtoken::OPERATOR_DIRECTIVE_DOLLAR),
 	new_keyword ("eval",                    4, xtoken::KEYWORD_DIRECTIVE_EVAL),
 	new_keyword ("size",                    4, xtoken::KEYWORD_DIRECTIVE_SIZE),
@@ -35,16 +47,18 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("here",                    4, xtoken::KEYWORD_DIRECTIVE_HERE),
 	new_keyword ("top",                     3, xtoken::KEYWORD_DIRECTIVE_TOP),
 	new_keyword ("frame",                   5, xtoken::KEYWORD_DIRECTIVE_FRAME),
-	new_keyword ("bottom",                  6, xtoken::KEYWORD_DIRECTIVE_BOTTOM),
+	new_keyword ("base",                    4, xtoken::KEYWORD_DIRECTIVE_BASE),
 	new_keyword ("lit",                     3, xtoken::KEYWORD_DIRECTIVE_LIT),
 	new_operator(":",                       1, xtoken::OPERATOR_COLON),
 	new_operator("[",                       1, xtoken::OPERATOR_ENCLOSE_BRACKET_L),
 	new_operator("]",                       1, xtoken::OPERATOR_ENCLOSE_BRACKET_R),
 	new_operator("{",                       1, xtoken::OPERATOR_ENCLOSE_BRACE_L),
 	new_operator("}",                       1, xtoken::OPERATOR_ENCLOSE_BRACE_R),
+	new_operator("(",                       1, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L),
+	new_operator(")",                       1, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R),
 	new_operator(",",                       1, xtoken::OPERATOR_COMMA),
 	new_operator(".",                       1, xtoken::OPERATOR_STOP),
-	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22, token::ALIAS),
+	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,  token::ALIAS),
 	new_literal ("[0-9]+",                  6, xtoken::LITERAL_INT)
 };
 
@@ -223,8 +237,6 @@ static bool match(parser *p, unsigned type)
 	return false;
 }
 
-
-
 struct parser_state
 {
 	parser   *p;
@@ -273,6 +285,14 @@ static bool try_instruction_nop(parser_state ps)
 {
 	if (match(ps.p, xtoken::KEYWORD_INSTRUCTION_NOP)) {
 		return write_word(ps.p->out.body, XWORD{XIS::NOP});
+	}
+	return false;
+}
+
+static bool try_instruction_do(parser_state ps)
+{
+	if (match(ps.p, xtoken::KEYWORD_INSTRUCTION_DO)) {
+		return write_word(ps.p->out.body, XWORD{XIS::DO});
 	}
 	return false;
 }
@@ -457,7 +477,7 @@ static bool try_reg(parser_state ps)
 			return index == 0 ?
 				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::CREL})) :
 				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::CREL}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::ADD}));
-		} else if (match(ps.p, xtoken::KEYWORD_DIRECTIVE_BOTTOM)) {
+		} else if (match(ps.p, xtoken::KEYWORD_DIRECTIVE_BASE)) {
 			U16 index = parse_lit_index(ps);
 			return index == 0 ?
 				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::EREL})) :
@@ -687,6 +707,7 @@ static bool try_instructions(parser_state ps)
 			ps,
 			(
 				try_instruction_nop     (new_state(ps.p, ps.end))                                              ||
+				try_instruction_do      (new_state(ps.p, ps.end))                                              ||
 				try_instruction_put     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ADD,  XIS::ADD)  ||
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_SUB,  XIS::SUB)  ||
@@ -704,6 +725,16 @@ static bool try_instructions(parser_state ps)
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_OR,   XIS::OR)   ||
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_XOR,  XIS::XOR)  ||
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_MOVU, XIS::MOVU) ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_EQ,   XIS::EQ)   ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_NE,   XIS::NE)   ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_LE,   XIS::LE)   ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_GE,   XIS::GE)   ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_LT,   XIS::LT)   ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_GT,   XIS::GT)   ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ILE,  XIS::ILE)  ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IGE,  XIS::IGE)  ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ILT,  XIS::ILT)  ||
+				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IGT,  XIS::IGT)  ||
 				try_instruction_jmp     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_set     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_toss    (new_state(ps.p, ps.end))
