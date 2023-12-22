@@ -86,13 +86,20 @@ struct scope
 {
 	struct symbol
 	{
+		enum type_t { VAR, LIT, LBL };
 		char     name[32];
 		XWORD    data;
-		unsigned lit;
+		unsigned type;
 		U16      size;
 	};
-	mtlList<symbol> symbols;
-	U16             lsp; // local stack pointer
+	struct fwd_label
+	{
+		char   name[32];
+		XWORD *loc;
+	};
+	mtlList<symbol>    symbols;
+	mtlList<fwd_label> fwd_labels; // labels that the user wants to jump to before they have been declared.
+	U16                lsp;        // local stack pointer.
 };
 
 struct scope_stack
@@ -105,12 +112,14 @@ static void push_scope(scope_stack &ss)
 {
 	++ss.index;
 	ss.scopes[ss.index].symbols.RemoveAll();
+	ss.scopes[ss.index].fwd_labels.RemoveAll();
 	ss.scopes[ss.index].lsp = 0;
 }
 
 static void pop_scope(scope_stack &ss)
 {
 	ss.scopes[ss.index].symbols.RemoveAll();
+	ss.scopes[ss.index].fwd_labels.RemoveAll();
 	ss.scopes[ss.index].lsp = 0;
 	--ss.index;
 }
@@ -147,7 +156,17 @@ scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_sta
 	return NULL;
 }
 
-scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope &s)
+scope::symbol *find_label(const char *name, unsigned name_char_count, scope &ss)
+{
+	for (mtlItem<scope::symbol> *n = ss.symbols.GetFirst(); n != NULL; n = n->GetNext()) {
+		if (n->GetItem().type == scope::symbol::LBL && strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
+			return &n->GetItem();
+		}
+	}
+	return NULL;
+}
+
+scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, scope &s)
 {
 	for (mtlItem<scope::symbol> *i = s.symbols.GetFirst(); i != NULL; i = i->GetNext()) {
 		if (strcmp(i->GetItem().name, chcount(i->GetItem().name), name, name_char_count)) {
@@ -157,15 +176,11 @@ scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned l
 	scope::symbol &sym = s.symbols.AddLast();
 	const unsigned count = name_char_count < sizeof(sym.name) - 1 ? name_char_count : sizeof(sym.name) - 1;
 	unsigned i;
-	for (i = 0; i < count; ++i) {
-		sym.name[i] = name[i];
-	}
-	for (; i < sizeof(sym.name); ++i) {
-		sym.name[i] = 0;
-	}
-	sym.lit = lit;
+	for (i = 0; i < count; ++i)       { sym.name[i] = name[i]; }
+	for (; i < sizeof(sym.name); ++i) { sym.name[i] = 0; }
+	sym.type = type;
 	sym.size = 1;
-	if (!lit) {
+	if (type == scope::symbol::VAR) {
 		sym.data.u = s.lsp;
 		++s.lsp;
 	}
@@ -179,14 +194,34 @@ scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned l
 
 scope::symbol *add_var(const char *name, unsigned name_char_count, scope_stack &ss)
 {
-	return add_symbol(name, name_char_count, 0, ss);
+	return add_symbol(name, name_char_count, scope::symbol::VAR, ss);
 }
 
 scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
 {
-	scope::symbol *sym = add_symbol(name, name_char_count, 1, ss);
+	// TODO: Ensure size is 0 and lsp is unaffected
+	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LIT, ss);
 	if (sym != NULL) {
 		sym->data.u = value;
+	}
+	return sym;
+}
+
+scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
+{
+	// TODO: Ensure size is 0 and lsp is unaffected
+	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LBL, ss);
+	if (sym != NULL) {
+		sym->type = scope::symbol::LBL;
+		sym->data.u = value;
+		for (mtlItem<scope::fwd_label> *n = ss.scopes[ss.index].fwd_labels.GetFirst(); n != NULL;) {
+			if (strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
+				n->GetItem().loc->u = sym->data.u;
+				n = n->Remove();
+			} else {
+				n = n->GetNext();
+			}
+		}
 	}
 	return sym;
 }
@@ -211,7 +246,7 @@ static token peek(parser *p)
 	return t;
 }
 
-static bool match(parser *p, unsigned type)
+static bool match(parser *p, unsigned type, token *out = NULL)
 {
 	token t;
 	U16 lex_index = 0;
@@ -221,6 +256,9 @@ static bool match(parser *p, unsigned type)
 		lexer l = p->in.l;
 		t = xlex(&l);
 		lex_index = l.head;
+	}
+	if (out != NULL) {
+		*out = t;
 	}
 
 	if (t.type == token::STOP) {
@@ -411,6 +449,17 @@ static bool try_directive_lit(parser_state ps)
 	return false;
 }
 
+static bool try_label(parser_state ps)
+{
+	if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_LABEL))) {
+		token t = peek(ps.p);
+		if (manage_state(ps, match(ps.p, token::ALIAS) && match(ps.p, xtoken::OPERATOR_COLON))) {
+			return add_lbl(t.chars, chcount(t.chars), ps.p->out.head.index + ps.p->out.body.index, ps.p->scopes) != NULL;
+		}
+	}
+	return false;
+}
+
 static bool try_directive(parser_state ps)
 {
 	if (
@@ -494,7 +543,7 @@ static bool try_var_addr(parser_state ps)
 		U16 index = parse_lit_index(ps);
 		U16 sp_offset = 0;
 		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
-		if (sym == NULL || sym->lit) { return false; }
+		if (sym == NULL || sym->type != scope::symbol::VAR) { return false; }
 		return
 			write_word(ps.p->out.body, XWORD{(U16)(sym->data.u - sp_offset + index)}) &&
 			write_word(ps.p->out.body, XWORD{XIS::CREL});
@@ -574,16 +623,32 @@ static bool try_lit_directive(parser_state ps)
 static bool try_lit(parser_state ps)
 {
 	// TODO: Add support for index (especially useful for aliased literals and evals).
-	token t = peek(ps.p);
-	if (match(ps.p, xtoken::LITERAL_INT)) {
+	token t;
+	if (match(ps.p, xtoken::LITERAL_INT, &t)) {
 		U16 index = parse_lit_index(ps);
 		return write_word(ps.p->out.body, XWORD{(U16)(t.hash + index)});
-	} else if (match(ps.p, token::ALIAS)) {
+	} else if (match(ps.p, token::ALIAS, &t)) {
 		U16 sp_offset = 0; // Not really needed;
 		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
-		if (sym == NULL || !sym->lit) { return false; }
+		if (sym == NULL || sym->type != scope::symbol::LIT) { return false; }
 		U16 index = parse_lit_index(ps);
 		return write_word(ps.p->out.body, XWORD{(U16)(sym->data.u + index)});
+	} else if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_LABEL) && match(ps.p, token::ALIAS, &t))) {
+		scope::symbol *lbl = find_label(t.chars, chcount(t.chars), ps.p->scopes.scopes[ps.p->scopes.index]);
+		if (lbl != NULL) {
+			if (!write_word(ps.p->out.body, XWORD{lbl->data.u})) { return false; }
+		} else {
+			scope::fwd_label fwd;
+			const unsigned count = chcount(t.chars);
+			unsigned i;
+			for (i = 0; i < count; ++i)       { fwd.name[i] = t.chars[i]; }
+			for (; i < sizeof(fwd.name); ++i) { fwd.name[i] = 0; }
+			fwd.loc = ps.p->out.body.buffer + ps.p->out.body.index;
+			ps.p->scopes.scopes[ps.p->scopes.index].fwd_labels.AddLast(fwd);
+			if (!write_word(ps.p->out.body, XWORD{0})) { return false; }
+		}
+		// TODO: If we use relative IP pointers, we also need to emit a modifying instruction here
+		return true;
 	} else if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR) && try_lit_directive(new_state(ps.p, ps.end)))) {
 		return true;
 	}
@@ -682,7 +747,7 @@ static bool try_instruction_set(parser_state ps)
 		manage_state(
 			ps,
 			match(ps.p, xtoken::KEYWORD_INSTRUCTION_SET) &&
-			try_putparam(new_state(ps.p, ps.end))      &&
+			try_putparam(new_state(ps.p, ps.end))        &&
 			match(ps.p, xtoken::OPERATOR_COMMA)          &&
 			try_putparam(new_state(ps.p, ps.end))
 		)
@@ -761,7 +826,8 @@ static bool try_statements(parser_state ps)
 		if (
 			!manage_state(
 				ps,
-				try_directive(new_state(ps.p, ps.end)) ||
+				try_label(new_state(ps.p, ps.end))        ||
+				try_directive(new_state(ps.p, ps.end))    ||
 				try_instructions(new_state(ps.p, ps.end))
 			)
 		) {
