@@ -78,8 +78,9 @@ struct XIS
 		RSTF  = 0b11000010 + (57<<8), // restore frame register state
 
 		CJMP  = 0b01001000 + (58<<8), // Jump to the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
+		CSKIP = 0b01001000 + (59<<8), // Skup ahead by an amount as given by the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
 
-		COUNT = 59 // The number of instructions in the instruction set.
+		COUNT = 60 // The number of instructions in the instruction set.
 	};
 };
 
@@ -142,7 +143,8 @@ static const char *ISTR[XIS::COUNT] = {
 	TOSTR(RSTP),
 	TOSTR(SAVF),
 	TOSTR(RSTF),
-	TOSTR(CJMP)
+	TOSTR(CJMP),
+	TOSTR(CSKIP)
 };
 
 #endif // XIS_H
