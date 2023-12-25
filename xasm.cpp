@@ -16,7 +16,7 @@ unsigned hex2u(const char *nums, unsigned len)
 	return h;
 }
 
-const signed X_TOKEN_COUNT = 59;
+const signed X_TOKEN_COUNT = 61;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("set",                     3, xtoken::KEYWORD_INSTRUCTION_SET),
@@ -52,6 +52,8 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("do",                      2, xtoken::KEYWORD_INSTRUCTION_DO),
 	new_keyword ("jmp",                     3, xtoken::KEYWORD_INSTRUCTION_JMP),
 	new_keyword ("cjmp",                    4, xtoken::KEYWORD_INSTRUCTION_CJMP),
+	new_keyword ("skip",                    4, xtoken::KEYWORD_INSTRUCTION_SKIP),
+	new_keyword ("cskip",                   5, xtoken::KEYWORD_INSTRUCTION_CSKIP),
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),
 	new_operator("%",                       1, xtoken::OPERATOR_DIRECTIVE_LABEL),
@@ -753,7 +755,7 @@ static bool try_instruction_with_put(parser_state ps, unsigned token_type, U16 i
 
 static bool try_instruction_jmp(parser_state ps)
 {
-	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_JMP) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && try_lit(new_state(ps.p, ps.end)))) {
+	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_JMP) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && try_param(new_state(ps.p, ps.end)))) {
 		return write_word(ps.p->out.body, XWORD{XIS::JMP});
 	}
 	return false;
@@ -761,8 +763,24 @@ static bool try_instruction_jmp(parser_state ps)
 
 static bool try_instruction_cjmp(parser_state ps)
 {
-	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_CJMP) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && try_lit(new_state(ps.p, ps.end)))) {
-		return write_word(ps.p->out.body, XWORD{XIS::JMP});
+	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_CJMP) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && try_param(new_state(ps.p, ps.end)))) {
+		return write_word(ps.p->out.body, XWORD{XIS::CJMP});
+	}
+	return false;
+}
+
+static bool try_instruction_skip(parser_state ps)
+{
+	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_SKIP) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && try_param(new_state(ps.p, ps.end)))) {
+		return write_word(ps.p->out.body, XWORD{XIS::SKIP});
+	}
+	return false;
+}
+
+static bool try_instruction_cskip(parser_state ps)
+{
+	if (manage_state(ps, match(ps.p, xtoken::KEYWORD_INSTRUCTION_CSKIP) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && try_param(new_state(ps.p, ps.end)))) {
+		return write_word(ps.p->out.body, XWORD{XIS::CSKIP});
 	}
 	return false;
 }
@@ -828,6 +846,8 @@ static bool try_instructions(parser_state ps)
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_IGT,  XIS::IGT)  ||
 				try_instruction_jmp     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_cjmp    (new_state(ps.p, ps.end))                                              ||
+				try_instruction_skip    (new_state(ps.p, ps.end))                                              ||
+				try_instruction_cskip   (new_state(ps.p, ps.end))                                              ||
 				try_instruction_set     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_toss    (new_state(ps.p, ps.end))
 			) &&

@@ -310,7 +310,7 @@ XWORD Machine::Cycle( void )
 			IP.u += TOP.u;
 		}
 		POP_STACK(2);
-
+		break;
 	default:
 		// Generate a hardware exception here that will allow a potential OS to recover.
 		ERR.u |= ERR_UNDEF;
