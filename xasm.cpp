@@ -1,7 +1,22 @@
 #include "xasm.h"
 #include "lib/MiniLib/MTL/mtlList.h"
 
-const signed X_TOKEN_COUNT = 58;
+unsigned hex2u(const char *nums, unsigned len)
+{
+	unsigned h = 0;
+	for (unsigned i = 2; i < len; ++i) {
+		if (nums[i] >= '0' && nums[i] <= '9') {
+			h = h  * 16 + nums[i] - '0';
+		} else if (nums[i] >= 'a' && nums[i] <= 'f') {
+			h = h  * 16 + nums[i] - 'a' + 10;
+		} else if (nums[i] >= 'A' && nums[i] <= 'F') {
+			h = h  * 16 + nums[i] - 'A' + 10;
+		}
+	}
+	return h;
+}
+
+const signed X_TOKEN_COUNT = 59;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("set",                     3, xtoken::KEYWORD_INSTRUCTION_SET),
@@ -61,7 +76,8 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_operator(",",                       1, xtoken::OPERATOR_COMMA),
 	new_operator(".",                       1, xtoken::OPERATOR_STOP),
 	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,  token::ALIAS),
-	new_literal ("[0-9]+",                  6, xtoken::LITERAL_INT)
+	new_literal ("[0-9]+",                  6, xtoken::LITERAL_INT),
+	new_literal ("0[xX][0-9a-fA-F]+",      17, xtoken::LITERAL_INT, hex2u)
 };
 
 token xlex(lexer *l)
