@@ -1,7 +1,7 @@
 #ifndef XOUT_H
 #define XOUT_H
 
-#include "xdev.h"
+#include "../xdev.h"
 
 class Monitor : public Device
 {

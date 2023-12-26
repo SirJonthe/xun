@@ -3,8 +3,7 @@
 
 #include <list>
 
-#include "xbin.h"
-#include "xsrc.h"
+#include "xarch.h"
 #include "lib/parsec/lex.h"
 
 // LAYOUT OF BINARY

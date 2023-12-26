@@ -6,15 +6,16 @@
 
 #include "../xdev.h"
 #include "../xarch.h"
-#include "../xbin.h"
 
 class PersistentStorage : public Device
 {
 private:
-	Binary m_data;
+	XWORD    *m_data;
+	uint32_t  m_word_count;
 
 public:
 	explicit PersistentStorage(uint32_t size);
+	~PersistentStorage( void );
 
 	XWORD Read(U16 i);
 	void  Write(U16 i, XWORD data);

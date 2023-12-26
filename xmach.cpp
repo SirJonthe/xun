@@ -24,14 +24,6 @@ Machine::Machine( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]",
 // Flash memory with a program.
 // Ideally should be an OS that can load other programs,
 // but can be any program.
-void Machine::Feed(const Binary &bin, bool debug)
-{
-	return Feed(&bin[0], bin.GetSize(), debug);
-}
-
-// Flash memory with a program.
-// Ideally should be an OS that can load other programs,
-// but can be any program.
 void Machine::Feed(const XWORD *bin, U16 bin_count, bool debug)
 {
 	// TODO:

@@ -3,7 +3,6 @@
 
 #include "xarch.h"
 #include "xis.h"
-#include "xbin.h"
 #include "xdev.h"
 #include "dev/xdisk.h"
 #include "dev/xrelay.h"
@@ -49,7 +48,6 @@ private:
 public:
 	Machine( void );
 
-	void  Feed(const Binary &bin, bool debug = false); // Flash with OS (that can load other programs) or the only program that will ever run on the machine.
 	void  Feed(const XWORD *bin, U16 bin_count, bool debug = false);
 	void  PokeAbs(U16 addr, XWORD val);
 	void  PokeEP(U16 addr, XWORD val);
