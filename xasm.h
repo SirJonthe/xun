@@ -22,11 +22,6 @@
 // [STACK]                    <-- CP needs to point here (SP is 0)
 //    [ELEMENTS]              <-- SP points to top here as an offset from CP
 
-// $here -> instruction pointer
-// $top -> stack pointer
-// $frame -> call point stack pointer
-// $prog -> program point stack pointer
-
 /// @brief XASM token identifier.
 struct xtoken
 {

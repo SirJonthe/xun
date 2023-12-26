@@ -36,7 +36,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("and",                     3, xtoken::KEYWORD_INSTRUCTION_AND),
 	new_keyword ("or",                      2, xtoken::KEYWORD_INSTRUCTION_OR),
 	new_keyword ("xor",                     3, xtoken::KEYWORD_INSTRUCTION_XOR),
-	new_keyword ("movu",                    4, xtoken::KEYWORD_INSTRUCTION_MOVU),
+	new_keyword ("mov",                     3, xtoken::KEYWORD_INSTRUCTION_MOVU),
 //	new_keyword ("movd",                    4, xtoken::KEYWORD_INSTRUCTION_MOVD), // no args
 	new_keyword ("toss",                    4, xtoken::KEYWORD_INSTRUCTION_TOSS),
 	new_keyword ("eq",                      2, xtoken::KEYWORD_INSTRUCTION_EQ),
@@ -219,7 +219,6 @@ scope::symbol *add_var(const char *name, unsigned name_char_count, scope_stack &
 
 scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
 {
-	// TODO: Ensure size is 0 and lsp is unaffected
 	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LIT, ss);
 	if (sym != NULL) {
 		sym->data.u = value;
@@ -229,7 +228,6 @@ scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, sc
 
 scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
 {
-	// TODO: Ensure size is 0 and lsp is unaffected
 	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LBL, ss);
 	if (sym != NULL) {
 		sym->type = scope::symbol::LBL;
