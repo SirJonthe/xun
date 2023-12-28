@@ -1,7 +1,7 @@
 #include "xasm.h"
 #include "lib/MiniLib/MTL/mtlList.h"
 
-unsigned hex2u(const char *nums, unsigned len)
+static unsigned hex2u(const char *nums, unsigned len)
 {
 	unsigned h = 0;
 	for (unsigned i = 2; i < len; ++i) {
@@ -16,9 +16,10 @@ unsigned hex2u(const char *nums, unsigned len)
 	return h;
 }
 
-const signed X_TOKEN_COUNT = 61;
+const signed X_TOKEN_COUNT = 65;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
+	new_keyword ("at",                      2, xtoken::KEYWORD_INSTRUCTION_AT),
 	new_keyword ("set",                     3, xtoken::KEYWORD_INSTRUCTION_SET),
 	new_keyword ("put",                     3, xtoken::KEYWORD_INSTRUCTION_PUT),
 	new_keyword ("add",                     3, xtoken::KEYWORD_INSTRUCTION_ADD),
@@ -63,6 +64,9 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("bin",                     3, xtoken::KEYWORD_DIRECTIVE_BIN),
 	new_keyword ("scope",                   5, xtoken::KEYWORD_DIRECTIVE_SCOPE),
 	new_keyword ("syntax",                  6, xtoken::KEYWORD_DIRECTIVE_SYNTAX),
+	new_keyword ("func",                    4, xtoken::KEYWORD_DIRECTIVE_FUNC),
+	new_keyword ("call",                    4, xtoken::KEYWORD_DIRECTIVE_CALL),
+	new_keyword ("return",                  6, xtoken::KEYWORD_DIRECTIVE_RETURN),
 	new_keyword ("here",                    4, xtoken::KEYWORD_DIRECTIVE_HERE),
 	new_keyword ("top",                     3, xtoken::KEYWORD_DIRECTIVE_TOP),
 	new_keyword ("frame",                   5, xtoken::KEYWORD_DIRECTIVE_FRAME),
@@ -106,7 +110,7 @@ struct scope
 {
 	struct symbol
 	{
-		enum type_t { VAR, LIT, LBL };
+		enum type_t { VAR, LIT, LBL, FN };
 		char     name[32];
 		XWORD    data;
 		unsigned type;
@@ -128,20 +132,22 @@ struct scope_stack
 	signed index;
 };
 
-static void push_scope(scope_stack &ss)
+static bool push_scope(scope_stack &ss)
 {
 	++ss.index;
 	ss.scopes[ss.index].symbols.RemoveAll();
 	ss.scopes[ss.index].fwd_labels.RemoveAll();
 	ss.scopes[ss.index].lsp = 0;
+	return true;
 }
 
-static void pop_scope(scope_stack &ss)
+static bool pop_scope(scope_stack &ss)
 {
 	ss.scopes[ss.index].symbols.RemoveAll();
 	ss.scopes[ss.index].fwd_labels.RemoveAll();
 	ss.scopes[ss.index].lsp = 0;
 	--ss.index;
+	return true;
 }
 
 static bool strcmp(const char *a, unsigned a_count, const char *b, unsigned b_count)
@@ -176,7 +182,7 @@ scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_sta
 	return NULL;
 }
 
-scope::symbol *find_label(const char *name, unsigned name_char_count, scope &ss)
+scope::symbol *find_lbl(const char *name, unsigned name_char_count, scope &ss)
 {
 	for (mtlItem<scope::symbol> *n = ss.symbols.GetFirst(); n != NULL; n = n->GetNext()) {
 		if (n->GetItem().type == scope::symbol::LBL && strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
@@ -184,6 +190,16 @@ scope::symbol *find_label(const char *name, unsigned name_char_count, scope &ss)
 		}
 	}
 	return NULL;
+}
+
+scope::symbol *find_fn(const char *name, unsigned name_char_count, scope_stack &ss)
+{
+	U16 temp;
+	scope::symbol *sym = find_symbol(name, name_char_count, ss, temp);
+	if (sym != NULL && sym->type != scope::symbol::FN) {
+		return NULL;
+	}
+	return sym;
 }
 
 scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, scope &s)
@@ -226,12 +242,12 @@ scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, sc
 	return sym;
 }
 
-scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
+scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 addr, scope_stack &ss)
 {
 	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LBL, ss);
 	if (sym != NULL) {
 		sym->type = scope::symbol::LBL;
-		sym->data.u = value;
+		sym->data.u = addr;
 		for (mtlItem<scope::fwd_label> *n = ss.scopes[ss.index].fwd_labels.GetFirst(); n != NULL;) {
 			if (strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
 				n->GetItem().loc->u = sym->data.u;
@@ -244,6 +260,16 @@ scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 value, sc
 	return sym;
 }
 
+scope::symbol *add_fn(const char *name, unsigned name_char_count, U16 addr, U16 size, scope_stack &ss)
+{
+	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::FN, ss);
+	if (sym != NULL) {
+		sym->data.u = addr;
+		sym->size = size;
+	}
+	return sym;
+}
+
 struct parser
 {
 	input_tokens  in;
@@ -251,6 +277,11 @@ struct parser
 	scope_stack   scopes;
 	U16           max_token_index;
 };
+
+static scope &top_scope(parser *p)
+{
+	return p->scopes.scopes[p->scopes.index];
+}
 
 static token peek(parser *p)
 {
@@ -329,6 +360,8 @@ static bool try_var_addr         (parser_state ps);
 static bool try_var              (parser_state ps);
 static bool try_lit              (parser_state ps);
 static bool try_param            (parser_state ps);
+static bool try_putparam         (parser_state ps);
+static bool try_put_param        (parser_state ps);
 static bool try_directive_at     (parser_state ps);
 static bool try_instruction_put  (parser_state ps);
 static bool try_instructions     (parser_state ps);
@@ -341,6 +374,14 @@ static bool try_instruction_nop(parser_state ps)
 {
 	if (match(ps.p, xtoken::KEYWORD_INSTRUCTION_NOP)) {
 		return write_word(ps.p->out.body, XWORD{XIS::NOP});
+	}
+	return false;
+}
+
+static bool try_instruction_at(parser_state ps)
+{
+	if (match(ps.p, xtoken::KEYWORD_INSTRUCTION_AT)) {
+		return write_word(ps.p->out.body, XWORD{XIS::AT});
 	}
 	return false;
 }
@@ -366,7 +407,7 @@ static bool try_decl_var(parser_state ps)
 static bool try_decl_mem(parser_state ps)
 {
 	if (manage_state(ps, match(ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_L) && try_lit(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_R)) && match(ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_R))) {
-		ps.p->scopes.scopes[ps.p->scopes.index].lsp += ps.p->out.body.buffer[--ps.p->out.body.index].u;
+		top_scope(ps.p).lsp += ps.p->out.body.buffer[--ps.p->out.body.index].u;
 		return true;
 	}
 	return false;
@@ -374,12 +415,12 @@ static bool try_decl_mem(parser_state ps)
 
 static bool try_decl_arr(parser_state ps)
 {
-	U16 lsp = ps.p->scopes.scopes[ps.p->scopes.index].lsp;
+	U16 lsp = top_scope(ps.p).lsp;
 	if (manage_state(ps, try_decl_var(new_state(ps.p, ps.end)) && try_decl_mem(new_state(ps.p, ps.end)))) {
-		U16 size = ps.p->scopes.scopes[ps.p->scopes.index].lsp - lsp;
+		U16 size = top_scope(ps.p).lsp - lsp;
 		if (size == 0) { return false; }
-		ps.p->scopes.scopes[ps.p->scopes.index].lsp -= 1; // TODO: Maybe LSP should not be modified at all. Verify.
-		ps.p->scopes.scopes[ps.p->scopes.index].symbols.GetLast()->GetItem().size = size - 1;
+		top_scope(ps.p).lsp -= 1; // TODO: Maybe LSP should not be modified at all. Verify.
+		top_scope(ps.p).symbols.GetLast()->GetItem().size = size - 1;
 		return true;
 	}
 	return false;
@@ -408,12 +449,12 @@ static bool try_directive_scope(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match(ps.p, xtoken::KEYWORD_DIRECTIVE_SCOPE) &&
-			match(ps.p, xtoken::OPERATOR_COLON) &&
-			try_decl_list(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L)) &&
-			match(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L) &&
-			try_scoped_statements(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R), ps.p->scopes.scopes[ps.p->scopes.index].lsp) &&
-			match(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R)
+			match                (ps.p, xtoken::KEYWORD_DIRECTIVE_SCOPE)                                  &&
+			match                (ps.p, xtoken::OPERATOR_COLON)                                           &&
+			try_decl_list        (new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L))                      &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
+			try_scoped_statements(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R), top_scope(ps.p).lsp) &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R)
 		)
 	) {
 		pop_scope(ps.p->scopes);
@@ -478,6 +519,115 @@ static bool try_label(parser_state ps)
 	return false;
 }
 
+static bool try_func_alias(parser_state ps)
+{
+	token t;
+	if (manage_state(ps, match(ps.p, token::ALIAS, &t))) {
+		scope::symbol *s = add_fn(t.chars, chcount(t.chars), ps.p->out.head.index + ps.p->out.body.index, ps.p->out.body.buffer[--ps.p->out.body.index].u, ps.p->scopes);
+		return s != NULL;
+	}
+	return false;
+}
+
+// $func [LIT] NAME(PARAMS...) LOCALS... { STATEMENTS... }
+static bool try_directive_func(parser_state ps)
+{
+	token alias;
+	U16 jmp_index = ps.p->out.body.index + 1;
+	if (
+		manage_state(
+			ps,
+			write_word           (ps.p->out.body, XWORD{XIS::PUT})                                        &&
+			write_word           (ps.p->out.body, XWORD{0})                                               && // NOTE: We put 0 here as a temp value, and modify it later
+			write_word           (ps.p->out.body, XWORD{XIS::JMP})                                        &&
+			match                (ps.p, xtoken::KEYWORD_DIRECTIVE_FUNC)                                   &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_L)                               &&
+			try_lit              (new_state(ps.p, ps.end))                                                &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_R)                               &&
+			try_func_alias       (new_state(ps.p, ps.end))                                                &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                           &&
+			try_decl_list        (new_state(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R))                && // TODO: This probably needs to be a different/new function that merely aliases already declared memory on the stack
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
+			match                (ps.p, xtoken::OPERATOR_COLON)                                           &&
+			push_scope           (ps.p->scopes)                                                           &&
+			try_decl_list        (new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L))                      &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
+			try_scoped_statements(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R), top_scope(ps.p).lsp) &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R)
+		)
+	) {
+		pop_scope(ps.p->scopes);
+		ps.p->out.body.buffer[jmp_index].u = ps.p->out.body.index;
+		return true;
+	}
+	return false;
+}
+
+// TODO: Calling a function should be integrated in try_param instead of its own thing, although the call process is quite complex.
+static bool try_directive_call(parser_state ps)
+{
+	// Function frame data layout
+	// Return value
+	// Stack pointer
+	// Parameters...
+	// Instruction pointer
+	// Locals... (allocated by the function)
+	token t;
+	scope::symbol *fn;
+	if (
+		manage_state(
+			ps,
+			match        (ps.p, xtoken::KEYWORD_DIRECTIVE_CALL)                    &&
+			match        (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			match        (ps.p, token::ALIAS, &t)                                  &&
+			(fn = find_fn(t.chars, chcount(t.chars), ps.p->scopes)) != NULL        &&
+			write_word   (ps.p->out.body, XWORD{XIS::PUT})                         &&
+			write_word   (ps.p->out.body, XWORD{fn->size})                         &&
+			write_word   (ps.p->out.body, XWORD{XIS::PUTS})                        &&
+			try_put_param(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			write_word   (ps.p->out.body, XWORD{XIS::PUTI})                        &&
+			match        (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+		)
+	) {
+		return write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{fn->data.u});
+	}
+	return false;
+}
+
+static bool try_return_param(parser_state ps)
+{
+	return false;
+}
+
+static bool try_return_params(parser_state ps, U16 num)
+{
+	for (U16 i = 0; i < num; ++i) {
+		if (try_return_param(new_state(ps.p, ps.end)) && match(ps.p, xtoken::OPERATOR_COMMA)) {
+			// TODO: compile something here
+		} else {
+			return false;
+		}
+	}
+	return match(ps.p, xtoken::OPERATOR_STOP);
+}
+
+static bool try_directive_return(parser_state ps)
+{
+	// TODO: Pop current stack down to locals
+	// TODO: Write return value with a start top-locals-1-params-1-return_size
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xtoken::KEYWORD_DIRECTIVE_RETURN) &&
+			match(ps.p, xtoken::OPERATOR_STOP) // TODO: Replace this with try_return_params below...
+//			try_return_params(new_state(ps.p, ps.end), find_fn(top_scope(ps.p).name, chcount(top_scope(ps.p).name)->size))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_directive(parser_state ps)
 {
 	if (
@@ -485,9 +635,12 @@ static bool try_directive(parser_state ps)
 			ps,
 			match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR) &&
 			(
-				try_directive_scope(new_state(ps.p, ps.end)) ||
-				try_directive_bin(new_state(ps.p, ps.end)) ||
-				try_directive_lit(new_state(ps.p, ps.end))
+				try_directive_scope (new_state(ps.p, ps.end)) ||
+				try_directive_bin   (new_state(ps.p, ps.end)) ||
+				try_directive_lit   (new_state(ps.p, ps.end)) ||
+				try_directive_func  (new_state(ps.p, ps.end)) ||
+				try_directive_call  (new_state(ps.p, ps.end)) ||
+				try_directive_return(new_state(ps.p, ps.end))
 			)
 		)
 	) {
@@ -652,7 +805,7 @@ static bool try_lit(parser_state ps)
 		U16 index = parse_lit_index(ps);
 		return write_word(ps.p->out.body, XWORD{(U16)(sym->data.u + index)});
 	} else if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_LABEL) && match(ps.p, token::ALIAS, &t))) {
-		scope::symbol *lbl = find_label(t.chars, chcount(t.chars), ps.p->scopes.scopes[ps.p->scopes.index]);
+		scope::symbol *lbl = find_lbl(t.chars, chcount(t.chars), top_scope(ps.p));
 		if (lbl != NULL) {
 			if (!write_word(ps.p->out.body, XWORD{lbl->data.u})) { return false; }
 		} else {
@@ -662,7 +815,7 @@ static bool try_lit(parser_state ps)
 			for (i = 0; i < count; ++i)       { fwd.name[i] = t.chars[i]; }
 			for (; i < sizeof(fwd.name); ++i) { fwd.name[i] = 0; }
 			fwd.loc = ps.p->out.body.buffer + ps.p->out.body.index;
-			ps.p->scopes.scopes[ps.p->scopes.index].fwd_labels.AddLast(fwd);
+			top_scope(ps.p).fwd_labels.AddLast(fwd);
 			if (!write_word(ps.p->out.body, XWORD{0})) { return false; }
 		}
 		// TODO: If we use relative IP pointers, we also need to emit a modifying instruction here
@@ -746,6 +899,9 @@ static bool try_repeat_param(parser_state ps, U16 repeat_instruction)
 static bool try_instruction_with_put(parser_state ps, unsigned token_type, U16 i)
 {
 	if (match(ps.p, token_type)) {
+		if (peek(ps.p).user_type == ps.end) {
+			return write_word(ps.p->out.body, XWORD{i});
+		}
 		return manage_state(ps, try_repeat_param(new_state(ps.p, xtoken::OPERATOR_STOP), i));
 	}
 	return false;
@@ -814,6 +970,7 @@ static bool try_instructions(parser_state ps)
 			ps,
 			(
 				try_instruction_nop     (new_state(ps.p, ps.end))                                              ||
+				try_instruction_at      (new_state(ps.p, ps.end))                                              ||
 				try_instruction_do      (new_state(ps.p, ps.end))                                              ||
 				try_instruction_put     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ADD,  XIS::ADD)  ||
@@ -859,8 +1016,12 @@ static bool try_instructions(parser_state ps)
 
 static bool try_emit_lit_list(parser_state ps)
 {
-	if (manage_state(ps, try_lit(new_state(ps.p, ps.end)))) {
-		return peek(ps.p).user_type == ps.end || (match(ps.p, xtoken::OPERATOR_COMMA) && try_emit_lit_list(new_state(ps.p, ps.end)));
+	while (manage_state(ps, try_lit(new_state(ps.p, ps.end)))) {
+		if (peek(ps.p).user_type == ps.end) {
+			return true;
+		} else if (!match(ps.p, xtoken::OPERATOR_COMMA)) {
+			break;
+		}
 	}
 	return false;
 }

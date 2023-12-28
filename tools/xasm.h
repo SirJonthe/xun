@@ -1,9 +1,7 @@
 #ifndef XASM_H
 #define XASM_H
 
-#include <list>
-
-#include "xarch.h"
+#include "../xarch.h"
 #include "lib/parsec/lex.h"
 
 // LAYOUT OF BINARY
@@ -88,6 +86,9 @@ struct xtoken
 			KEYWORD_DIRECTIVE_BIN,     // Allows for the dump of data inside the binary.
 			KEYWORD_DIRECTIVE_SCOPE,   // Allows for the creation of variables with automatic storage duration.
 			KEYWORD_DIRECTIVE_SYNTAX,  // Switch syntax modes (raw is the most verbose, but most efficient).
+			KEYWORD_DIRECTIVE_FUNC,    // Declare and define a function.
+			KEYWORD_DIRECTIVE_CALL,    // Call a function.
+			KEYWORD_DIRECTIVE_RETURN,  // Return from a function.
 			KEYWORD_DIRECTIVE_RAW,     // Raw syntax mode. Each token corresponds to either an instruction or a literal/alias.
 			KEYWORD_DIRECTIVE_SUGAR,   // Simplified syntax mode (default). Instructions can be repeated by providing several parameters. Less efficient than raw.
 			KEYWORD_DIRECTIVE_NOSTACK, // No-stack syntax mode. Gets rid of manual control of the stack. Most instructions take a destination and source parameter. Less efficient than sugar.
@@ -129,6 +130,7 @@ struct xtoken
 /// @return The lexed token.
 token xlex(lexer *l);
 
+/// @brief The writeable memory used for output in compiler/assembler output.
 struct xbinary
 {
 	struct buffer
