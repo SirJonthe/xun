@@ -2,7 +2,7 @@
 #define XASM_H
 
 #include "../xarch.h"
-#include "lib/parsec/lex.h"
+#include "../lib/parsec/lex.h"
 
 // LAYOUT OF BINARY
 //

@@ -1,5 +1,5 @@
 #include "xasm.h"
-#include "lib/MiniLib/MTL/mtlList.h"
+#include "../lib/MiniLib/MTL/mtlList.h"
 
 static unsigned hex2u(const char *nums, unsigned len)
 {
@@ -99,7 +99,7 @@ struct input_tokens
 	U16          index;
 };
 
-bool write_word(xbinary::buffer &buf, XWORD data)
+static bool write_word(xbinary::buffer &buf, XWORD data)
 {
 	if (buf.index == 0xffff) { return false; }
 	buf.buffer[buf.index++] = data;
@@ -168,7 +168,7 @@ static unsigned chcount(const char *s)
 	return n;
 }
 
-scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_stack &ss, U16 &back_sp_offset)
+static scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_stack &ss, U16 &back_sp_offset)
 {
 	back_sp_offset = 0;
 	for (signed i = ss.index; i >= 0; --i) {
@@ -182,7 +182,7 @@ scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_sta
 	return NULL;
 }
 
-scope::symbol *find_lbl(const char *name, unsigned name_char_count, scope &ss)
+static scope::symbol *find_lbl(const char *name, unsigned name_char_count, scope &ss)
 {
 	for (mtlItem<scope::symbol> *n = ss.symbols.GetFirst(); n != NULL; n = n->GetNext()) {
 		if (n->GetItem().type == scope::symbol::LBL && strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
@@ -192,7 +192,7 @@ scope::symbol *find_lbl(const char *name, unsigned name_char_count, scope &ss)
 	return NULL;
 }
 
-scope::symbol *find_fn(const char *name, unsigned name_char_count, scope_stack &ss)
+static scope::symbol *find_fn(const char *name, unsigned name_char_count, scope_stack &ss)
 {
 	U16 temp;
 	scope::symbol *sym = find_symbol(name, name_char_count, ss, temp);
@@ -202,7 +202,7 @@ scope::symbol *find_fn(const char *name, unsigned name_char_count, scope_stack &
 	return sym;
 }
 
-scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, scope &s)
+static scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, scope &s)
 {
 	for (mtlItem<scope::symbol> *i = s.symbols.GetFirst(); i != NULL; i = i->GetNext()) {
 		if (strcmp(i->GetItem().name, chcount(i->GetItem().name), name, name_char_count)) {
@@ -223,17 +223,17 @@ scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned t
 	return &sym;
 }
 
-scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope_stack &ss)
+static scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope_stack &ss)
 {
 	return add_symbol(name, name_char_count, lit, ss.scopes[ss.index]);
 }
 
-scope::symbol *add_var(const char *name, unsigned name_char_count, scope_stack &ss)
+static scope::symbol *add_var(const char *name, unsigned name_char_count, scope_stack &ss)
 {
 	return add_symbol(name, name_char_count, scope::symbol::VAR, ss);
 }
 
-scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
+static scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
 {
 	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LIT, ss);
 	if (sym != NULL) {
@@ -242,7 +242,7 @@ scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, sc
 	return sym;
 }
 
-scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 addr, scope_stack &ss)
+static scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 addr, scope_stack &ss)
 {
 	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LBL, ss);
 	if (sym != NULL) {
@@ -260,7 +260,7 @@ scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 addr, sco
 	return sym;
 }
 
-scope::symbol *add_fn(const char *name, unsigned name_char_count, U16 addr, U16 size, scope_stack &ss)
+static scope::symbol *add_fn(const char *name, unsigned name_char_count, U16 addr, U16 size, scope_stack &ss)
 {
 	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::FN, ss);
 	if (sym != NULL) {
