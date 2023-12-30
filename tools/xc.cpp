@@ -4,6 +4,8 @@
 #include "../lib/parsec/lex.h"
 #include "../lib/MiniLib/MTL/mtlList.h"
 
+// TODO: Using CSKIP for conditionals makes binaries more resilient once I start using IP as an offset from the PIP pointer.
+
 struct input_tokens
 {
 	lexer        l;
@@ -196,6 +198,20 @@ static scope &top_scope(parser *p)
 	return p->scopes.scopes[p->scopes.index];
 }
 
+static bool emit_pop_scope(parser *p)
+{
+	return
+		(
+			top_scope(p).lsp == 0 ||
+			(
+				write_word(p->out.body, XWORD{XIS::PUT}) &&
+				write_word(p->out.body, XWORD{U16(top_scope(p).lsp)}) &&
+				write_word(p->out.body, XWORD{XIS::POP})
+			)
+		) &&
+		pop_scope(p->scopes);
+}
+
 static token peek(parser *p)
 {
 	token t;
@@ -314,7 +330,7 @@ static bool try_factor(parser_state ps);
 static bool try_opt_factor(parser_state ps)
 {
 	token t;
-	while (match(ps.p, ctoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_DIV, &t)) {
+	while (match(ps.p, ctoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_MOD, &t)) {
 		if (!manage_state(ps, try_factor(new_state(ps.p, ps.end)))) {
 			return false;
 		}
@@ -324,6 +340,9 @@ static bool try_opt_factor(parser_state ps)
 			break;
 		case ctoken::OPERATOR_ARITHMETIC_DIV:
 			if (!write_word(ps.p->out.body, XWORD{XIS::DIV})) { return false; }
+			break;
+		case ctoken::OPERATOR_ARITHMETIC_MOD:
+			if (!write_word(ps.p->out.body, XWORD{XIS::MOD})) { return false; }
 			break;
 		default:
 			return false;
@@ -341,9 +360,9 @@ static bool try_factor(parser_state ps)
 			ps,
 			try_put_lit(new_state(ps.p, ps.end)) ||
 			(
-				match(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L) &&
+				match   (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 				try_expr(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-				match(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+				match   (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 			)
 		)
 	) {
@@ -370,7 +389,8 @@ static bool try_expr(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_term(new_state(ps.p, ps.end)) && try_opt_term(new_state(ps.p, ps.end))
+			try_term    (new_state(ps.p, ps.end)) &&
+			try_opt_term(new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
@@ -396,13 +416,13 @@ static bool try_new_var(parser_state ps)
 		return
 			match(ps.p, ctoken::OPERATOR_SEMICOLON) ||
 			(
-				match(ps.p, ctoken::OPERATOR_ASSIGNMENT_SET) &&
-				write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
-				write_word(ps.p->out.body, XWORD{sym->data.u}) &&
-				write_word(ps.p->out.body, XWORD{XIS::CREL}) &&
-				try_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
-				write_word(ps.p->out.body, XWORD{XIS::MOVD}) &&
-				match(ps.p, ctoken::OPERATOR_SEMICOLON)
+				match     (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)       &&
+				write_word(ps.p->out.body, XWORD{XIS::PUT})             &&
+				write_word(ps.p->out.body, XWORD{sym->data.u})          &&
+				write_word(ps.p->out.body, XWORD{XIS::CREL})            &&
+				try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
+				write_word(ps.p->out.body, XWORD{XIS::MOVD})            &&
+				match     (ps.p, ctoken::OPERATOR_SEMICOLON)
 			);
 	}
 	return false;
@@ -454,11 +474,11 @@ static bool try_fn_signature(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match(ps.p, ctoken::KEYWORD_TYPE_VOID) &&
-			match(ps.p, token::ALIAS, &t) &&
-			match(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L) &&
+			match        (ps.p, ctoken::KEYWORD_TYPE_VOID)                         &&
+			match        (ps.p, token::ALIAS, &t)                                  &&
+			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 			try_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 		)
 	) {
 		scope::symbol *sym = add_fn(t.chars, chcount(t.chars), ps.p->out.body.index, 0, ps.p->scopes); // TODO: The size of the function should correspond to the size out the return value.
@@ -468,12 +488,60 @@ static bool try_fn_signature(parser_state ps)
 	return false;
 }
 
+static bool try_statement(parser_state ps);
+
+static bool try_if(parser_state ps)
+{
+	U16 jmp_addr_idx = 0;
+	if (
+		manage_state(
+			ps,
+			match        (ps.p, ctoken::KEYWORD_CONTROL_IF)                        &&
+			push_scope   (ps.p->scopes)                                            &&
+			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			try_expr     (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			write_word   (ps.p->out.body, XWORD{XIS::DUP})                         &&
+			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
+			write_word   (ps.p->out.body, XWORD{XIS::PUT})                         &&
+			(jmp_addr_idx = ps.p->out.body.index)                                  &&
+			write_word   (ps.p->out.body, XWORD{0})                                &&
+			write_word   (ps.p->out.body, XWORD{XIS::CNJMP})                       &&
+			try_statement(new_state(ps.p, ps.end))
+		)
+	) {
+		ps.p->out.body.buffer[jmp_addr_idx].u = ps.p->out.head.index + ps.p->out.body.index;
+		return emit_pop_scope(ps.p) && write_word(ps.p->out.body, XWORD{XIS::TOSS});
+//		return emit_pop_scope(ps.p) && (peek(ps.p.user_type) != ctoken::KEYWORD_CONTROL_ELSE || try_else(new_state(ps.p, ps.end)));
+	}
+	return false;
+}
+
+static bool try_statements(parser_state ps);
+
+static bool try_scope(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)            &&
+			push_scope    (ps.p->scopes)                                      &&
+			try_statements(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)
+		)
+	) {
+		return emit_pop_scope(ps.p);
+	}
+	return false;
+}
+
 static bool try_statement(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
-			try_new_var(new_state(ps.p, ps.end))
+			try_new_var(new_state(ps.p, ps.end)) ||
+			try_if     (new_state(ps.p, ps.end)) ||
+			try_scope  (new_state(ps.p, ps.end))
 			// TODO: add expression here
 			// TODO: add if statement here
 		)
@@ -502,12 +570,13 @@ static bool try_fn_def(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_fn_signature(new_state(ps.p, ps.end)) &&
-			match(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L) &&
-			push_scope(ps.p->scopes) &&
-			try_statements(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-			match(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R) &&
-			pop_scope(ps.p->scopes)
+			try_fn_signature(new_state(ps.p, ps.end))                           &&
+			match           (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)            &&
+			push_scope      (ps.p->scopes)                                      &&
+			try_statements  (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+			match           (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)            &&
+			pop_scope       (ps.p->scopes)                                      &&
+			write_word      (ps.p->out.body, XWORD{XIS::JMP}) // TODO: This assumes that the return address is the top stack value here.
 		)
 	) {
 		return true;
@@ -521,7 +590,7 @@ static bool try_global_statement(parser_state ps)
 		manage_state(
 			ps,
 			try_new_var(new_state(ps.p, ps.end)) ||
-			try_fn_def(new_state(ps.p, ps.end))
+			try_fn_def (new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
@@ -545,7 +614,14 @@ static bool try_program(parser_state ps)
 			try_global_statements(new_state(ps.p, ps.end))
 		)
 	) {
-		return top_scope(ps.p).lsp == 0 || (write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{top_scope(ps.p).lsp}) && write_word(ps.p->out.body, XWORD{XIS::POP}));
+		// NOTE: pop_scope not possible since we are at index 0 here.
+		return
+			top_scope(ps.p).lsp == 0 ||
+			(
+				write_word(ps.p->out.body, XWORD{XIS::PUT})            &&
+				write_word(ps.p->out.body, XWORD{top_scope(ps.p).lsp}) &&
+				write_word(ps.p->out.body, XWORD{XIS::POP})
+			);
 	}
 	return false;
 }

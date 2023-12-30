@@ -303,6 +303,22 @@ XWORD Machine::Cycle( void )
 		}
 		POP_STACK(2);
 		break;
+	case XIS::CNJMP:
+		if (!LST.u) {
+			IP.u = TOP.u;
+		}
+		POP_STACK(2);
+		break;
+	case XIS::CNSKIP:
+		if (!LST.u) {
+			IP.u += TOP.u;
+		}
+		POP_STACK(2);
+		break;
+	case XIS::DUP:
+		PUSH_STACK(1);
+		TOP.u = LST.u;
+		break;
 	default:
 		// Generate a hardware exception here that will allow a potential OS to recover.
 		ERR.u |= ERR_UNDEF;
