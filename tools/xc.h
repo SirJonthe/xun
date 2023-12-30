@@ -4,7 +4,7 @@
 #include "xasm.h"
 
 /// @brief Contains metadata about an output XASM binary.
-struct xcout
+struct xc_out
 {
 	lexer   l;               // The state of the lexer when successfully exiting the assembler.
 	xbinary out;             // The state of the output binary when successfully existing the assembler.
@@ -18,6 +18,6 @@ struct xcout
 /// @param mem The memory to output to.
 /// @return The binary output.
 /// @sa init_lexer
-xcout xcc(lexer l, xbinary mem);
+xc_out xcc(lexer l, xbinary mem);
 
 #endif

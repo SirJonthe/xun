@@ -277,20 +277,133 @@ static bool until_end(parser_state ps, bool (*try_fn)(parser_state))
 	return true;
 }
 
+static bool try_put_lit(parser_state ps)
+{
+	token t;
+	if (match(ps.p, ctoken::LITERAL_INT, &t)) {
+		return write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{U16(t.hash)});
+	}
+	return false;
+}
+
+static bool try_term(parser_state ps);
+
+static bool try_opt_term(parser_state ps)
+{
+	token t;
+	while (match(ps.p, ctoken::OPERATOR_ARITHMETIC_ADD, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_SUB, &t)) {
+		if (!manage_state(ps, try_term(new_state(ps.p, ps.end)))) {
+			return false;
+		}
+		switch (t.user_type) {
+		case ctoken::OPERATOR_ARITHMETIC_ADD:
+			if (!write_word(ps.p->out.body, XWORD{XIS::ADD})) { return false; }
+			break;
+		case ctoken::OPERATOR_ARITHMETIC_SUB:
+			if (!write_word(ps.p->out.body, XWORD{XIS::SUB})) { return false; }
+			break;
+		default:
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool try_factor(parser_state ps);
+
+static bool try_opt_factor(parser_state ps)
+{
+	token t;
+	while (match(ps.p, ctoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_DIV, &t)) {
+		if (!manage_state(ps, try_factor(new_state(ps.p, ps.end)))) {
+			return false;
+		}
+		switch (t.user_type) {
+		case ctoken::OPERATOR_ARITHMETIC_MUL:
+			if (!write_word(ps.p->out.body, XWORD{XIS::MUL})) { return false; }
+			break;
+		case ctoken::OPERATOR_ARITHMETIC_DIV:
+			if (!write_word(ps.p->out.body, XWORD{XIS::DIV})) { return false; }
+			break;
+		default:
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool try_expr(parser_state ps);
+
+static bool try_factor(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_put_lit(new_state(ps.p, ps.end)) ||
+			(
+				match(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L) &&
+				try_expr(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+				match(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_term(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_factor(new_state(ps.p, ps.end)) && try_opt_factor(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_expr(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_term(new_state(ps.p, ps.end)) && try_opt_term(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_new_var(parser_state ps)
 {
 	token t;
 	if (
 		manage_state(
 			ps,
-			match(ps.p, ctoken::KEYWORD_TYPE_INT) &&
-			match(ps.p, token::ALIAS, &t) &&
-			match(ps.p, ctoken::OPERATOR_SEMICOLON)
+			match(ps.p, ctoken::KEYWORD_TYPE_UNSIGNED) &&
+			match(ps.p, token::ALIAS, &t)
 		)
 	) {
 		scope::symbol *sym = add_var(t.chars, chcount(t.chars), ps.p->scopes);
 		if (sym == NULL) { return false; }
-		return write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{sym->size}) && write_word(ps.p->out.body, XWORD{XIS::PUSH});
+		if (!write_word(ps.p->out.body, XWORD{XIS::PUT}) || !write_word(ps.p->out.body, XWORD{sym->size}) || !write_word(ps.p->out.body, XWORD{XIS::PUSH})) {
+			return false;
+		}
+		return
+			match(ps.p, ctoken::OPERATOR_SEMICOLON) ||
+			(
+				match(ps.p, ctoken::OPERATOR_ASSIGNMENT_SET) &&
+				write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
+				write_word(ps.p->out.body, XWORD{sym->data.u}) &&
+				write_word(ps.p->out.body, XWORD{XIS::CREL}) &&
+				try_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
+				write_word(ps.p->out.body, XWORD{XIS::MOVD}) &&
+				match(ps.p, ctoken::OPERATOR_SEMICOLON)
+			);
 	}
 	return false;
 }
@@ -301,13 +414,13 @@ static bool try_fn_param(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match(ps.p, ctoken::KEYWORD_TYPE_INT) &&
+			match(ps.p, ctoken::KEYWORD_TYPE_UNSIGNED) &&
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
 		scope::symbol *sym = add_var(t.chars, chcount(t.chars), ps.p->scopes); // TODO: Add a 'add_param' version that does not modify LSP
 		if (sym == NULL) { return false; }
-		return true;
+		return write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{U16(1)}) && write_word(ps.p->out.body, XWORD{XIS::PUSH}); // TODO: This should really not affect LSP, but since we do we emit 1 (ideally we emit the actual word size of the symbol, but currently only size=1 is supported)
 	}
 	return false;
 }
@@ -335,7 +448,7 @@ static bool try_fn_params(parser_state ps)
 	return false;
 }
 
-static bool try_fn_def(parser_state ps)
+static bool try_fn_signature(parser_state ps)
 {
 	token t;
 	if (
@@ -383,13 +496,13 @@ static bool try_statements(parser_state ps)
 	return false;
 }
 
-static bool try_fn_decl(parser_state ps)
+static bool try_fn_def(parser_state ps)
 {
 	token t;
 	if (
 		manage_state(
 			ps,
-			try_fn_def(new_state(ps.p, ps.end)) &&
+			try_fn_signature(new_state(ps.p, ps.end)) &&
 			match(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L) &&
 			push_scope(ps.p->scopes) &&
 			try_statements(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
@@ -408,7 +521,7 @@ static bool try_global_statement(parser_state ps)
 		manage_state(
 			ps,
 			try_new_var(new_state(ps.p, ps.end)) ||
-			try_fn_decl(new_state(ps.p, ps.end))
+			try_fn_def(new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
@@ -437,7 +550,7 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
-xcout xcc(lexer l, xbinary mem)
+xc_out xcc(lexer l, xbinary mem)
 {
 	parser p          = { { l, NULL, 0, 0 }, mem };
 	p.max_token_index = 0;
