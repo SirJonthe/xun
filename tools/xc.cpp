@@ -490,6 +490,27 @@ static bool try_fn_signature(parser_state ps)
 
 static bool try_statement(parser_state ps);
 
+static bool try_else(parser_state ps)
+{
+	U16 jmp_addr_idx = 0;
+	if (
+		manage_state(
+			ps,
+			match        (ps.p, ctoken::KEYWORD_CONTROL_ELSE) &&
+			write_word   (ps.p->out.body, XWORD{XIS::PUT})    &&
+			(jmp_addr_idx = ps.p->out.body.index)             &&
+			write_word   (ps.p->out.body, XWORD{0})           &&
+			write_word   (ps.p->out.body, XWORD{XIS::JMP})    &&
+			pop_scope    (ps.p->scopes)                       &&
+			try_statement(new_state(ps.p, ps.end))
+		)
+	) {
+		ps.p->out.body.buffer[jmp_addr_idx].u = ps.p->out.head.index + ps.p->out.body.index;
+		return emit_pop_scope(ps.p);
+	}
+	return false;
+}
+
 static bool try_if(parser_state ps)
 {
 	U16 jmp_addr_idx = 0;
@@ -500,7 +521,6 @@ static bool try_if(parser_state ps)
 			push_scope   (ps.p->scopes)                                            &&
 			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 			try_expr     (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			write_word   (ps.p->out.body, XWORD{XIS::DUP})                         &&
 			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
 			write_word   (ps.p->out.body, XWORD{XIS::PUT})                         &&
 			(jmp_addr_idx = ps.p->out.body.index)                                  &&
@@ -510,8 +530,13 @@ static bool try_if(parser_state ps)
 		)
 	) {
 		ps.p->out.body.buffer[jmp_addr_idx].u = ps.p->out.head.index + ps.p->out.body.index;
-		return emit_pop_scope(ps.p) && write_word(ps.p->out.body, XWORD{XIS::TOSS});
-//		return emit_pop_scope(ps.p) && (peek(ps.p.user_type) != ctoken::KEYWORD_CONTROL_ELSE || try_else(new_state(ps.p, ps.end)));
+//		return emit_pop_scope(ps.p) && write_word(ps.p->out.body, XWORD{XIS::TOSS});
+		return
+			emit_pop_scope(ps.p) &&
+			(
+				try_else(new_state(ps.p, ps.end)) ||
+				true
+			);
 	}
 	return false;
 }
