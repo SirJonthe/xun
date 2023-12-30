@@ -1067,7 +1067,7 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
-xasm_output assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
+xasm_out assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
 {
 	parser p          = { { lexer{{NULL,0},0}, tokens, max_tokens, 0 }, { { NULL, 0, 0 }, { body, max_binary_body, 0 }, { NULL, 0, 0 } } };
 	p.max_token_index = 0;
@@ -1079,7 +1079,7 @@ xasm_output assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_bo
 	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token_index };
 }
 
-xasm_output assemble_xasm(lexer l, xbinary memory)
+xasm_out assemble_xasm(lexer l, xbinary memory)
 {
 	parser p          = { { l, NULL, 0, 0 }, memory };
 	p.max_token_index = 0;

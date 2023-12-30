@@ -203,7 +203,7 @@ static token peek(parser *p)
 		t = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
 	} else {
 		lexer l = p->in.l;
-		t = xlex(&l);
+		t = clex(&l);
 	}
 	return t;
 }
@@ -216,7 +216,7 @@ static bool match(parser *p, unsigned type, token *out = NULL)
 		t = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
 	} else {
 		lexer l = p->in.l;
-		t = xlex(&l);
+		t = clex(&l);
 		lex_index = l.head;
 	}
 	if (out != NULL) {
@@ -260,6 +260,21 @@ static bool manage_state(parser_state &ps, bool success)
 		}
 	}
 	return success;
+}
+
+static bool until_end(parser_state ps, bool (*try_fn)(parser_state))
+{
+	while (peek(ps.p).user_type != ps.end) {
+		if (
+			!manage_state(
+				ps,
+				try_fn(new_state(ps.p, ps.end))
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
 }
 
 static bool try_new_var(parser_state ps)
@@ -328,7 +343,6 @@ static bool try_fn_def(parser_state ps)
 			ps,
 			match(ps.p, ctoken::KEYWORD_TYPE_VOID) &&
 			match(ps.p, token::ALIAS, &t) &&
-			match(ps.p, ctoken::OPERATOR_SEMICOLON) &&
 			match(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L) &&
 			try_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
@@ -341,7 +355,7 @@ static bool try_fn_def(parser_state ps)
 	return false;
 }
 
-static bool try_statements(parser_state ps)
+static bool try_statement(parser_state ps)
 {
 	if (
 		manage_state(
@@ -349,6 +363,19 @@ static bool try_statements(parser_state ps)
 			try_new_var(new_state(ps.p, ps.end))
 			// TODO: add expression here
 			// TODO: add if statement here
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_statements(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			until_end(new_state(ps.p, ps.end), try_statement)
 		)
 	) {
 		return true;
@@ -375,7 +402,7 @@ static bool try_fn_decl(parser_state ps)
 	return false;
 }
 
-static bool try_global_statements(parser_state ps)
+static bool try_global_statement(parser_state ps)
 {
 	if (
 		manage_state(
@@ -389,6 +416,14 @@ static bool try_global_statements(parser_state ps)
 	return false;
 }
 
+static bool try_global_statements(parser_state ps)
+{
+	if (manage_state(ps, until_end(new_state(ps.p, ps.end), try_global_statement))) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_program(parser_state ps)
 {
 	if (
@@ -397,7 +432,7 @@ static bool try_program(parser_state ps)
 			try_global_statements(new_state(ps.p, ps.end))
 		)
 	) {
-		return write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{top_scope(ps.p).lsp}) && write_word(ps.p->out.body, XWORD{XIS::PUSH});
+		return top_scope(ps.p).lsp == 0 || (write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{top_scope(ps.p).lsp}) && write_word(ps.p->out.body, XWORD{XIS::POP}));
 	}
 	return false;
 }

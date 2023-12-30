@@ -145,7 +145,7 @@ struct xbinary
 };
 
 /// @brief Contains metadata about an output XASM binary.
-struct xasm_output
+struct xasm_out
 {
 	lexer   l;               // The state of the lexer when successfully exiting the assembler.
 	xbinary out;             // The state of the output binary when successfully existing the assembler.
@@ -160,13 +160,13 @@ struct xasm_output
 /// @param body The output binary write target.
 /// @return Metadata relating to the output assembly.
 /// @sa xlex
-xasm_output assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
+xasm_out assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
 
 /// @brief Assembles extended assembly language in the form of input tokens.
 /// @param l The lexer to be used to read code.
 /// @param memory The memory to write to.
 /// @return Metadata relating to the output assembly.
 /// @sa xlex
-xasm_output assemble_xasm(lexer l, xbinary memory);
+xasm_out assemble_xasm(lexer l, xbinary memory);
 
 #endif
