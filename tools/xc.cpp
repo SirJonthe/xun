@@ -83,18 +83,31 @@ static unsigned chcount(const char *s)
 	return n;
 }
 
-static scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_stack &ss, U16 &back_sp_offset)
+static scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_stack &ss, U16 *back_sp_offset = NULL)
 {
-	back_sp_offset = 0;
+	if (back_sp_offset != NULL) {
+		*back_sp_offset = 0;
+	}
 	for (signed i = ss.index; i >= 0; --i) {
 		for (mtlItem<scope::symbol> *n = ss.scopes[ss.index].symbols.GetFirst(); n != NULL; n = n->GetNext()) {
 			if (strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
 				return &n->GetItem();
 			}
 		}
-		back_sp_offset += ss.scopes[ss.index - 1].lsp;
+		if (back_sp_offset != NULL) {
+			*back_sp_offset += ss.scopes[ss.index - 1].lsp;
+		}
 	}
 	return NULL;
+}
+
+static scope::symbol *find_var(const char *name, unsigned name_char_count, scope_stack &ss, U16 *back_sp_offset = NULL)
+{
+	scope::symbol *sym = find_symbol(name, name_char_count, ss);
+	if (sym != NULL && sym->type != scope::symbol::VAR) {
+		return NULL;
+	}
+	return sym;
 }
 
 static scope::symbol *find_lbl(const char *name, unsigned name_char_count, scope &ss)
@@ -109,8 +122,7 @@ static scope::symbol *find_lbl(const char *name, unsigned name_char_count, scope
 
 static scope::symbol *find_fn(const char *name, unsigned name_char_count, scope_stack &ss)
 {
-	U16 temp;
-	scope::symbol *sym = find_symbol(name, name_char_count, ss, temp);
+	scope::symbol *sym = find_symbol(name, name_char_count, ss);
 	if (sym != NULL && sym->type != scope::symbol::FN) {
 		return NULL;
 	}
@@ -297,7 +309,30 @@ static bool try_put_lit(parser_state ps)
 {
 	token t;
 	if (match(ps.p, ctoken::LITERAL_INT, &t)) {
-		return write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{U16(t.hash)});
+		return
+			write_word(ps.p->out.body, XWORD{XIS::PUT})    &&
+			write_word(ps.p->out.body, XWORD{U16(t.hash)});
+	}
+	return false;
+}
+
+static bool try_put_var(parser_state ps)
+{
+	token t;
+	if (
+		manage_state(
+			ps,
+			match(ps.p, token::ALIAS, &t)
+		)
+	) {
+		U16 offset;
+		scope::symbol *sym = find_var(t.chars, chcount(t.chars), ps.p->scopes, &offset);
+		if (sym == NULL) { return false; }
+		return
+			write_word(ps.p->out.body, XWORD{XIS::PUT})    &&
+			write_word(ps.p->out.body, XWORD{sym->data.u}) &&
+			write_word(ps.p->out.body, XWORD{XIS::CREL})   &&
+			write_word(ps.p->out.body, XWORD{XIS::AT});
 	}
 	return false;
 }
@@ -359,6 +394,7 @@ static bool try_factor(parser_state ps)
 		manage_state(
 			ps,
 			try_put_lit(new_state(ps.p, ps.end)) ||
+			try_put_var(new_state(ps.p, ps.end)) ||
 			(
 				match   (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 				try_expr(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
