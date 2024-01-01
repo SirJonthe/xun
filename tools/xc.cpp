@@ -501,7 +501,7 @@ static bool try_else(parser_state ps)
 			(jmp_addr_idx = ps.p->out.body.index)             &&
 			write_word   (ps.p->out.body, XWORD{0})           &&
 			write_word   (ps.p->out.body, XWORD{XIS::JMP})    &&
-			pop_scope    (ps.p->scopes)                       &&
+			push_scope   (ps.p->scopes)                       &&
 			try_statement(new_state(ps.p, ps.end))
 		)
 	) {
@@ -530,13 +530,17 @@ static bool try_if(parser_state ps)
 		)
 	) {
 		ps.p->out.body.buffer[jmp_addr_idx].u = ps.p->out.head.index + ps.p->out.body.index;
-//		return emit_pop_scope(ps.p) && write_word(ps.p->out.body, XWORD{XIS::TOSS});
-		return
+		return manage_state(
+			ps,
 			emit_pop_scope(ps.p) &&
 			(
-				try_else(new_state(ps.p, ps.end)) ||
+				(
+					try_else(new_state(ps.p, ps.end)) &&
+					(ps.p->out.body.buffer[jmp_addr_idx].u += 3) // NOTE: A successful try_else emits an unconditional jump (PUT ADDR JMP) that we want to skip over to get into the ELSE body.
+				) ||
 				true
-			);
+			)
+		);
 	}
 	return false;
 }
