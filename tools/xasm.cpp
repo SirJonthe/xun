@@ -398,7 +398,7 @@ static bool try_decl_var(parser_state ps)
 {
 	const token t = peek(ps.p);
 	if (manage_state(ps, match(ps.p, token::ALIAS))) {
-		if (add_var(t.chars, chcount(t.chars), ps.p->scopes) == NULL) { return false; }
+		if (add_var(t.text.str, chcount(t.text.str), ps.p->scopes) == NULL) { return false; }
 		return true;
 	}
 	return false;
@@ -487,7 +487,7 @@ static bool try_decl_lit(parser_state ps)
 {
 	token t = peek(ps.p);
 	if (manage_state(ps, match(ps.p, token::ALIAS) && match(ps.p, xtoken::OPERATOR_COMMA) && try_lit(new_state(ps.p, ps.end)))) {
-		if (add_lit(t.chars, chcount(t.chars), ps.p->out.body.buffer[--ps.p->out.body.index].u, ps.p->scopes) == NULL) { return false; }
+		if (add_lit(t.text.str, chcount(t.text.str), ps.p->out.body.buffer[--ps.p->out.body.index].u, ps.p->scopes) == NULL) { return false; }
 		return true;
 	}
 	return false;
@@ -513,7 +513,7 @@ static bool try_label(parser_state ps)
 	if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_LABEL))) {
 		token t = peek(ps.p);
 		if (manage_state(ps, match(ps.p, token::ALIAS) && match(ps.p, xtoken::OPERATOR_COLON))) {
-			return add_lbl(t.chars, chcount(t.chars), ps.p->out.head.index + ps.p->out.body.index, ps.p->scopes) != NULL;
+			return add_lbl(t.text.str, chcount(t.text.str), ps.p->out.head.index + ps.p->out.body.index, ps.p->scopes) != NULL;
 		}
 	}
 	return false;
@@ -523,7 +523,7 @@ static bool try_func_alias(parser_state ps)
 {
 	token t;
 	if (manage_state(ps, match(ps.p, token::ALIAS, &t))) {
-		scope::symbol *s = add_fn(t.chars, chcount(t.chars), ps.p->out.head.index + ps.p->out.body.index, ps.p->out.body.buffer[--ps.p->out.body.index].u, ps.p->scopes);
+		scope::symbol *s = add_fn(t.text.str, chcount(t.text.str), ps.p->out.head.index + ps.p->out.body.index, ps.p->out.body.buffer[--ps.p->out.body.index].u, ps.p->scopes);
 		return s != NULL;
 	}
 	return false;
@@ -577,15 +577,15 @@ static bool try_directive_call(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match        (ps.p, xtoken::KEYWORD_DIRECTIVE_CALL)                    &&
-			match        (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			match        (ps.p, token::ALIAS, &t)                                  &&
-			(fn = find_fn(t.chars, chcount(t.chars), ps.p->scopes)) != NULL        &&
-			write_word   (ps.p->out.body, XWORD{XIS::PUT})                         &&
-			write_word   (ps.p->out.body, XWORD{fn->size})                         &&
-			write_word   (ps.p->out.body, XWORD{XIS::PUTS})                        &&
-			try_put_param(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			write_word   (ps.p->out.body, XWORD{XIS::PUTI})                        &&
+			match        (ps.p, xtoken::KEYWORD_DIRECTIVE_CALL)                     &&
+			match        (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)             &&
+			match        (ps.p, token::ALIAS, &t)                                   &&
+			(fn = find_fn(t.text.str, chcount(t.text.str), ps.p->scopes)) != NULL &&
+			write_word   (ps.p->out.body, XWORD{XIS::PUT})                          &&
+			write_word   (ps.p->out.body, XWORD{fn->size})                          &&
+			write_word   (ps.p->out.body, XWORD{XIS::PUTS})                         &&
+			try_put_param(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R))  &&
+			write_word   (ps.p->out.body, XWORD{XIS::PUTI})                         &&
 			match        (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 		)
 	) {
@@ -713,7 +713,7 @@ static bool try_var_addr(parser_state ps)
 	if (match(ps.p, token::ALIAS)) {
 		U16 index = parse_lit_index(ps);
 		U16 sp_offset = 0;
-		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
+		scope::symbol *sym = find_symbol(t.text.str, chcount(t.text.str), ps.p->scopes, sp_offset);
 		if (sym == NULL || sym->type != scope::symbol::VAR) { return false; }
 		return
 			write_word(ps.p->out.body, XWORD{(U16)(sym->data.u - sp_offset + index)}) &&
@@ -760,7 +760,7 @@ static bool try_var_size(parser_state ps)
 	token t = peek(ps.p);
 	if (match(ps.p, token::ALIAS)) {
 		U16 sp_offset; // unused
-		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
+		scope::symbol *sym = find_symbol(t.text.str, chcount(t.text.str), ps.p->scopes, sp_offset);
 		if (sym == NULL) { return false; }
 		return write_word(ps.p->out.body, XWORD{sym->size});
 	}
@@ -800,19 +800,19 @@ static bool try_lit(parser_state ps)
 		return write_word(ps.p->out.body, XWORD{(U16)(t.hash + index)});
 	} else if (match(ps.p, token::ALIAS, &t)) {
 		U16 sp_offset = 0; // Not really needed;
-		scope::symbol *sym = find_symbol(t.chars, chcount(t.chars), ps.p->scopes, sp_offset);
+		scope::symbol *sym = find_symbol(t.text.str, chcount(t.text.str), ps.p->scopes, sp_offset);
 		if (sym == NULL || sym->type != scope::symbol::LIT) { return false; }
 		U16 index = parse_lit_index(ps);
 		return write_word(ps.p->out.body, XWORD{(U16)(sym->data.u + index)});
 	} else if (manage_state(ps, match(ps.p, xtoken::OPERATOR_DIRECTIVE_LABEL) && match(ps.p, token::ALIAS, &t))) {
-		scope::symbol *lbl = find_lbl(t.chars, chcount(t.chars), top_scope(ps.p));
+		scope::symbol *lbl = find_lbl(t.text.str, chcount(t.text.str), top_scope(ps.p));
 		if (lbl != NULL) {
 			if (!write_word(ps.p->out.body, XWORD{lbl->data.u})) { return false; }
 		} else {
 			scope::fwd_label fwd;
-			const unsigned count = chcount(t.chars);
+			const unsigned count = chcount(t.text.str);
 			unsigned i;
-			for (i = 0; i < count; ++i)       { fwd.name[i] = t.chars[i]; }
+			for (i = 0; i < count; ++i)       { fwd.name[i] = t.text.str[i]; }
 			for (; i < sizeof(fwd.name); ++i) { fwd.name[i] = 0; }
 			fwd.loc = ps.p->out.body.buffer + ps.p->out.body.index;
 			top_scope(ps.p).fwd_labels.AddLast(fwd);
