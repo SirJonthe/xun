@@ -210,14 +210,24 @@ static scope &top_scope(parser *p)
 	return p->scopes.scopes[p->scopes.index];
 }
 
+static U16 scope_size(const scope &s)
+{
+	U16 size = 0;
+	for (const mtlItem<scope::symbol> *i = s.symbols.GetFirst(); i != NULL; i = i->GetNext()) {
+		size += i->GetItem().size;
+	}
+	return size;
+}
+
 static bool emit_pop_scope(parser *p)
 {
+	const U16 lsp = scope_size(top_scope(p));
 	return
 		(
-			top_scope(p).lsp == 0 ||
+			lsp == 0 ||
 			(
 				write_word(p->out.body, XWORD{XIS::PUT}) &&
-				write_word(p->out.body, XWORD{U16(top_scope(p).lsp)}) &&
+				write_word(p->out.body, XWORD{lsp}) &&
 				write_word(p->out.body, XWORD{XIS::POP})
 			)
 		) &&
@@ -582,10 +592,8 @@ static bool try_new_arr(parser_state ps, scope::symbol *sym)
 		)
 	) {
 		sym->size *= result;
-		return
-			write_word(ps.p->out.body, XWORD{XIS::PUT})    &&
-			write_word(ps.p->out.body, XWORD{U16(result)}) &&
-			write_word(ps.p->out.body, XWORD{XIS::PUSH});
+		ps.p->out.body.buffer[ps.p->out.body.index - 2].u = sym->size;
+		return true;
 		// TODO: Check if assignment happens...
 	}
 	return false;
@@ -610,8 +618,8 @@ static bool try_new_var(parser_state ps)
 				ps,
 				match(ps.p, ctoken::OPERATOR_SEMICOLON) ||
 				(
-					try_new_arr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym) ||
-					try_ass_var(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym)
+					try_ass_var(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym) ||
+					try_new_arr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym)
 				) &&
 				match(ps.p, ctoken::OPERATOR_SEMICOLON)
 		);
@@ -763,7 +771,6 @@ static bool try_statement(parser_state ps)
 			try_if     (new_state(ps.p, ps.end)) ||
 			try_scope  (new_state(ps.p, ps.end))
 			// TODO: add expression here
-			// TODO: add if statement here
 		)
 	) {
 		return true;
@@ -835,11 +842,12 @@ static bool try_program(parser_state ps)
 		)
 	) {
 		// NOTE: pop_scope not possible since we are at index 0 here.
+		const U16 lsp = scope_size(top_scope(ps.p));
 		return
-			top_scope(ps.p).lsp == 0 ||
+			lsp == 0 ||
 			(
-				write_word(ps.p->out.body, XWORD{XIS::PUT})            &&
-				write_word(ps.p->out.body, XWORD{top_scope(ps.p).lsp}) &&
+				write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
+				write_word(ps.p->out.body, XWORD{lsp})      &&
 				write_word(ps.p->out.body, XWORD{XIS::POP})
 			);
 	}
