@@ -562,17 +562,35 @@ static bool try_expr(parser_state ps)
 	return false;
 }
 
-static bool try_ass_var(parser_state ps, scope::symbol *sym)
+static bool try_ass_expr(parser_state ps, const scope::symbol *sym)
+{
+	for (U16 offset = 0; offset < sym->size; ++offset) {
+		if (
+			!manage_state(
+				ps,
+				write_word(ps.p->out.body, XWORD{XIS::PUT})                                                          &&
+				write_word(ps.p->out.body, XWORD{U16(sym->data.u + offset)})                                         &&
+				write_word(ps.p->out.body, XWORD{XIS::CREL})                                                         &&
+				try_expr  (new_state(ps.p, (offset < sym->size - 1 ? match(ps.p, ctoken::OPERATOR_COMMA) : ps.end))) &&
+				write_word(ps.p->out.body, XWORD{XIS::MOVD})                                                         &&
+				(offset == sym->size - 1 || match(ps.p, ctoken::OPERATOR_COMMA))
+			)
+		) {
+			return false;
+		}
+	}
+	return peek(ps.p).user_type == ps.end;
+}
+
+static bool try_ass_var(parser_state ps, const scope::symbol *sym)
 {
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)       &&
-			write_word(ps.p->out.body, XWORD{XIS::PUT})             &&
-			write_word(ps.p->out.body, XWORD{sym->data.u})          &&
-			write_word(ps.p->out.body, XWORD{XIS::CREL})            &&
-			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
-			write_word(ps.p->out.body, XWORD{XIS::MOVD})
+			match(ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)                                                                       &&
+			(sym->size == 1 || match(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L))                                                  &&
+			try_ass_expr(new_state(ps.p, sym->size == 1 ? ctoken::OPERATOR_SEMICOLON : ctoken::OPERATOR_ENCLOSE_BRACE_R), sym) &&
+			(sym->size == 1 || match(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))
 		)
 	) {
 		return true;
@@ -593,8 +611,12 @@ static bool try_new_arr(parser_state ps, scope::symbol *sym)
 	) {
 		sym->size *= result;
 		ps.p->out.body.buffer[ps.p->out.body.index - 2].u = sym->size;
-		return true;
-		// TODO: Check if assignment happens...
+		return manage_state(
+			ps,
+			peek(ps.p).user_type == ps.end            ||
+			try_ass_var(new_state(ps.p, ps.end), sym) //||
+//			try_new_arr(new_state(ps.p, ps.end), sym) // NOTE: Disabling this for now since we need to keep track of the individual sizes for each dimension and we currently can not do that in a nice stack-based way.
+		);
 	}
 	return false;
 }
