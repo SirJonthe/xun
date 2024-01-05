@@ -6,9 +6,9 @@
 
 #define READI         RAM[IP.u++].u
 
-#define TOP           RAM[uint16_t(SP.u + C.u)]
-#define LST           RAM[uint16_t(SP.u + C.u - 1)]
-#define SAT(n)        RAM[uint16_t(SP.u + C.u + n)]
+#define TOP           RAM[uint16_t(SP.u)]
+#define LST           RAM[uint16_t(SP.u - 1)]
+#define SAT(n)        RAM[uint16_t(SP.u + n)]
 
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
@@ -31,13 +31,13 @@ void Machine::Feed(const XWORD *bin, U16 bin_count, bool debug)
 	// When computer boots, the machine FIRMWARE (a small read-only program) pulls the main executable from STORAGE into RAM.
 	// When done, executes program in RAM.
 
-	SP.u = U_MAX;
 	IP.u = 0;
-	A.u = 0;
+	A.u  = 0;
 	for (C.u = 0; C.u < bin_count; ++C.u) {
 		AT(C) = bin[C.u];
 	}
-	B.u = C.u;
+	B.u  = C.u;
+	SP.u = C.u - 1;
 	if (debug) {
 		for (unsigned i = C.u; i < U_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = XIS::HALT;
@@ -65,31 +65,38 @@ void Machine::PokeC(U16 addr, XWORD val)
 	RAM[addr + C.u] = val;
 }
 
-XWORD Machine::Peek(U16 addr)
+void Machine::PokeTop(U16 addr, XWORD val)
+{
+	RAM[addr + SP.u] = val;
+}
+
+XWORD Machine::Peek(U16 addr) const
 {
 	return RAM[addr];
 }
 
-XWORD Machine::PeekA(U16 addr)
+XWORD Machine::PeekA(U16 addr) const
 {
 	return RAM[addr + A.u];
 }
 
-XWORD Machine::PeekB(U16 addr)
+XWORD Machine::PeekB(U16 addr) const
 {
 	return RAM[addr + B.u];
 }
 
-XWORD Machine::PeekC(U16 addr)
+XWORD Machine::PeekC(U16 addr) const
 {
 	return RAM[addr + C.u];
 }
 
+XWORD Machine::PeekTop(U16 addr) const
+{
+	return RAM[addr + SP.u];
+}
+
 XWORD Machine::Cycle( void )
 {
-//	std::cout << "\tI" << IP.u << "=";
-//	if (AT(IP).u < XIS::COUNT) { std::cout << ISTR[AT(IP).u] << std::endl; }
-//	else                       { std::cout << "ERR(" << AT(IP).u << ")" << std::endl; }
 	switch (READI) {
 	case XIS::NOP:
 		break;
@@ -294,7 +301,6 @@ XWORD Machine::Cycle( void )
 		A.u = SP.u;
 		B.u = SP.u;
 		C.u = SP.u;
-		SP.u = 0;
 		break;
 	case XIS::SVB:
 		// [ ]...[B][C][SP]
@@ -307,7 +313,6 @@ XWORD Machine::Cycle( void )
 		TOP.u = SP.u;
 		B.u = SP.u;
 		C.u = SP.u;
-		SP.u = 0;
 		break;
 	case XIS::SVC:
 		// [ ]...[ ]...[C][SP]
@@ -317,7 +322,6 @@ XWORD Machine::Cycle( void )
 		PUSH_STACK(1);
 		TOP.u = SP.u;
 		C.u = SP.u;
-		SP.u = 0;
 		break;
 	case XIS::LDA:
 		SP = ATN(A,  0);
@@ -327,14 +331,14 @@ XWORD Machine::Cycle( void )
 		POP_STACK(4);
 		break;
 	case XIS::LDB:
-		SP = ATN(A,  0);
-		C  = ATN(A, -1);
-		B  = ATN(A, -2);
+		SP = ATN(B,  0);
+		C  = ATN(B, -1);
+		B  = ATN(B, -2);
 		POP_STACK(3);
 		break;
 	case XIS::LDC:
-		SP = ATN(A,  0);
-		C  = ATN(A, -1);
+		SP = ATN(C,  0);
+		C  = ATN(C, -1);
 		POP_STACK(2);
 		break;
 	case XIS::RLA:
@@ -351,9 +355,6 @@ XWORD Machine::Cycle( void )
 		ERR.u |= ERR_UNDEF;
 		break;
 	}
-//	std::cout << "\tS" << SP.u << "=" << TOP.u << std::endl;
-//	std::cout << "\tE" << EP.u << "=" << AT(EP).u << std::endl;
-//	std::cout << "\tC" << CP.u << "=" << AT(CP).u << std::endl;
 	return RAM[IP.u];
 }
 

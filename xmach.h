@@ -19,8 +19,8 @@ private:
 		C, // Offset pointer to the start of the stack in a local function (access local variables).
 		
 		// Main pointers
-		SP,  // Stack Pointer. Relative. Needs EP or CP to access elements in memory. SP + EP for global functions, variables, labels, and data. SP + CP for local variables, and labels.
-		IP,  // Instruction Pointer. Absolute. Stored addresses are relative however, so need to be adjusted IP = addr + EP for global labels, IP = addr + CP for local labels.
+		SP,  // Stack Pointer. Absolute.
+		IP,  // Instruction Pointer. Absolute. Stored addresses are relative however, so need to be adjusted IP = addr + A for global binary labels, IP = addr + B for global stack labels, IP = addr + C for local stack labels.
 		
 		// Error pointers
 		ERR; // Error register.
@@ -44,10 +44,12 @@ public:
 	void  PokeA(U16 addr, XWORD val);
 	void  PokeB(U16 addr, XWORD val);
 	void  PokeC(U16 addr, XWORD val);
-	XWORD Peek(U16 addr);
-	XWORD PeekA(U16 addr);
-	XWORD PeekB(U16 addr);
-	XWORD PeekC(U16 addr);
+	void  PokeTop(U16 addr, XWORD val);
+	XWORD Peek(U16 addr) const;
+	XWORD PeekA(U16 addr) const;
+	XWORD PeekB(U16 addr) const;
+	XWORD PeekC(U16 addr) const;
+	XWORD PeekTop(U16 addr) const;
 	XWORD Cycle( void );
 	void  Run( void );
 	bool  IsAvailablePort(U8 port) const;
