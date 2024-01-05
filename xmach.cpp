@@ -6,9 +6,9 @@
 
 #define READI         RAM[IP.u++].u
 
-#define TOP           RAM[uint16_t(SP.u + CP.u)]
-#define LST           RAM[uint16_t(SP.u + CP.u - 1)]
-#define SAT(n)        RAM[uint16_t(SP.u + CP.u + n)]
+#define TOP           RAM[uint16_t(SP.u + C.u)]
+#define LST           RAM[uint16_t(SP.u + C.u - 1)]
+#define SAT(n)        RAM[uint16_t(SP.u + C.u + n)]
 
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
@@ -33,45 +33,56 @@ void Machine::Feed(const XWORD *bin, U16 bin_count, bool debug)
 
 	SP.u = U_MAX;
 	IP.u = 0;
-	EP.u = 0;
-	for (CP.u = 0; CP.u < bin_count; ++CP.u) {
-		AT(CP) = bin[CP.u];
+	A.u = 0;
+	for (C.u = 0; C.u < bin_count; ++C.u) {
+		AT(C) = bin[C.u];
 	}
+	B.u = C.u;
 	if (debug) {
-		for (unsigned i = CP.u; i < U_MAX; ++i) {
-			AT(XWORD{U16(i)}).u = 0;
+		for (unsigned i = C.u; i < U_MAX; ++i) {
+			AT(XWORD{U16(i)}).u = XIS::HALT;
 		}
 	}
 }
 
-void Machine::PokeAbs(U16 addr, XWORD val)
+void Machine::Poke(U16 addr, XWORD val)
 {
 	RAM[addr] = val;
 }
 
-void Machine::PokeEP(U16 addr, XWORD val)
+void Machine::PokeA(U16 addr, XWORD val)
 {
-	RAM[addr + EP.u] = val;
+	RAM[addr + A.u] = val;
 }
 
-void Machine::PokeCP(U16 addr, XWORD val)
+void Machine::PokeB(U16 addr, XWORD val)
 {
-	RAM[addr + CP.u] = val;
+	RAM[addr + B.u] = val;
 }
 
-XWORD Machine::PeekAbs(U16 addr)
+void Machine::PokeC(U16 addr, XWORD val)
+{
+	RAM[addr + C.u] = val;
+}
+
+XWORD Machine::Peek(U16 addr)
 {
 	return RAM[addr];
 }
 
-XWORD Machine::PeekEP(U16 addr)
+XWORD Machine::PeekA(U16 addr)
 {
-	return RAM[addr + EP.u];
+	return RAM[addr + A.u];
 }
 
-XWORD Machine::PeekCP(U16 addr)
+XWORD Machine::PeekB(U16 addr)
 {
-	return RAM[addr + CP.u];
+	return RAM[addr + B.u];
+}
+
+XWORD Machine::PeekC(U16 addr)
+{
+	return RAM[addr + C.u];
 }
 
 XWORD Machine::Cycle( void )
@@ -81,12 +92,6 @@ XWORD Machine::Cycle( void )
 //	else                       { std::cout << "ERR(" << AT(IP).u << ")" << std::endl; }
 	switch (READI) {
 	case XIS::NOP:
-		break;
-	case XIS::EREL:
-		TOP.u = TOP.u + EP.u;
-		break;
-	case XIS::CREL:
-		TOP.u = TOP.u + CP.u;
 		break;
 	case XIS::JMP:
 		IP.u = TOP.u;
@@ -210,50 +215,6 @@ XWORD Machine::Cycle( void )
 		LST.u = LST.i > TOP.i ? uint16_t(1) : uint16_t(0);
 		POP_STACK(1);
 		break;
-	case XIS::DO:
-		if (TOP.u == 0) {
-			if (READI == XIS::PUT) { READI; }
-		}
-		POP_STACK(1);
-		break;
-	case XIS::CEP:
-		// transform top 4 elements to offsets of values of registers EP, CP, SP, IP
-		// []...[EP][CP][SP][IP] <-- CP + SP POINTS HERE
-		SAT(-3).u += EP.u;
-		SAT(-2).u += CP.u;
-		SAT(-1).u += SP.u;
-		SAT( 0).u += IP.u - 1; // IP has already been incremented by 1 in the switch condition so we need to readjust it 1 down
-		EP.u += SP.u;
-		CP.u += SP.u;
-		SP.u = 0;
-		break;
-	case XIS::REP:
-		// just set elements to values stored sequentially from EP-1 to EP-4
-		// []...[EP][CP][SP][IP] <-- EP POINTS HERE
-		CP = ATN(EP, -2);
-		SP = ATN(EP, -1);
-		IP = ATN(EP,  0);
-		EP = ATN(EP, -3); // This must be set last!
-		POP_STACK(4);
-		break;
-	case XIS::CCP: {
-		// transform top 3 elements to offsets of values of registers CP, SP, IP
-		// []...[CP][SP][IP] <-- CP + SP POINTS HERE
-		SAT(-2).u += CP.u;
-		SAT(-1).u += SP.u;
-		SAT( 0).u += IP.u - 1; // IP has already been incremented by 1 in the switch condition so we need to readjust it 1 down
-		CP.u += SP.u;
-		SP.u = 0;
-		break;
-	}
-	case XIS::RCP:
-		// just set elements to values stored sequentially from CP-1 to CP-3
-		// []...[CP][SP][IP] <-- CP POINTS HERE
-		SP = ATN(CP, -1);
-		IP = ATN(CP,  0);
-		CP = ATN(CP, -2); // This must be set last!
-		POP_STACK(3);
-		break;
 	case XIS::HALT:
 		--IP.u;
 		Shutdown();
@@ -270,7 +231,7 @@ XWORD Machine::Cycle( void )
 		break;
 	case XIS::PUTS:
 		PUSH_STACK(1);
-		TOP.u = SP.u + CP.u;
+		TOP.u = SP.u + C.u;
 		break;
 	case XIS::PUTI:
 		PUSH_STACK(1);
@@ -318,6 +279,72 @@ XWORD Machine::Cycle( void )
 	case XIS::DUP:
 		PUSH_STACK(1);
 		TOP.u = LST.u;
+		break;
+	case XIS::SVA:
+		// [A][B][C][SP]
+		//         ABC^
+		PUSH_STACK(1);
+		TOP.u = A.u;
+		PUSH_STACK(1);
+		TOP.u = B.u;
+		PUSH_STACK(1);
+		TOP.u = C.u;
+		PUSH_STACK(1);
+		TOP.u = SP.u;
+		A.u = SP.u;
+		B.u = SP.u;
+		C.u = SP.u;
+		SP.u = 0;
+		break;
+	case XIS::SVB:
+		// [ ]...[B][C][SP]
+		// A^           BC^
+		PUSH_STACK(1);
+		TOP.u = B.u;
+		PUSH_STACK(1);
+		TOP.u = C.u;
+		PUSH_STACK(1);
+		TOP.u = SP.u;
+		B.u = SP.u;
+		C.u = SP.u;
+		SP.u = 0;
+		break;
+	case XIS::SVC:
+		// [ ]...[ ]...[C][SP]
+		// A^    B^        C^
+		PUSH_STACK(1);
+		TOP.u = C.u;
+		PUSH_STACK(1);
+		TOP.u = SP.u;
+		C.u = SP.u;
+		SP.u = 0;
+		break;
+	case XIS::LDA:
+		SP = ATN(A,  0);
+		C  = ATN(A, -1);
+		B  = ATN(A, -2);
+		A  = ATN(A, -3);
+		POP_STACK(4);
+		break;
+	case XIS::LDB:
+		SP = ATN(A,  0);
+		C  = ATN(A, -1);
+		B  = ATN(A, -2);
+		POP_STACK(3);
+		break;
+	case XIS::LDC:
+		SP = ATN(A,  0);
+		C  = ATN(A, -1);
+		POP_STACK(2);
+		break;
+	case XIS::RLA:
+		TOP.u = TOP.u + A.u;
+		break;
+	case XIS::RLB:
+		TOP.u = TOP.u + B.u;
+		break;
+	case XIS::RLC:
+		TOP.u = TOP.u + C.u;
 		break;
 	default:
 		// Generate a hardware exception here that will allow a potential OS to recover.

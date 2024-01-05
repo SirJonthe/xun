@@ -16,7 +16,7 @@ static unsigned hex2u(const char *nums, unsigned len)
 	return h;
 }
 
-const signed X_TOKEN_COUNT = 65;
+const signed X_TOKEN_COUNT = 64;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("at",                      2, xtoken::KEYWORD_INSTRUCTION_AT),
@@ -50,7 +50,6 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("ilt",                     3, xtoken::KEYWORD_INSTRUCTION_ILT),
 	new_keyword ("ige",                     3, xtoken::KEYWORD_INSTRUCTION_IGE),
 	new_keyword ("ile",                     3, xtoken::KEYWORD_INSTRUCTION_ILE),
-	new_keyword ("do",                      2, xtoken::KEYWORD_INSTRUCTION_DO),
 	new_keyword ("jmp",                     3, xtoken::KEYWORD_INSTRUCTION_JMP),
 	new_keyword ("cjmp",                    4, xtoken::KEYWORD_INSTRUCTION_CJMP),
 	new_keyword ("skip",                    4, xtoken::KEYWORD_INSTRUCTION_SKIP),
@@ -386,14 +385,6 @@ static bool try_instruction_at(parser_state ps)
 	return false;
 }
 
-static bool try_instruction_do(parser_state ps)
-{
-	if (match(ps.p, xtoken::KEYWORD_INSTRUCTION_DO)) {
-		return write_word(ps.p->out.body, XWORD{XIS::DO});
-	}
-	return false;
-}
-
 static bool try_decl_var(parser_state ps)
 {
 	const token t = peek(ps.p);
@@ -695,13 +686,13 @@ static bool try_reg(parser_state ps)
 		} else if (match(ps.p, xtoken::KEYWORD_DIRECTIVE_FRAME)) {
 			U16 index = parse_lit_index(ps);
 			return index == 0 ?
-				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::CREL})) :
-				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::CREL}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::ADD}));
+				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::RLC})) :
+				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::RLC}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::ADD}));
 		} else if (match(ps.p, xtoken::KEYWORD_DIRECTIVE_BASE)) {
 			U16 index = parse_lit_index(ps);
 			return index == 0 ?
-				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::EREL})) :
-				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::EREL}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::ADD}));
+				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::RLB})) :
+				(write_word(ps.p->out.body, XWORD{U16(0)}) && write_word(ps.p->out.body, XWORD{XIS::RLB}) && write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{index}) && write_word(ps.p->out.body, XWORD{XIS::ADD}));
 		}
 	}
 	return false;
@@ -717,7 +708,7 @@ static bool try_var_addr(parser_state ps)
 		if (sym == NULL || sym->type != scope::symbol::VAR) { return false; }
 		return
 			write_word(ps.p->out.body, XWORD{(U16)(sym->data.u - sp_offset + index)}) &&
-			write_word(ps.p->out.body, XWORD{XIS::CREL});
+			write_word(ps.p->out.body, XWORD{XIS::RLC});
 	}
 	return false;
 }
@@ -971,7 +962,6 @@ static bool try_instructions(parser_state ps)
 			(
 				try_instruction_nop     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_at      (new_state(ps.p, ps.end))                                              ||
-				try_instruction_do      (new_state(ps.p, ps.end))                                              ||
 				try_instruction_put     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ADD,  XIS::ADD)  ||
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_SUB,  XIS::SUB)  ||

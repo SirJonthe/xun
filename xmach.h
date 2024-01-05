@@ -13,19 +13,10 @@ class Machine : public Device
 {
 private:
 	XWORD
-		// Offset pointers
-		PSP, // Program Stack Pointer. Absolute. The offset from 0 where the stack pointer was located at the start of program load.
-		FSP, // Frame Stack Pointer. Absolute. The offset from 0 where the stack pointer was located at the start of frame load.
-		PIP, // Program Instruction Pointer. Absolute. The offset from 0 where the instruction pointer was located at the start of program load.
-
-		// Register restore pointers
-		PRP, // Program Restore Pointer. Absolute. The stack location of the previous program restore point.
-		FRP, // Frame Restore Pointer. Absolute. The stack location of the previous frame restore point.
-
-		// TODO: Replace with PSP and PIP
-		EP,  // Entry Pointer. Absolute. Generally points to the start of where instructions are added in RAM.
-		// TODO: Replace with FSP
-		CP,  // Call Pointer. Absolute. Generally points to the start on the stack where a function frame begins.
+		// Offset pointers.
+		A, // Offset pointer to the start of the program (access labels).
+		B, // Offset pointer to the start of the stack in a program (access global variables).
+		C, // Offset pointer to the start of the stack in a local function (access local variables).
 		
 		// Main pointers
 		SP,  // Stack Pointer. Relative. Needs EP or CP to access elements in memory. SP + EP for global functions, variables, labels, and data. SP + CP for local variables, and labels.
@@ -49,12 +40,14 @@ public:
 	Machine( void );
 
 	void  Feed(const XWORD *bin, U16 bin_count, bool debug = false);
-	void  PokeAbs(U16 addr, XWORD val);
-	void  PokeEP(U16 addr, XWORD val);
-	void  PokeCP(U16 addr, XWORD val);
-	XWORD PeekAbs(U16 addr);
-	XWORD PeekEP(U16 addr);
-	XWORD PeekCP(U16 addr);
+	void  Poke(U16 addr, XWORD val);
+	void  PokeA(U16 addr, XWORD val);
+	void  PokeB(U16 addr, XWORD val);
+	void  PokeC(U16 addr, XWORD val);
+	XWORD Peek(U16 addr);
+	XWORD PeekA(U16 addr);
+	XWORD PeekB(U16 addr);
+	XWORD PeekC(U16 addr);
 	XWORD Cycle( void );
 	void  Run( void );
 	bool  IsAvailablePort(U8 port) const;

@@ -20,8 +20,8 @@ struct XIS
 		PUT    = 0b10000000 + ( 1<<8), // put a constant on the stack (use EREL/CREL + AT if you want to transform a constant address to a value)
 		PUTS   = 0b10000010 + ( 2<<8), // put the absolute address of the top stack element on the stack
 		PUTI   = 0b10000010 + ( 3<<8), // put the absolute address of the current instruction on the stack
-		EREL   = 0b00100000 + ( 4<<8), // transform constant on stack to address relative to EP
-		CREL   = 0b00100000 + ( 5<<8), // transform constant on stack to address relative to CP
+		RES4   = 0b00100000 + ( 4<<8), // Reserved #4
+		RES5   = 0b00100000 + ( 5<<8), // Reserved #5
 		AT     = 0b00100000 + ( 6<<8), // dereference top value on the stack as an absolute address (use EREL/CREL to transform relative address to absolute)
 		JMP    = 0b01000000 + ( 7<<8), // jump to top value (absolute address) on stack (use EREL/CREL to transform relative address to absolute), collapse stack by 1
 		SKIP   = 0b01000000 + ( 8<<8), // increment/decrement current IP by an amount
@@ -54,11 +54,11 @@ struct XIS
 		IGE    = 0b10001100 + (35<<8), // test top-1 >= top, collapse stack by 1 (signed)
 		ILT    = 0b10001100 + (36<<8), // test top-1 < top, collapse stack by 1 (signed)
 		IGT    = 0b10001100 + (37<<8), // test top-1 > top, collapse stack by 1 (signed)
-		DO     = 0b11001000 + (38<<8), // Skips ahead ONE instruction if top stack value is 0
-		CEP    = 0b10000010 + (39<<8), // begins a new program (saves registers including program pointer) -> Create Entry Point (transforms top 4 stack elements as offsets to saved registers)
-		REP    = 0b11000010 + (40<<8), // ends program by restoring all pointers (SP, IP, CP, EP)          -> Restore Entry Point
-		CCP    = 0b10000010 + (41<<8), // create restore point (saves SP, IP, CP)                          -> Create Call Point (transforms top 3 stack elements as offsets to saved registers)
-		RCP    = 0b11000010 + (42<<8), // restore from restore point (ends function)                       -> Restore Call Point
+		RES38  = 0b11001000 + (38<<8), // Reserved #38
+		RES39  = 0b10000010 + (39<<8), // Reserved #39
+		RES40  = 0b11000010 + (40<<8), // Reserved #40
+		RES41  = 0b10000010 + (41<<8), // Reserved #41
+		RES42  = 0b11000010 + (42<<8), // Reserved #42
 		PUSH   = 0b10000000 + (43<<8), // increases the SP by the top value - 1
 		POP    = 0b10000000 + (44<<8), // decreases the SP by the top value
 		TOSS   = 0b10000000 + (45<<8), // remove a constant from the stack
@@ -67,15 +67,15 @@ struct XIS
 		PEEK   = 0b00000000 + (48<<8), // store top constant from stack in specified absolute address (use EREL/CREL to transform relative address to absolute)
 		HALT   = 0b00000000 + (49<<8), // halt execution (deprecate with power controller)
 
-		IP     = 0b00000010 + (50<<8), // puts PIP+IP on the top stack
-		SP     = 0b00000010 + (51<<8), // puts PSP+FSP+SP on the top stack
-		FSP    = 0b00000010 + (52<<8), // puts PSP+FSP on the top stack
-		PSP    = 0b00000010 + (53<<8), // puts PSP on the top stack
+		RES50  = 0b00000010 + (50<<8), // Reserved #50
+		RES51  = 0b00000010 + (51<<8), // Reserved #51
+		RES52  = 0b00000010 + (52<<8), // Reserved #52
+		RES53  = 0b00000010 + (53<<8), // Reserved #53
 
-		SAVP   = 0b10000010 + (54<<8), // save program register state
-		RSTP   = 0b11000010 + (55<<8), // restore program register state
-		SAVF   = 0b10000010 + (56<<8), // save frame register state
-		RSTF   = 0b11000010 + (57<<8), // restore frame register state
+		RES54   = 0b10000010 + (54<<8), // Reserved #54
+		RES55   = 0b11000010 + (55<<8), // Reserved #55
+		RES56   = 0b10000010 + (56<<8), // Reserved #56
+		RES57   = 0b11000010 + (57<<8), // Reserved #57
 
 		CJMP   = 0b01001000 + (58<<8), // Jump to the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
 		CSKIP  = 0b01001000 + (59<<8), // Skup ahead by an amount as given by the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
@@ -84,7 +84,18 @@ struct XIS
 
 		DUP    = 0b10000000 + (62<<8), // Duplicates the top value on the stack and puts it on the top.
 
-		COUNT = 63 // The number of instructions in the instruction set.
+		SVA    = 0b10000010 + (63<<8),
+		SVB    = 0b10000010 + (64<<8),
+		SVC    = 0b10000010 + (65<<8),
+		LDA    = 0b11000010 + (66<<8),
+		LDB    = 0b11000010 + (67<<8),
+		LDC    = 0b11000010 + (68<<8),
+
+		RLA    = 0b00100000 + (69<<8), // transform constant on stack to address relative to A
+		RLB    = 0b00100000 + (70<<8), // transform constant on stack to address relative to B
+		RLC    = 0b00100000 + (71<<8), // transform constant on stack to address relative to C
+
+		COUNT = 72 // The number of instructions in the instruction set.
 	};
 };
 
@@ -93,8 +104,8 @@ static const char *ISTR[XIS::COUNT] = {
 	TOSTR(PUT),
 	TOSTR(PUTS),
 	TOSTR(PUTI),
-	TOSTR(EREL),
-	TOSTR(CREL),
+	TOSTR(RES4),
+	TOSTR(RES5),
 	TOSTR(AT),
 	TOSTR(JMP),
 	TOSTR(SKIP),
@@ -127,11 +138,11 @@ static const char *ISTR[XIS::COUNT] = {
 	TOSTR(IGE),
 	TOSTR(ILT),
 	TOSTR(IGT),
-	TOSTR(DO),
-	TOSTR(CEP),
-	TOSTR(REP),
-	TOSTR(CCP),
-	TOSTR(RCP),
+	TOSTR(RES38),
+	TOSTR(RES39),
+	TOSTR(RES40),
+	TOSTR(RES41),
+	TOSTR(RES42),
 	TOSTR(PUSH),
 	TOSTR(POP),
 	TOSTR(TOSS),
@@ -139,19 +150,28 @@ static const char *ISTR[XIS::COUNT] = {
 	TOSTR(MOVU),
 	TOSTR(PEEK),
 	TOSTR(HALT),
-	TOSTR(IP),
-	TOSTR(SP),
-	TOSTR(FSP),
-	TOSTR(PSP),
-	TOSTR(SAVP),
-	TOSTR(RSTP),
-	TOSTR(SAVF),
-	TOSTR(RSTF),
+	TOSTR(RES50),
+	TOSTR(RES51),
+	TOSTR(RES52),
+	TOSTR(RES53),
+	TOSTR(RES54),
+	TOSTR(RES55),
+	TOSTR(RES56),
+	TOSTR(RES57),
 	TOSTR(CJMP),
 	TOSTR(CSKIP),
 	TOSTR(CNJMP),
 	TOSTR(CNSKIP),
-	TOSTR(DUP)
+	TOSTR(DUP),
+	TOSTR(SVA),
+	TOSTR(SVB),
+	TOSTR(SVC),
+	TOSTR(LDA),
+	TOSTR(LDB),
+	TOSTR(LDC),
+	TOSTR(RLA),
+	TOSTR(RLB),
+	TOSTR(RLC) 
 };
 
 #endif // XIS_H

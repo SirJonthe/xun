@@ -30,6 +30,7 @@ struct scope
 		XWORD    data;
 		unsigned type;
 		U16      size;
+		U16      scope_index;
 	};
 	struct fwd_label
 	{
@@ -129,7 +130,7 @@ static scope::symbol *find_fn(const char *name, unsigned name_char_count, scope_
 	return sym;
 }
 
-static scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, scope &s)
+static scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, scope &s, signed scope_index)
 {
 	for (mtlItem<scope::symbol> *i = s.symbols.GetFirst(); i != NULL; i = i->GetNext()) {
 		if (strcmp(i->GetItem().name, chcount(i->GetItem().name), name, name_char_count)) {
@@ -141,8 +142,9 @@ static scope::symbol *add_symbol(const char *name, unsigned name_char_count, uns
 	unsigned i;
 	for (i = 0; i < count; ++i)       { sym.name[i] = name[i]; }
 	for (; i < sizeof(sym.name); ++i) { sym.name[i] = 0; }
-	sym.type = type;
-	sym.size = 1;
+	sym.type        = type;
+	sym.size        = 1;
+	sym.scope_index = scope_index;
 	if (type == scope::symbol::VAR) {
 		sym.data.u = s.lsp;
 		++s.lsp;
@@ -152,7 +154,7 @@ static scope::symbol *add_symbol(const char *name, unsigned name_char_count, uns
 
 static scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope_stack &ss)
 {
-	return add_symbol(name, name_char_count, lit, ss.scopes[ss.index]);
+	return add_symbol(name, name_char_count, lit, ss.scopes[ss.index], ss.index);
 }
 
 static scope::symbol *add_var(const char *name, unsigned name_char_count, scope_stack &ss)
@@ -326,6 +328,14 @@ static bool try_put_lit(parser_state ps)
 	return false;
 }
 
+static bool write_rel(parser *p, const scope::symbol *sym)
+{
+	return
+		sym->scope_index > 0 ?
+		write_word(p->out.body, XWORD{XIS::RLC}) :
+		write_word(p->out.body, XWORD{XIS::RLB});
+}
+
 static bool try_put_var(parser_state ps)
 {
 	token t;
@@ -341,7 +351,7 @@ static bool try_put_var(parser_state ps)
 		return
 			write_word(ps.p->out.body, XWORD{XIS::PUT})    &&
 			write_word(ps.p->out.body, XWORD{sym->data.u}) &&
-			write_word(ps.p->out.body, XWORD{XIS::CREL})   &&
+			write_rel (ps.p, sym)                          &&
 			write_word(ps.p->out.body, XWORD{XIS::AT});
 	}
 	return false;
@@ -570,7 +580,7 @@ static bool try_ass_expr(parser_state ps, const scope::symbol *sym)
 				ps,
 				write_word(ps.p->out.body, XWORD{XIS::PUT})                                                          &&
 				write_word(ps.p->out.body, XWORD{U16(sym->data.u + offset)})                                         &&
-				write_word(ps.p->out.body, XWORD{XIS::CREL})                                                         &&
+				write_rel (ps.p, sym)                                                                                &&
 				try_expr  (new_state(ps.p, (offset < sym->size - 1 ? match(ps.p, ctoken::OPERATOR_COMMA) : ps.end))) &&
 				write_word(ps.p->out.body, XWORD{XIS::MOVD})                                                         &&
 				(offset == sym->size - 1 || match(ps.p, ctoken::OPERATOR_COMMA))
