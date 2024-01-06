@@ -825,19 +825,25 @@ static bool try_statements(parser_state ps)
 
 static bool try_fn_def(parser_state ps)
 {
+	U16 jmp_idx = 0;
 	token t;
 	if (
 		manage_state(
 			ps,
+			write_word      (ps.p->out.body, XWORD{XIS::PUT})                   &&
+			(jmp_idx = ps.p->out.body.index)                                    &&
+			write_word      (ps.p->out.body, XWORD{0})                          &&
+			write_word      (ps.p->out.body, XWORD{XIS::JMP})                   &&
+			push_scope      (ps.p->scopes)                                      &&
 			try_fn_signature(new_state(ps.p, ps.end))                           &&
 			match           (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)            &&
-			push_scope      (ps.p->scopes)                                      &&
 			try_statements  (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
 			match           (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)            &&
-			pop_scope       (ps.p->scopes)                                      &&
+			emit_pop_scope  (ps.p)                                              &&
 			write_word      (ps.p->out.body, XWORD{XIS::JMP}) // TODO: This assumes that the return address is the top stack value here.
 		)
 	) {
+		ps.p->out.body.buffer[jmp_idx].u = ps.p->out.body.index;
 		return true;
 	}
 	return false;
@@ -878,6 +884,7 @@ static bool try_program(parser_state ps)
 		return
 			lsp == 0 ||
 			(
+				// TODO: This should be an LDA and HALT
 				write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
 				write_word(ps.p->out.body, XWORD{lsp})      &&
 				write_word(ps.p->out.body, XWORD{XIS::POP})
