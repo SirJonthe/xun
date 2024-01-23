@@ -4,8 +4,6 @@
 #include "../lib/parsec/lex.h"
 #include "../lib/MiniLib/MTL/mtlList.h"
 
-// TODO: Using CSKIP for conditionals makes binaries more resilient once I start using IP as an offset from the PIP pointer.
-
 struct input_tokens
 {
 	lexer        l;
@@ -707,6 +705,8 @@ static bool try_else(parser_state ps)
 
 static bool try_if(parser_state ps)
 {
+	// TODO: Using CSKIP for conditionals makes binaries more resilient once I start using IP as an offset from the PIP pointer.
+
 	U16 jmp_addr_idx = 0;
 	if (
 		manage_state(
