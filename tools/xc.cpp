@@ -21,48 +21,54 @@ static bool write_word(xbinary::buffer &buf, XWORD data)
 	return true;
 }
 
-struct scope
+struct symbol
 {
-	struct symbol
-	{
-		enum type_t { VAR, LIT, LBL, FN };
-		char     name[32];
-		XWORD    data;
-		unsigned type;
-		U16      size;
-		U16      scope_index;
-	};
-	struct fwd_label
-	{
-		char   name[32];
-		XWORD *loc;
-	};
-	mtlList<symbol>    symbols;
-	mtlList<fwd_label> fwd_labels; // labels that the user wants to jump to before they have been declared.
-	U16                lsp;        // local stack pointer.
+	enum type_t { VAR, LIT, LBL, FN };
+	char      name[32];
+	XWORD     data;
+	unsigned  type;
+	U16       size;
+	U16       scope_index;
+	U16       dim;         // The dimension if this is an array.
+	symbol   *next;        // The next dimension in a multi-dimensional array. The next name will be empty.
 };
 
-struct scope_stack
+struct symbol_stack
 {
-	scope  scopes[128];
-	signed index;
+	symbol *symbols;
+	U16     capacity;  // The maximum number of symbols that can be on the stack.
+	U16     count;     // The number of symbols on the stack.
+	U16     top_index; // The index of the top scope.
+	U16     scope;     // The number of the topmost scope.
 };
 
-static bool push_scope(scope_stack &ss)
+static U16 top_scope_size(const symbol_stack &s)
 {
-	++ss.index;
-	ss.scopes[ss.index].symbols.RemoveAll();
-	ss.scopes[ss.index].fwd_labels.RemoveAll();
-	ss.scopes[ss.index].lsp = 0;
+	U16 size = 0;
+	for (U16 i = s.top_index; i < s.count; ++i) {
+		size += s.symbols[i].size;
+	}
+	return size;
+}
+
+static bool push_scope(symbol_stack &ss)
+{
+	++ss.scope;
+	ss.top_index = ss.count;
 	return true;
 }
 
-static bool pop_scope(scope_stack &ss)
+static bool pop_scope(symbol_stack &ss)
 {
-	ss.scopes[ss.index].symbols.RemoveAll();
-	ss.scopes[ss.index].fwd_labels.RemoveAll();
-	ss.scopes[ss.index].lsp = 0;
-	--ss.index;
+	--ss.scope;
+	ss.count = ss.top_index;
+	if (ss.scope > 0) {
+		while (ss.top_index > 0 && ss.symbols[ss.top_index].scope_index > ss.scope) {
+			--ss.top_index;
+		}
+	} else {
+		ss.top_index = 0;
+	}
 	return true;
 }
 
@@ -84,114 +90,81 @@ static unsigned chcount(const char *s)
 	return n;
 }
 
-static scope::symbol *find_symbol(const char *name, unsigned name_char_count, scope_stack &ss, U16 *back_sp_offset = NULL)
+static symbol *find_symbol(const char *name, unsigned name_char_count, symbol_stack &ss)
 {
-	if (back_sp_offset != NULL) {
-		*back_sp_offset = 0;
-	}
-	for (signed i = ss.index; i >= 0; --i) {
-		for (mtlItem<scope::symbol> *n = ss.scopes[ss.index].symbols.GetFirst(); n != NULL; n = n->GetNext()) {
-			if (strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
-				return &n->GetItem();
-			}
-		}
-		if (back_sp_offset != NULL) {
-			*back_sp_offset += ss.scopes[ss.index - 1].lsp;
+	for (signed i = ss.count - 1; i >= 0; --i) {
+		if (strcmp(name, name_char_count, ss.symbols[i].name, chcount(ss.symbols[i].name))) {
+			return ss.symbols + i;
 		}
 	}
 	return NULL;
 }
 
-static scope::symbol *find_var(const char *name, unsigned name_char_count, scope_stack &ss, U16 *back_sp_offset = NULL)
+static symbol *find_var(const char *name, unsigned name_char_count, symbol_stack &ss)
 {
-	scope::symbol *sym = find_symbol(name, name_char_count, ss);
-	if (sym != NULL && sym->type != scope::symbol::VAR) {
+	symbol *sym = find_symbol(name, name_char_count, ss);
+	if (sym != NULL && sym->type != symbol::VAR) {
 		return NULL;
 	}
 	return sym;
 }
 
-static scope::symbol *find_lbl(const char *name, unsigned name_char_count, scope &ss)
+static symbol *find_fn(const char *name, unsigned name_char_count, symbol_stack &ss)
 {
-	for (mtlItem<scope::symbol> *n = ss.symbols.GetFirst(); n != NULL; n = n->GetNext()) {
-		if (n->GetItem().type == scope::symbol::LBL && strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
-			return &n->GetItem();
-		}
-	}
-	return NULL;
-}
-
-static scope::symbol *find_fn(const char *name, unsigned name_char_count, scope_stack &ss)
-{
-	scope::symbol *sym = find_symbol(name, name_char_count, ss);
-	if (sym != NULL && sym->type != scope::symbol::FN) {
+	symbol *sym = find_symbol(name, name_char_count, ss);
+	if (sym != NULL && sym->type != symbol::FN) {
 		return NULL;
 	}
 	return sym;
 }
 
-static scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, scope &s, signed scope_index)
+static symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, symbol_stack &s)
 {
-	for (mtlItem<scope::symbol> *i = s.symbols.GetFirst(); i != NULL; i = i->GetNext()) {
-		if (strcmp(i->GetItem().name, chcount(i->GetItem().name), name, name_char_count)) {
+	if (s.count >= s.capacity) {
+		return NULL;
+	}
+
+	for (U16 i = s.top_index; i < s.count; ++i) {
+		if (strcmp(s.symbols[i].name, chcount(s.symbols[i].name), name, name_char_count)) {
 			return NULL;
 		}
 	}
-	scope::symbol &sym = s.symbols.AddLast();
+
+	symbol &sym = s.symbols[s.count];
+
 	const unsigned count = name_char_count < sizeof(sym.name) - 1 ? name_char_count : sizeof(sym.name) - 1;
 	unsigned i;
 	for (i = 0; i < count; ++i)       { sym.name[i] = name[i]; }
 	for (; i < sizeof(sym.name); ++i) { sym.name[i] = 0; }
 	sym.type        = type;
 	sym.size        = 1;
-	sym.scope_index = scope_index;
-	if (type == scope::symbol::VAR) {
-		sym.data.u = s.lsp;
-		++s.lsp;
+	sym.scope_index = s.scope;
+	sym.dim         = 0;
+	sym.next        = NULL;
+	if (type == symbol::VAR) {
+		sym.data.u = top_scope_size(s);
 	}
+	++s.count;
 	return &sym;
 }
 
-static scope::symbol *add_symbol(const char *name, unsigned name_char_count, unsigned lit, scope_stack &ss)
+static symbol *add_var(const char *name, unsigned name_char_count, symbol_stack &ss)
 {
-	return add_symbol(name, name_char_count, lit, ss.scopes[ss.index], ss.index);
+	return add_symbol(name, name_char_count, symbol::VAR, ss);
 }
 
-static scope::symbol *add_var(const char *name, unsigned name_char_count, scope_stack &ss)
+static symbol *add_lit(const char *name, unsigned name_char_count, U16 value, symbol_stack &ss)
 {
-	return add_symbol(name, name_char_count, scope::symbol::VAR, ss);
-}
-
-static scope::symbol *add_lit(const char *name, unsigned name_char_count, U16 value, scope_stack &ss)
-{
-	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LIT, ss);
+	symbol *sym = add_symbol(name, name_char_count, symbol::LIT, ss);
 	if (sym != NULL) {
 		sym->data.u = value;
 	}
 	return sym;
 }
 
-static scope::symbol *add_lbl(const char *name, unsigned name_char_count, U16 addr, scope_stack &ss)
+static symbol *add_fn(const char *name, unsigned name_char_count, U16 addr, U16 size, symbol_stack &ss)
 {
-	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::LBL, ss);
-	if (sym != NULL) {
-		sym->type = scope::symbol::LBL;
-		sym->data.u = addr;
-		for (mtlItem<scope::fwd_label> *n = ss.scopes[ss.index].fwd_labels.GetFirst(); n != NULL;) {
-			if (strcmp(name, name_char_count, n->GetItem().name, chcount(n->GetItem().name))) {
-				n->GetItem().loc->u = sym->data.u;
-				n = n->Remove();
-			} else {
-				n = n->GetNext();
-			}
-		}
-	}
-	return sym;
-}
-
-static scope::symbol *add_fn(const char *name, unsigned name_char_count, U16 addr, U16 size, scope_stack &ss)
-{
-	scope::symbol *sym = add_symbol(name, name_char_count, scope::symbol::FN, ss);
+	symbol *sym = add_symbol(name, name_char_count, symbol::FN, ss);
 	if (sym != NULL) {
 		sym->data.u = addr;
 		sym->size = size;
@@ -201,29 +174,20 @@ static scope::symbol *add_fn(const char *name, unsigned name_char_count, U16 add
 
 struct parser
 {
-	input_tokens  in;
-	xbinary       out;
-	scope_stack   scopes;
-	U16           max_token_index;
+	input_tokens in;
+	xbinary      out;
+	symbol_stack scopes;
+	U16          max_token_index;
 };
 
-static scope &top_scope(parser *p)
+static U16 top_scope_size(const parser *p)
 {
-	return p->scopes.scopes[p->scopes.index];
-}
-
-static U16 scope_size(const scope &s)
-{
-	U16 size = 0;
-	for (const mtlItem<scope::symbol> *i = s.symbols.GetFirst(); i != NULL; i = i->GetNext()) {
-		size += i->GetItem().size;
-	}
-	return size;
+	return top_scope_size(p->scopes);
 }
 
 static bool emit_pop_scope(parser *p)
 {
-	const U16 lsp = scope_size(top_scope(p));
+	const U16 lsp = top_scope_size(p);
 	return
 		(
 			lsp == 0 ||
@@ -328,7 +292,7 @@ static bool try_put_lit(parser_state ps)
 	return false;
 }
 
-static bool write_rel(parser *p, const scope::symbol *sym)
+static bool write_rel(parser *p, const symbol *sym)
 {
 	return
 		sym->scope_index > 0 ?
@@ -345,8 +309,7 @@ static bool try_put_var(parser_state ps)
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
-		U16 offset;
-		scope::symbol *sym = find_var(t.text.str, chcount(t.text.str), ps.p->scopes, &offset);
+		symbol *sym = find_var(t.text.str, chcount(t.text.str), ps.p->scopes);
 		if (sym == NULL) { return false; }
 		return
 			write_word(ps.p->out.body, XWORD{XIS::PUT})    &&
@@ -572,7 +535,7 @@ static bool try_expr(parser_state ps)
 	return false;
 }
 
-static bool try_ass_expr(parser_state ps, const scope::symbol *sym)
+static bool try_ass_expr(parser_state ps, const symbol *sym)
 {
 	for (U16 offset = 0; offset < sym->size; ++offset) {
 		if (
@@ -592,7 +555,7 @@ static bool try_ass_expr(parser_state ps, const scope::symbol *sym)
 	return peek(ps.p).user_type == ps.end;
 }
 
-static bool try_ass_var(parser_state ps, const scope::symbol *sym)
+static bool try_ass_var(parser_state ps, const symbol *sym)
 {
 	if (
 		manage_state(
@@ -608,7 +571,7 @@ static bool try_ass_var(parser_state ps, const scope::symbol *sym)
 	return false;
 }
 
-static bool try_new_arr(parser_state ps, scope::symbol *sym)
+static bool try_new_arr(parser_state ps, symbol *sym)
 {
 	unsigned result = 0;
 	if (
@@ -641,7 +604,7 @@ static bool try_new_var(parser_state ps)
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
-		scope::symbol *sym = add_var(t.text.str, chcount(t.text.str), ps.p->scopes);
+		symbol *sym = add_var(t.text.str, chcount(t.text.str), ps.p->scopes);
 		if (sym == NULL) { return false; }
 		if (!write_word(ps.p->out.body, XWORD{XIS::PUT}) || !write_word(ps.p->out.body, XWORD{sym->size}) || !write_word(ps.p->out.body, XWORD{XIS::PUSH})) {
 			return false;
@@ -669,7 +632,7 @@ static bool try_fn_param(parser_state ps)
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
-		scope::symbol *sym = add_var(t.text.str, chcount(t.text.str), ps.p->scopes); // TODO: Add a 'add_param' version that does not modify LSP
+		symbol *sym = add_var(t.text.str, chcount(t.text.str), ps.p->scopes); // TODO: Add a 'add_param' version that does not modify LSP
 		if (sym == NULL) { return false; }
 		return write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{U16(1)}) && write_word(ps.p->out.body, XWORD{XIS::PUSH}); // TODO: This should really not affect LSP, but since we do we emit 1 (ideally we emit the actual word size of the symbol, but currently only size=1 is supported)
 	}
@@ -712,7 +675,7 @@ static bool try_fn_signature(parser_state ps)
 			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 		)
 	) {
-		scope::symbol *sym = add_fn(t.text.str, chcount(t.text.str), ps.p->out.body.index, 0, ps.p->scopes); // TODO: The size of the function should correspond to the size out the return value.
+		symbol *sym = add_fn(t.text.str, chcount(t.text.str), ps.p->out.body.index, 0, ps.p->scopes); // TODO: The size of the function should correspond to the size out the return value.
 		if (sym == NULL) { return false; }
 		return true;
 	}
@@ -880,7 +843,7 @@ static bool try_program(parser_state ps)
 		)
 	) {
 		// NOTE: pop_scope not possible since we are at index 0 here.
-		const U16 lsp = scope_size(top_scope(ps.p));
+		const U16 lsp = top_scope_size(ps.p);
 		return
 			lsp == 0 ||
 			(
@@ -893,11 +856,12 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
-xc_out xcc(lexer l, xbinary mem)
+xc_out xcc(lexer l, xbinary mem, const U16 sym_capacity)
 {
+	symbol sym_mem[sym_capacity];
 	parser p          = { { l, NULL, 0, 0 }, mem };
 	p.max_token_index = 0;
-	p.scopes.index    = 0;
+	p.scopes          = symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 };
 	parser_state ps   = new_state(&p, token::STOP_EOF);
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
 		return { p.in.l, p.out, 0, p.max_token_index, 1 };
