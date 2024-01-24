@@ -27,8 +27,9 @@ struct symbol
 	unsigned  type;
 	U16       size;
 	U16       scope_index;
-	U16       dim;         // The dimension if this is an array.
-	symbol   *next;        // The next dimension in a multi-dimensional array. The next name will be empty.
+	U16       dim;         // The dimension if this is an array (if multi-dimensional, the next dimension will be stored in the 'next' pointer).
+	U16       deref;       // The number of times it should be dereferenced to access an underlying value. For literals 0, variables 1, single pointers 2, multi-pointers >2.
+	symbol   *next;        // The next dimension in a multi-dimensional array. The next name will be empty so that there are no accidental naming collisions.
 };
 
 struct symbol_stack
@@ -138,6 +139,7 @@ static symbol *add_symbol(const char *name, unsigned name_char_count, unsigned t
 	sym.size        = 1;
 	sym.scope_index = s.scope;
 	sym.dim         = 0;
+	sym.deref       = 0;
 	sym.next        = NULL;
 	if (type == symbol::VAR) {
 		sym.data.u = top_scope_size(s);
@@ -608,13 +610,13 @@ static bool try_new_var(parser_state ps)
 			return false;
 		}
 		return manage_state(
-				ps,
-				match(ps.p, ctoken::OPERATOR_SEMICOLON) ||
-				(
-					try_ass_var(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym) ||
-					try_new_arr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym)
-				) &&
-				match(ps.p, ctoken::OPERATOR_SEMICOLON)
+			ps,
+			match(ps.p, ctoken::OPERATOR_SEMICOLON) ||
+			(
+				try_ass_var(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym) ||
+				try_new_arr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym)
+			) &&
+			match(ps.p, ctoken::OPERATOR_SEMICOLON)
 		);
 	}
 	return false;
@@ -660,6 +662,28 @@ static bool try_fn_params(parser_state ps)
 	return false;
 }
 
+
+static bool try_main_signature(parser_state ps)
+{
+	token t;
+	if (
+		manage_state(
+			ps,
+			match        (ps.p, ctoken::KEYWORD_TYPE_VOID)              &&
+			match        (ps.p,  token::ALIAS, &t)                      &&
+			strcmp(t.text.str, chcount(t.text.str), "main", 4)          &&
+			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L) &&
+			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+		)
+	) {
+		symbol *sym = find_fn(t.text.str, chcount(t.text.str), ps.p->scopes);
+		if (sym == NULL) { return false; }
+		sym->data.u = ps.p->out.body.index;
+		return true;
+	}
+	return false;
+}
+
 static bool try_fn_signature(parser_state ps)
 {
 	token t;
@@ -667,7 +691,7 @@ static bool try_fn_signature(parser_state ps)
 		manage_state(
 			ps,
 			match        (ps.p, ctoken::KEYWORD_TYPE_VOID)                         &&
-			match        (ps.p, token::ALIAS, &t)                                  &&
+			match        (ps.p,  token::ALIAS, &t)                                 &&
 			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 			try_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
@@ -786,6 +810,28 @@ static bool try_statements(parser_state ps)
 	return false;
 }
 
+static bool try_main_def(parser_state ps)
+{
+	U16 jmp_idx = 0;
+	token t;
+	if (
+		manage_state(
+			ps,
+			write_word        (ps.p->out.body, XWORD{XIS::SVB})                   &&
+			push_scope        (ps.p->scopes)                                      &&
+			try_main_signature(new_state(ps.p, ps.end))                           &&
+			match             (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)            &&
+			try_statements    (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+			match             (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)            &&
+			emit_pop_scope    (ps.p)                                              &&
+			write_word        (ps.p->out.body, XWORD{XIS::LDA}) // NOTE: This returns from the entire program.
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_fn_def(parser_state ps)
 {
 	U16 jmp_idx = 0;
@@ -817,7 +863,8 @@ static bool try_global_statement(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_new_var(new_state(ps.p, ps.end)) ||
+			try_new_var(new_state(ps.p, ps.end))  ||
+			try_main_def(new_state(ps.p, ps.end)) ||
 			try_fn_def (new_state(ps.p, ps.end))
 		)
 	) {
@@ -863,6 +910,9 @@ xc_out xcc(lexer l, xbinary mem, const U16 sym_capacity)
 	p.max_token_index = 0;
 	p.scopes          = symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 };
 	parser_state ps   = new_state(&p, token::STOP_EOF);
+
+	add_fn("main", 4, 0, 0, p.scopes);
+
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
 		return { p.in.l, p.out, 0, p.max_token_index, 1 };
 	}
