@@ -1,5 +1,5 @@
-#ifndef XMACH_H
-#define XMACH_H
+#ifndef XCOMP_H
+#define XCOMP_H
 
 #include "xarch.h"
 #include "xis.h"
@@ -9,7 +9,7 @@
 #include "dev/xclock.h"
 #include "dev/xpwr.h"
 
-class Machine : public Device
+class Computer : public Device
 {
 private:
 	XWORD
@@ -25,7 +25,7 @@ private:
 		// Error pointers
 		ERR; // Error register.
 	XWORD             RAM[MEM_SIZE_MAX];
-	PersistentStorage m_embedded_storage; // Built-in, small persistent memory bank
+	PersistentStorage m_storage; // Built-in, small persistent memory bank
 	Clock             m_clock; // System clock
 	PowerController   m_power_controller;
 	DeviceRelay       m_relay; // Connection to other devices. Drive and Clock connect to this automatically.
@@ -37,9 +37,9 @@ private:
 	bool              m_power;
 
 public:
-	Machine( void );
+	Computer( void );
 
-	void  Feed(const XWORD *bin, U16 bin_count, bool debug = false);
+	void  BootDisk(const XWORD *bin, U16 bin_count, bool debug = false);
 	void  Poke(U16 addr, XWORD val);
 	void  PokeA(U16 addr, XWORD val);
 	void  PokeB(U16 addr, XWORD val);
@@ -52,9 +52,10 @@ public:
 	XWORD PeekTop(U16 addr) const;
 	XWORD Cycle( void );
 	void  Run( void );
+	void  Run(uint32_t ms);
 	bool  IsAvailablePort(U8 port) const;
 	void  Connect(Device &device, U8 port);
 	void  Disconnect(U8 port);
 };
 
-#endif // XMACH_H
+#endif // XCOMP_H

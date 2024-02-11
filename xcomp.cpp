@@ -1,5 +1,5 @@
 #include <iostream>
-#include "xmach.h"
+#include "xcomp.h"
 
 #define AT(x)         RAM[x.u]
 #define ATN(x,n)      RAM[x.u + n]
@@ -13,23 +13,29 @@
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
 
-Machine::Machine( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_embedded_storage(1<<21), m_relay(16), m_power(false)
+Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_power(false)
 {
 	Device::Connect(*this, m_relay);
 	Connect(m_clock,            0);
 	Connect(m_power_controller, 1);
-	Connect(m_embedded_storage, 2);
+	Connect(m_storage,          2);
 }
 
 // Flash memory with a program.
 // Ideally should be an OS that can load other programs,
 // but can be any program.
-void Machine::Feed(const XWORD *bin, U16 bin_count, bool debug)
+void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 {
-	// TODO:
-	// This feeds a bootloader into STORAGE
-	// When computer boots, the machine FIRMWARE (a small read-only program) pulls the main executable from STORAGE into RAM.
-	// When done, executes program in RAM.
+	// TODO
+	// [ ] Disk reader should be a storage device plugged into a port on the computer.
+	// [ ] Boot disk is inserted into disk reader.
+	// [ ] The boot process should only happen when powering up the device. Does nothing when inserting disk when the computer is already on.
+	// [ ] The code below should be implemented as a small program that is loaded from ROM on boot (bootloader).
+	// [ ] Bootloader should load system font.
+	// [ ] Bootloader should be verbose - give update on loading progress, or say "Boot medium missing. Insert boot disk and reboot computer."
+	// [ ] When boot process is complete, the boot medium can be ejected.
+	// [ ] Optional support for bootloader to try to boot from embedded storage if no disk is present in the disk reader port.
+	// [ ] Deprecate this function (boot medium is inserted into a disk reader device instead).
 
 	IP.u = 0;
 	A.u  = 0;
@@ -45,57 +51,57 @@ void Machine::Feed(const XWORD *bin, U16 bin_count, bool debug)
 	}
 }
 
-void Machine::Poke(U16 addr, XWORD val)
+void Computer::Poke(U16 addr, XWORD val)
 {
 	RAM[addr] = val;
 }
 
-void Machine::PokeA(U16 addr, XWORD val)
+void Computer::PokeA(U16 addr, XWORD val)
 {
 	RAM[addr + A.u] = val;
 }
 
-void Machine::PokeB(U16 addr, XWORD val)
+void Computer::PokeB(U16 addr, XWORD val)
 {
 	RAM[addr + B.u] = val;
 }
 
-void Machine::PokeC(U16 addr, XWORD val)
+void Computer::PokeC(U16 addr, XWORD val)
 {
 	RAM[addr + C.u] = val;
 }
 
-void Machine::PokeTop(U16 addr, XWORD val)
+void Computer::PokeTop(U16 addr, XWORD val)
 {
 	RAM[addr + SP.u] = val;
 }
 
-XWORD Machine::Peek(U16 addr) const
+XWORD Computer::Peek(U16 addr) const
 {
 	return RAM[addr];
 }
 
-XWORD Machine::PeekA(U16 addr) const
+XWORD Computer::PeekA(U16 addr) const
 {
 	return RAM[addr + A.u];
 }
 
-XWORD Machine::PeekB(U16 addr) const
+XWORD Computer::PeekB(U16 addr) const
 {
 	return RAM[addr + B.u];
 }
 
-XWORD Machine::PeekC(U16 addr) const
+XWORD Computer::PeekC(U16 addr) const
 {
 	return RAM[addr + C.u];
 }
 
-XWORD Machine::PeekTop(U16 addr) const
+XWORD Computer::PeekTop(U16 addr) const
 {
 	return RAM[addr + SP.u];
 }
 
-XWORD Machine::Cycle( void )
+XWORD Computer::Cycle( void )
 {
 	switch (READI) {
 	case XIS::NOP:
@@ -358,22 +364,28 @@ XWORD Machine::Cycle( void )
 	return RAM[IP.u];
 }
 
-void Machine::Run( void )
+void Computer::Run( void )
 {
 	while (Cycle().u != XIS::HALT) {}
 }
 
-bool Machine::IsAvailablePort(U8 port) const
+void Computer::Run(uint32_t ms)
+{
+	int64_t cycles = (int64_t(m_cycles_per_second) * 1000) / ms;
+	while (cycles-- > 0 && Cycle().u != XIS::HALT) {}
+}
+
+bool Computer::IsAvailablePort(U8 port) const
 {
 	return m_relay[port] == nullptr;
 }
 
-void Machine::Connect(Device &device, U8 port)
+void Computer::Connect(Device &device, U8 port)
 {
 	m_relay.RelayConnect(device, port);
 }
 
-void Machine::Disconnect(U8 port)
+void Computer::Disconnect(U8 port)
 {
 	m_relay.RelayDisconnect(port);
 }
