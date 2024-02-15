@@ -26,17 +26,6 @@ Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]
 // but can be any program.
 void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 {
-	// TODO
-	// [ ] Disk reader should be a storage device plugged into a port on the computer.
-	// [ ] Boot disk is inserted into disk reader.
-	// [ ] The boot process should only happen when powering up the device. Does nothing when inserting disk when the computer is already on.
-	// [ ] The code below should be implemented as a small program that is loaded from ROM on boot (bootloader).
-	// [ ] Bootloader should load system font.
-	// [ ] Bootloader should be verbose - give update on loading progress, or say "Boot medium missing. Insert boot disk and reboot computer."
-	// [ ] When boot process is complete, the boot medium can be ejected.
-	// [ ] Optional support for bootloader to try to boot from embedded storage if no disk is present in the disk reader port.
-	// [ ] Deprecate this function (boot medium is inserted into a disk reader device instead).
-
 	IP.u = 0;
 	A.u  = 0;
 	for (C.u = 0; C.u < bin_count; ++C.u) {
