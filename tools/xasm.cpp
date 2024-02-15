@@ -100,7 +100,7 @@ struct input_tokens
 
 static bool write_word(xbinary::buffer &buf, XWORD data)
 {
-	if (buf.index == 0xffff) { return false; }
+	if (buf.index >= buf.capacity) { return false; }
 	buf.buffer[buf.index++] = data;
 	return true;
 }
@@ -274,7 +274,9 @@ struct parser
 	input_tokens  in;
 	xbinary       out;
 	scope_stack   scopes;
+	token         max_token;
 	U16           max_token_index;
+	unsigned      max_col, max_row;
 };
 
 static scope &top_scope(parser *p)
@@ -315,9 +317,16 @@ static bool match(parser *p, unsigned type, token *out = NULL)
 	if (type == t.user_type) {
 		p->in.l.head = lex_index;
 		++p->in.index;
-		if (p->in.index > p->max_token_index) {
+
+		if (p->in.tokens != NULL && p->in.index > p->max_token_index) {
+			p->max_token = t;
 			p->max_token_index = p->in.index;
+		} else if ((p->in.l.row > p->max_row) || (p->in.l.row == p->max_row && p->in.l.col > p->max_col)) {
+			p->max_token = t;
+			p->max_row   = p->in.l.row;
+			p->max_col   = p->in.l.col;
 		}
+		
 		return true;
 	}
 	return false;
@@ -339,10 +348,12 @@ static parser_state new_state(parser *p, unsigned end)
 static bool manage_state(parser_state &ps, bool success)
 {
 	if (!success) {
-		U16 max_index = ps.p->max_token_index;
+		U16 max_index   = ps.p->max_token_index;
+		token max_token = ps.p->max_token;
 		*ps.p = ps.restore_point;
 		if (max_index > ps.p->max_token_index) {
 			ps.p->max_token_index = max_index;
+			ps.p->max_token       = max_token;
 		}
 	}
 	return success;
@@ -1064,9 +1075,9 @@ xasm_out assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body,
 	p.scopes.index    = 0;
 	parser_state ps   = new_state(&p, token::STOP_EOF);
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
-		return { lexer{{NULL,0},0}, xbinary{{NULL,0}, {NULL,0}, {NULL,0}}, 0, p.max_token_index };
+		return { lexer{{NULL,0},0}, xbinary{{NULL,0}, {NULL,0}, {NULL,0}}, 0, p.max_token, p.max_token_index, 1 };
 	}
-	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token_index };
+	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token, p.max_token_index, 0 };
 }
 
 xasm_out assemble_xasm(lexer l, xbinary memory)
@@ -1074,9 +1085,11 @@ xasm_out assemble_xasm(lexer l, xbinary memory)
 	parser p          = { { l, NULL, 0, 0 }, memory };
 	p.max_token_index = 0;
 	p.scopes.index    = 0;
+	p.max_col         = 0;
+	p.max_row         = 0;
 	parser_state ps   = new_state(&p, token::STOP_EOF);
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
-		return { p.in.l, p.out, 0, p.max_token_index };
+		return { p.in.l, p.out, 0, p.max_token, p.max_token_index, 1, p.max_col, p.max_row };
 	}
-	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token_index };
+	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token, p.max_token_index, 0, p.max_col, p.max_row };
 }

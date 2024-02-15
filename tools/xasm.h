@@ -146,10 +146,13 @@ struct xbinary
 /// @brief Contains metadata about an output XASM binary.
 struct xasm_out
 {
-	lexer   l;               // The state of the lexer when successfully exiting the assembler.
-	xbinary out;             // The state of the output binary when successfully existing the assembler.
-	U16     binary_size;     // The number of elements in the output binary. Zero if the assembly failed.
-	U16     max_token_index; // The highest reached index in the input token stream. Generally only interesting if the assembly failed.
+	lexer    l;                // The state of the lexer when successfully exiting the assembler.
+	xbinary  out;              // The state of the output binary when successfully existing the assembler.
+	U16      binary_size;      // The number of elements in the output binary. Zero if the assembly failed.
+	token    max_token;        // The max token reached in the input token stream. Generally only interesting if the assembly failed.
+	U16      max_token_index;  // The highest reached index in the input token stream. Generally only interesting if the assembly failed. Not used if tokens are streamed from lexer (instead use 'max_row' and 'max_col').
+	U16      errors;
+	unsigned max_row, max_col; // The highest reached row and column in the input text. Generally only interesting if the assembly failed. Not used if tokens are read from input array (instead use 'max_token_index'.
 };
 
 /// @brief Assembles extended assembly language in the form of input tokens.

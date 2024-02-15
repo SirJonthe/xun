@@ -72,15 +72,15 @@ struct XIS
 		RES52  = 0b00000010 + (52<<8), // Reserved #52
 		RES53  = 0b00000010 + (53<<8), // Reserved #53
 
-		RES54   = 0b10000010 + (54<<8), // Reserved #54
-		RES55   = 0b11000010 + (55<<8), // Reserved #55
-		RES56   = 0b10000010 + (56<<8), // Reserved #56
-		RES57   = 0b11000010 + (57<<8), // Reserved #57
+		RES54  = 0b10000010 + (54<<8), // Reserved #54
+		RES55  = 0b11000010 + (55<<8), // Reserved #55
+		RES56  = 0b10000010 + (56<<8), // Reserved #56
+		RES57  = 0b11000010 + (57<<8), // Reserved #57
 
 		CJMP   = 0b01001000 + (58<<8), // Jump to the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
-		CSKIP  = 0b01001000 + (59<<8), // Skup ahead by an amount as given by the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
+		CSKIP  = 0b01001000 + (59<<8), // Skip ahead by an amount as given by the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
 		CNJMP  = 0b01001000 + (60<<8), // Jump to the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
-		CNSKIP = 0b01001000 + (61<<8), // Skup ahead by an amount as given by the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
+		CNSKIP = 0b01001000 + (61<<8), // Skip ahead by an amount as given by the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
 
 		DUP    = 0b10000000 + (62<<8), // Duplicates the top value on the stack and puts it on the top.
 

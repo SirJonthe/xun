@@ -14,7 +14,7 @@ struct input_tokens
 
 static bool write_word(xbinary::buffer &buf, XWORD data)
 {
-	if (buf.index == 0xffff) { return false; }
+	if (buf.index >= buf.capacity) { return false; }
 	buf.buffer[buf.index++] = data;
 	return true;
 }
@@ -781,14 +781,30 @@ static bool try_scope(parser_state ps)
 	return false;
 }
 
+static bool try_expr_stmt(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_expr(new_state(ps.p, xtoken::OPERATOR_STOP)) &&
+			match(ps.p, xtoken::OPERATOR_STOP)               &&
+			write_word(ps.p->out.body, XWORD{XIS::TOSS})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_statement(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
-			try_new_var(new_state(ps.p, ps.end)) ||
-			try_if     (new_state(ps.p, ps.end)) ||
-			try_scope  (new_state(ps.p, ps.end))
+			try_new_var  (new_state(ps.p, ps.end)) ||
+			try_if       (new_state(ps.p, ps.end)) ||
+			try_scope    (new_state(ps.p, ps.end)) ||
+			try_expr_stmt(new_state(ps.p, ps.end))
 			// TODO: add expression here
 		)
 	) {
@@ -907,8 +923,8 @@ xc_out xcc(lexer l, xbinary mem, const U16 sym_capacity)
 {
 	symbol sym_mem[sym_capacity];
 	parser p          = { { l, NULL, 0, 0 }, mem };
-	p.max_token_index = 0;
 	p.scopes          = symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 };
+	p.max_token_index = 0;
 	parser_state ps   = new_state(&p, token::STOP_EOF);
 
 	add_fn("main", 4, 0, 0, p.scopes);
