@@ -378,3 +378,28 @@ void Computer::Disconnect(U8 port)
 {
 	m_relay.RelayDisconnect(port);
 }
+
+U16 Computer::InstructionPointer( void ) const
+{
+	return IP.u;
+}
+
+U16 Computer::StackPointer( void ) const
+{
+	return SP.u;
+}
+
+U16 Computer::StackOffsetA( void ) const
+{
+	return A.u;
+}
+
+U16 Computer::StackOffsetB( void ) const
+{
+	return B.u;
+}
+
+U16 Computer::StackOffsetC( void ) const
+{
+	return C.u;
+}

@@ -1,8 +1,8 @@
 #include <cstdlib>
-#include "xc.h"
-#include "../xis.h"
-#include "../xarch.h"
-#include "../lib/parsec/lex.h"
+#include "xcc.h"
+#include "../../xis.h"
+#include "../../xarch.h"
+#include "../../lib/parsec/lex.h"
 
 /// @brief The input stream of tokens. If the user provides a pre-lexed array of tokens then the match function will consume from that array, while if the token array is null then the match function will instead lex code as attached to the lexer.
 /// @sa match

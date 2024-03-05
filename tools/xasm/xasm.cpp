@@ -1,5 +1,5 @@
 #include "xasm.h"
-#include "../lib/MiniLib/MTL/mtlList.h"
+#include "../../lib/MiniLib/MTL/mtlList.h"
 
 static unsigned hex2u(const char *nums, unsigned len)
 {
@@ -1076,7 +1076,12 @@ static bool try_scoped_statements(parser_state ps, U16 stack_offset)
 
 static bool try_program(parser_state ps)
 {
-	if (manage_state(ps, try_statements(new_state(ps.p, ps.end)))) {
+	if (
+		manage_state(
+			ps,
+			try_statements(new_state(ps.p, ps.end))) &&
+			write_word(ps.p->out.body, XWORD{XIS::HALT})
+		) {
 		return true;
 	}
 	return false;

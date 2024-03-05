@@ -1,8 +1,8 @@
 #ifndef XASM_H
 #define XASM_H
 
-#include "../xarch.h"
-#include "../lib/parsec/lex.h"
+#include "../../xarch.h"
+#include "../../lib/parsec/lex.h"
 
 // LAYOUT OF BINARY
 //

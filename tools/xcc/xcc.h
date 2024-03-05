@@ -1,7 +1,7 @@
-#ifndef XC_H
-#define XC_H
+#ifndef XCC_H
+#define XCC_H
 
-#include "xasm.h"
+#include "../xasm/xasm.h"
 
 /// @brief Contains metadata about an output XASM binary.
 struct xc_out

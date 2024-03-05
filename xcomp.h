@@ -56,6 +56,12 @@ public:
 	bool  IsAvailablePort(U8 port) const;
 	void  Connect(Device &device, U8 port);
 	void  Disconnect(U8 port);
+
+	U16 InstructionPointer( void ) const;
+	U16 StackPointer( void ) const;
+	U16 StackOffsetA( void ) const;
+	U16 StackOffsetB( void ) const;
+	U16 StackOffsetC( void ) const;
 };
 
 #endif // XCOMP_H
