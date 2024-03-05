@@ -141,20 +141,23 @@ bool xdebugger::step( void )
 
 void xdebugger::ui( void ) const
 {
-	const U16 i_page_width  = 4;
-	const U16 i_page_height = 25;
-	const U16 i_page_size   = i_page_width * i_page_height;
+	const int i_page_width  = 4;
+	const int i_page_height = 25;
+	const int i_page_size   = i_page_width * i_page_height;
 	
-	const U16 start_i = (m_computer.InstructionPointer() / i_page_size) * i_page_size;
+	const int start_i = (m_computer.InstructionPointer() / i_page_size) * i_page_size;
 	
-	std::cout << " LIST   PROG                    INST    STK" << std::endl;
-	for (U16 y = 0; y < i_page_height; ++y) {
+	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC() + 1;
+	if (stack_size < 0) { stack_size = 0; }
+
+	std::cout << " LIST   PROG                    INST    STK=" << stack_size << std::endl;
+	for (int y = 0; y < i_page_height; ++y) {
 		const U16 o = start_i + y * i_page_width;
 		
 		std::cout << " ";
 		print_padded_hex(o);
 		std::cout << ":";
-		for (U16 x = 0; x < i_page_width; ++x) {
+		for (int x = 0; x < i_page_width; ++x) {
 			const XWORD i = m_computer.Peek(o + x);
 			if (o + x == m_computer.InstructionPointer()) {
 				std::cout << " >";
@@ -170,7 +173,19 @@ void xdebugger::ui( void ) const
 			std::cout << "        ";
 		}
 
-		if (signed(m_computer.StackPointer()) - m_computer.StackOffsetC() - y >= 0) {
+		if (stack_size < i_page_height) {
+			const int display_offset = i_page_height - stack_size;
+			if (y - display_offset >= 0) {
+				if (y - display_offset == 0) {
+					std::cout << " >";
+				} else {
+					std::cout << "  ";
+				}
+				print_padded_hex(m_computer.PeekTop(y - display_offset).u);
+			} else {
+				std::cout << "      ";
+			}
+		} else {
 			std::cout << "  ";
 			print_padded_hex(m_computer.PeekTop(-y).u);
 		}
