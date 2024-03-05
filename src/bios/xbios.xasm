@@ -1,4 +1,4 @@
-$lit FONT_PX, $here.
+$lit FONT_PX, 0.
 $bin
 	0xfffd, 0xfdfd, 0xfffd, 0xffff, 0xfff5, 0xf5ff,
 	0xffff, 0xffff, 0xffeb, 0xc1eb, 0xc1eb, 0xffff,
@@ -83,7 +83,7 @@ $lit VIDMEM_BITS_PER_PX,       1.
 $lit VIDMEM_YSTRIDE_WORDS,   $eval((VIDMEM_PX_WIDTH * VIDMEM_BITS_PER_PX) / 16).
 $lit VIDMEM_SIZE_WORDS,      $eval(VIDMEM_YSTRIDE_WORDS * VIDMEM_PX_HEIGHT).
 
-$lit VID_STDPAL, $here.
+$lit VID_STDPAL, FONT_SIZE_WORDS.
 $bin 0x0000, 0xffff.
 
 $scope: VIDMEM[VIDMEM_SIZE_WORDS] {

@@ -1,9 +1,11 @@
+#include <cstdlib>
 #include "xc.h"
 #include "../xis.h"
 #include "../xarch.h"
 #include "../lib/parsec/lex.h"
-#include "../lib/MiniLib/MTL/mtlList.h"
 
+/// @brief The input stream of tokens. If the user provides a pre-lexed array of tokens then the match function will consume from that array, while if the token array is null then the match function will instead lex code as attached to the lexer.
+/// @sa match
 struct input_tokens
 {
 	lexer        l;
@@ -14,11 +16,15 @@ struct input_tokens
 
 static bool write_word(xbinary::buffer &buf, XWORD data)
 {
-	if (buf.index >= buf.capacity) { return false; }
+	if (buf.index >= buf.capacity) {
+		// TODO FATAL ERROR
+		return false;
+	}
 	buf.buffer[buf.index++] = data;
 	return true;
 }
 
+/// @brief The data structure containing meta data about a declared symbol in code, e.g. variables, constants, functions, structures, etc.
 struct symbol
 {
 	enum type_t { VAR, LIT, LBL, FN };
@@ -32,6 +38,7 @@ struct symbol
 	symbol   *next;        // The next dimension in a multi-dimensional array. The next name will be empty so that there are no accidental naming collisions.
 };
 
+/// @brief The data structure containing the current state of declared and defined symbols in the compiler.
 struct symbol_stack
 {
 	symbol *symbols;
@@ -120,6 +127,7 @@ static symbol *find_fn(const char *name, unsigned name_char_count, symbol_stack 
 static symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, symbol_stack &s)
 {
 	if (s.count >= s.capacity) {
+		// TODO FATAL ERROR
 		return NULL;
 	}
 
@@ -172,12 +180,13 @@ static symbol *add_fn(const char *name, unsigned name_char_count, U16 addr, U16 
 	return sym;
 }
 
+/// @brief The main data structure used for parsing C code.
 struct parser
 {
 	input_tokens in;
 	xbinary      out;
+	token        max;
 	symbol_stack scopes;
-	U16          max_token_index;
 };
 
 static U16 top_scope_size(const parser *p)
@@ -214,33 +223,48 @@ static token peek(parser *p)
 
 static bool match(parser *p, unsigned type, token *out = NULL)
 {
-	token t;
-	U16 lex_index = 0;
+	lexer l = p->in.l;
+
+	// Read from token stream if it is available.
 	if (p->in.tokens != NULL) {
-		t = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
-	} else {
-		lexer l = p->in.l;
-		t = clex(&l);
-		lex_index = l.head;
+		l.last = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
+		l.last.index = p->in.index;
 	}
-	if (out != NULL) {
-		*out = t;
+	// Otherwise read from lexer. This is done in a separate copy to avoid committing to reads of unexpected types.
+	else {
+		clex(&l);
 	}
 
-	if (t.type == token::STOP) {
+	// Record the read token if requested.
+	if (out != NULL) {
+		*out = l.last;
+	}
+
+	// Record the read token if it is the furthest along in the token sequence.
+	if (l.last.index >= p->max.index) {
+		p->max = l.last;
+	}
+
+	// If the read token is generic STOP type then we count it as a match if the type we are looking for is STOP_EOF.
+	if (l.last.type == token::STOP) {
 		return type == token::STOP_EOF;
 	}
-	if (type == t.user_type) {
-		p->in.l.head = lex_index;
+
+	// If the token user type is the same as the type we are looking for, we advance the main lexer state before reporting that we got a match.
+	if (type == l.last.user_type) {
+		p->in.l = l;
 		++p->in.index;
-		if (p->in.index > p->max_token_index) {
-			p->max_token_index = p->in.index;
-		}
 		return true;
 	}
+
+	// No match.
 	return false;
 }
 
+/// @brief Manages the parser state so that it can roll back on failure.
+/// @note When matching matterns, use manage_state to and new_state to create a new parser_state.
+/// @sa manage_state
+/// @sa new_state
 struct parser_state
 {
 	parser   *p;
@@ -257,10 +281,10 @@ static parser_state new_state(parser *p, unsigned end)
 static bool manage_state(parser_state &ps, bool success)
 {
 	if (!success) {
-		U16 max_index = ps.p->max_token_index;
+		token max = ps.p->max;
 		*ps.p = ps.restore_point;
-		if (max_index > ps.p->max_token_index) {
-			ps.p->max_token_index = max_index;
+		if (max.index >= ps.p->max.index) {
+			ps.p->max = max;
 		}
 	}
 	return success;
@@ -316,6 +340,69 @@ static bool try_put_var(parser_state ps)
 			write_word(ps.p->out.body, XWORD{sym->data.u}) &&
 			write_rel (ps.p, sym)                          &&
 			write_word(ps.p->out.body, XWORD{XIS::AT});
+	}
+	return false;
+}
+
+static bool try_expr(parser_state ps);
+
+static bool try_put_fn_params(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			peek(ps.p).user_type == ps.end ||
+			(
+				try_expr(new_state(ps.p, ps.end)) &&
+				(
+					peek(ps.p).user_type == ps.end ||
+					(
+						match(ps.p, ctoken::OPERATOR_COMMA) &&
+						try_expr(new_state(ps.p, ps.end))
+					)
+				)
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_call_fn(parser_state ps)
+{
+	U16 off_index = 0;
+	token t;
+	if (
+		manage_state(
+			ps,
+			match            (ps.p, token::ALIAS, &t)                                  &&
+			match            (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			write_word       (ps.p->out.body, XWORD{XIS::PUTI})                        &&
+			write_word       (ps.p->out.body, XWORD{XIS::PUT})                         &&
+			(off_index = ps.p->out.body.index)                                         &&
+			write_word       (ps.p->out.body, XWORD{off_index})                        &&
+			write_word       (ps.p->out.body, XWORD{XIS::ADD})                         &&
+			try_put_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match            (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+		)
+	) {
+		// NOTE:
+		// 3 is the number of instructions we emit to jump to the function intruction address.
+			// If the number of instructions changes we also need to update the constant.
+		// (ps.p->out.body.index - off_index) is the number of instructions emitted as a result of calculating input parameter values.
+			// Currently, this should be at least 2 since we are emitting 2 instructions to offset the instruction pointer.
+		ps.p->out.body.buffer[off_index].u = (ps.p->out.body.index - off_index) + 3;
+
+		symbol *sym = find_fn(t.text.str, chcount(t.text.str), ps.p->scopes);
+		if (sym == NULL) {
+			// TODO FATAL ERROR
+			return false;
+		}
+		return
+			write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
+			write_word(ps.p->out.body, sym->data) &&
+			write_word(ps.p->out.body, XWORD{XIS::JMP});
 	}
 	return false;
 }
@@ -487,13 +574,12 @@ static bool try_opt_factor(parser_state ps)
 	return true;
 }
 
-static bool try_expr(parser_state ps);
-
 static bool try_factor(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
+			try_call_fn(new_state(ps.p, ps.end)) ||
 			try_put_lit(new_state(ps.p, ps.end)) ||
 			try_put_var(new_state(ps.p, ps.end)) ||
 			(
@@ -662,6 +748,46 @@ static bool try_fn_params(parser_state ps)
 	return false;
 }
 
+static bool try_first_fn_params(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, ctoken::KEYWORD_TYPE_VOID) ||
+			try_fn_params(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_main_param_signature(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			peek(ps.p).user_type == ps.end ||
+			match(ps.p, ctoken::KEYWORD_TYPE_VOID)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_main_rettype(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, ctoken::KEYWORD_TYPE_VOID)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
 
 static bool try_main_signature(parser_state ps)
 {
@@ -669,16 +795,33 @@ static bool try_main_signature(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match        (ps.p, ctoken::KEYWORD_TYPE_VOID)              &&
-			match        (ps.p,  token::ALIAS, &t)                      &&
-			strcmp(t.text.str, chcount(t.text.str), "main", 4)          &&
-			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L) &&
-			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+			try_main_rettype        (new_state(ps.p, ps.end))                                 &&
+			match                   (ps.p,  token::ALIAS, &t)                                 &&
+			strcmp                  (t.text.str, chcount(t.text.str), "main", 4)              &&
+			match                   (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			try_main_param_signature(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match                   (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 		)
 	) {
 		symbol *sym = find_fn(t.text.str, chcount(t.text.str), ps.p->scopes);
-		if (sym == NULL) { return false; }
+		if (sym == NULL) {
+			// TODO FATAL ERROR
+			return false;
+		}
 		sym->data.u = ps.p->out.body.index;
+		return true;
+	}
+	return false;
+}
+
+static bool try_fn_rettype(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, ctoken::KEYWORD_TYPE_VOID)
+		)
+	) {
 		return true;
 	}
 	return false;
@@ -690,15 +833,56 @@ static bool try_fn_signature(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match        (ps.p, ctoken::KEYWORD_TYPE_VOID)                         &&
-			match        (ps.p,  token::ALIAS, &t)                                 &&
-			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			try_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+			try_fn_rettype     (new_state(ps.p, ps.end))                                 &&
+			match              (ps.p,  token::ALIAS, &t)                                 &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			try_first_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 		)
 	) {
 		symbol *sym = add_fn(t.text.str, chcount(t.text.str), ps.p->out.body.index, 0, ps.p->scopes); // TODO: The size of the function should correspond to the size out the return value.
 		if (sym == NULL) { return false; }
+		return true;
+	}
+	return false;
+}
+
+static symbol *add_or_find_fn(parser_state &ps, const char *name, unsigned name_char_count)
+{
+	symbol *sym = find_fn(name, name_char_count, ps.p->scopes);
+	if (sym == NULL) {
+		sym = add_fn(name, name_char_count, 0, 0, ps.p->scopes);
+		if (sym == NULL) {
+			// TODO FATAL ERROR
+			return NULL;
+		}
+	}
+	return sym;
+}
+
+static bool try_statements(parser_state ps);
+
+static bool try_fn_def_sig_and_body(parser_state ps)
+{
+	symbol *sym = NULL;
+	token t;
+	if (
+		manage_state(
+			ps,
+			try_fn_rettype     (new_state(ps.p, ps.end))                                 &&
+			match              (ps.p,  token::ALIAS, &t)                                 &&
+			(sym = add_or_find_fn(ps, t.text.str, chcount(t.text.str))) != NULL          &&
+			(sym->data.u = ps.p->out.body.index - 1)                                     && // NOTE: This points the stored function address to the SVB instruction (i.e. first instruction of any function).
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			push_scope         (ps.p->scopes)                                            &&
+			try_first_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                  &&
+			try_statements     (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))       &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                  &&
+			emit_pop_scope     (ps.p)
+		)
+	) {
 		return true;
 	}
 	return false;
@@ -786,8 +970,8 @@ static bool try_expr_stmt(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_expr(new_state(ps.p, xtoken::OPERATOR_STOP)) &&
-			match(ps.p, xtoken::OPERATOR_STOP)               &&
+			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
+			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
 			write_word(ps.p->out.body, XWORD{XIS::TOSS})
 		)
 	) {
@@ -805,7 +989,6 @@ static bool try_statement(parser_state ps)
 			try_if       (new_state(ps.p, ps.end)) ||
 			try_scope    (new_state(ps.p, ps.end)) ||
 			try_expr_stmt(new_state(ps.p, ps.end))
-			// TODO: add expression here
 		)
 	) {
 		return true;
@@ -840,7 +1023,7 @@ static bool try_main_def(parser_state ps)
 			try_statements    (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
 			match             (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)            &&
 			emit_pop_scope    (ps.p)                                              &&
-			write_word        (ps.p->out.body, XWORD{XIS::LDA}) // NOTE: This returns from the entire program.
+			write_word        (ps.p->out.body, XWORD{XIS::LDB})
 		)
 	) {
 		return true;
@@ -850,25 +1033,22 @@ static bool try_main_def(parser_state ps)
 
 static bool try_fn_def(parser_state ps)
 {
-	U16 jmp_idx = 0;
+	U16   guard_jmp_idx = 0;
 	token t;
 	if (
 		manage_state(
 			ps,
-			write_word      (ps.p->out.body, XWORD{XIS::PUT})                   &&
-			(jmp_idx = ps.p->out.body.index)                                    &&
-			write_word      (ps.p->out.body, XWORD{0})                          &&
-			write_word      (ps.p->out.body, XWORD{XIS::JMP})                   &&
-			push_scope      (ps.p->scopes)                                      &&
-			try_fn_signature(new_state(ps.p, ps.end))                           &&
-			match           (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)            &&
-			try_statements  (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-			match           (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)            &&
-			emit_pop_scope  (ps.p)                                              &&
-			write_word      (ps.p->out.body, XWORD{XIS::JMP}) // TODO: This assumes that the return address is the top stack value here.
+			write_word          (ps.p->out.body, XWORD{XIS::PUT})                   &&
+			(guard_jmp_idx = ps.p->out.body.index)                                  &&
+			write_word          (ps.p->out.body, XWORD{0})                          &&
+			write_word          (ps.p->out.body, XWORD{XIS::JMP})                   &&
+			write_word          (ps.p->out.body, XWORD{XIS::SVB})                   &&
+			try_fn_def_sig_and_body(new_state(ps.p, ps.end))                        &&
+			write_word          (ps.p->out.body, XWORD{XIS::LDB})                   &&
+			write_word          (ps.p->out.body, XWORD{XIS::JMP})
 		)
 	) {
-		ps.p->out.body.buffer[jmp_idx].u = ps.p->out.body.index;
+		ps.p->out.body.buffer[guard_jmp_idx].u = ps.p->out.body.index;
 		return true;
 	}
 	return false;
@@ -879,9 +1059,9 @@ static bool try_global_statement(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_new_var(new_state(ps.p, ps.end))  ||
+			try_new_var (new_state(ps.p, ps.end)) ||
 			try_main_def(new_state(ps.p, ps.end)) ||
-			try_fn_def (new_state(ps.p, ps.end))
+			try_fn_def  (new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
@@ -908,29 +1088,30 @@ static bool try_program(parser_state ps)
 		// NOTE: pop_scope not possible since we are at index 0 here.
 		const U16 lsp = top_scope_size(ps.p);
 		return
-			lsp == 0 ||
 			(
-				// TODO: This should be an LDA and HALT
-				write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
-				write_word(ps.p->out.body, XWORD{lsp})      &&
-				write_word(ps.p->out.body, XWORD{XIS::POP})
-			);
+				lsp == 0 ||
+				(
+					write_word(ps.p->out.body, XWORD{XIS::PUT}) &&
+					write_word(ps.p->out.body, XWORD{lsp})      &&
+					write_word(ps.p->out.body, XWORD{XIS::POP})
+				)
+			) &&
+			write_word(ps.p->out.body, XWORD{XIS::LDA});
 	}
 	return false;
 }
 
 xc_out xcc(lexer l, xbinary mem, const U16 sym_capacity)
 {
-	symbol sym_mem[sym_capacity];
-	parser p          = { { l, NULL, 0, 0 }, mem };
-	p.scopes          = symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 };
-	p.max_token_index = 0;
-	parser_state ps   = new_state(&p, token::STOP_EOF);
+	symbol sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
+	parser p         = { { l, NULL, 0, 0 }, mem, l.last };
+	p.scopes         = symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 };
+	parser_state ps  = new_state(&p, token::STOP_EOF);
 
 	add_fn("main", 4, 0, 0, p.scopes);
 
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
-		return { p.in.l, p.out, 0, p.max_token_index, 1 };
+		return xc_out{ p.in.l, p.out, 0, p.max, 1 };
 	}
-	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token_index, 0 };
+	return xc_out{ p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max, 0 };
 }

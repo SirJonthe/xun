@@ -84,12 +84,12 @@ struct XIS
 
 		DUP    = 0b10000000 + (62<<8), // Duplicates the top value on the stack and puts it on the top.
 
-		SVA    = 0b10000010 + (63<<8),
-		SVB    = 0b10000010 + (64<<8),
-		SVC    = 0b10000010 + (65<<8),
-		LDA    = 0b11000010 + (66<<8),
-		LDB    = 0b11000010 + (67<<8),
-		LDC    = 0b11000010 + (68<<8),
+		SVA    = 0b10000010 + (63<<8), // Save the A, B, C, and SP to the top of the stack. Set A, B, C to SP, and set SP to 0. Expand stack by 4.
+		SVB    = 0b10000010 + (64<<8), // Save the B, C, and SP to the top of the stack.  Set B and C to SP, and set SP to 0. Expand stack by 3.
+		SVC    = 0b10000010 + (65<<8), // Save the C and SP to the top of the stack.  Set A to SP, and set SP to 0. Expand stack by 2.
+		LDA    = 0b11000010 + (66<<8), // Load A, B, C, and SP from the stack. Stack collapses by restored amount.
+		LDB    = 0b11000010 + (67<<8), // Load B, C, and SP from the stack. Stack collapses by restored amount.
+		LDC    = 0b11000010 + (68<<8), // Load C and SP from the stack. Stack collapses by restored amount.
 
 		RLA    = 0b00100000 + (69<<8), // transform constant on stack to address relative to A
 		RLB    = 0b00100000 + (70<<8), // transform constant on stack to address relative to B

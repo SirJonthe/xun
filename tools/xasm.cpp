@@ -92,10 +92,10 @@ token xlex(lexer *l)
 
 struct input_tokens
 {
-	lexer        l;
-	const token *tokens;
-	U16          capacity;
-	U16          index;
+	lexer        l;        // The input lexer that creates tokens from text. Is used if 'tokens' is null.
+	const token *tokens;   // Input token array
+	U16          capacity; // The max capacity of the input token array (not used for the lexer). Parser may quit earlier if a stop token is encountered.
+	U16          index;    // The index in the input token array to currently read (not used for the lexer).
 };
 
 static bool write_word(xbinary::buffer &buf, XWORD data)
@@ -269,14 +269,13 @@ static scope::symbol *add_fn(const char *name, unsigned name_char_count, U16 add
 	return sym;
 }
 
+/// @brief The main data structure for the parser.
 struct parser
 {
-	input_tokens  in;
-	xbinary       out;
-	scope_stack   scopes;
-	token         max_token;
-	U16           max_token_index;
-	unsigned      max_col, max_row;
+	input_tokens  in;     // The input tokens to parse.
+	xbinary       out;    // The resulting binary.
+	scope_stack   scopes; // The token with the highest sequential index we successfully parsed.
+	token         max;    // The token furthest in the sequence that was lexed.
 };
 
 static scope &top_scope(parser *p)
@@ -298,45 +297,53 @@ static token peek(parser *p)
 
 static bool match(parser *p, unsigned type, token *out = NULL)
 {
-	token t;
-	U16 lex_index = 0;
+	lexer l = p->in.l;
+
+	// Read from token stream if it is available.
 	if (p->in.tokens != NULL) {
-		t = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
-	} else {
-		lexer l = p->in.l;
-		t = xlex(&l);
-		lex_index = l.head;
+		l.last = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
+		l.last.index = p->in.index;
 	}
-	if (out != NULL) {
-		*out = t;
+	// Otherwise read from lexer. This is done in a separate copy to avoid committing to reads of unexpected types.
+	else {
+		xlex(&l);
 	}
 
-	if (t.type == token::STOP) {
+	// Record the read token if requested.
+	if (out != NULL) {
+		*out = l.last;
+	}
+
+	// Record the read token if it is the furthest along in the token sequence.
+	if (l.last.index >= p->max.index) {
+		p->max = l.last;
+	}
+
+	// If the read token is generic STOP type then we count it as a match if the type we are looking for is STOP_EOF.
+	if (l.last.type == token::STOP) {
 		return type == token::STOP_EOF;
 	}
-	if (type == t.user_type) {
-		p->in.l.head = lex_index;
-		++p->in.index;
 
-		if (p->in.tokens != NULL && p->in.index > p->max_token_index) {
-			p->max_token = t;
-			p->max_token_index = p->in.index;
-		} else if ((p->in.l.row > p->max_row) || (p->in.l.row == p->max_row && p->in.l.col > p->max_col)) {
-			p->max_token = t;
-			p->max_row   = p->in.l.row;
-			p->max_col   = p->in.l.col;
-		}
-		
+	// If the token user type is the same as the type we are looking for, we advance the main lexer state before reporting that we got a match.
+	if (type == l.last.user_type) {
+		p->in.l = l;
+		++p->in.index;
 		return true;
 	}
+
+	// No match.
 	return false;
 }
 
+/// @brief Manages the parser state so that it can roll back on failure.
+/// @note When matching matterns, use manage_state to and new_state to create a new parser_state.
+/// @sa manage_state
+/// @sa new_state
 struct parser_state
 {
-	parser   *p;
-	parser    restore_point;
-	unsigned  end;
+	parser   *p;             // The address of the parser.
+	parser    restore_point; // A hard copy of the parser at the point where the parser state was created. Will be used as the restore point if the parser fails to identify a given pattern.
+	unsigned  end;           // The character that signifies the end of a code segment, such as a closing brace, quote, or end-of-file.
 };
 
 static parser_state new_state(parser *p, unsigned end)
@@ -348,12 +355,13 @@ static parser_state new_state(parser *p, unsigned end)
 static bool manage_state(parser_state &ps, bool success)
 {
 	if (!success) {
-		U16 max_index   = ps.p->max_token_index;
-		token max_token = ps.p->max_token;
+		token max = ps.p->max;
 		*ps.p = ps.restore_point;
-		if (max_index > ps.p->max_token_index) {
-			ps.p->max_token_index = max_index;
-			ps.p->max_token       = max_token;
+		if (max.index >= ps.p->max.index) {
+			//std::cout << "max {" << max.text.str << "," << max.index << "," << max.head << "," << max.row << "," << max.col << "}" << std::endl;
+			ps.p->max = max;
+		} else {
+			//std::cout << "not max {" << max.text.str << "," << max.index << "," << max.head << "," << max.row << "," << max.col << "}" << std::endl;
 		}
 	}
 	return success;
@@ -787,7 +795,13 @@ static bool try_directive_size(parser_state ps)
 
 static bool try_lit_directive(parser_state ps)
 {
-	if (manage_state(ps, try_directive_eval(new_state(ps.p, ps.end)) || try_directive_size(new_state(ps.p, ps.end)))) {
+	if (
+		manage_state(
+			ps,
+			try_directive_eval(new_state(ps.p, ps.end)) ||
+			try_directive_size(new_state(ps.p, ps.end))
+		)
+	) {
 		return true;
 	}
 	return false;
@@ -1068,28 +1082,46 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
-xasm_out assemble_xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
+xasm_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
 {
-	parser p          = { { lexer{{NULL,0},0}, tokens, max_tokens, 0 }, { { NULL, 0, 0 }, { body, max_binary_body, 0 }, { NULL, 0, 0 } } };
-	p.max_token_index = 0;
-	p.scopes.index    = 0;
-	parser_state ps   = new_state(&p, token::STOP_EOF);
+	parser p = parser {
+		input_tokens {
+			init_lexer({NULL,0}),
+			tokens,
+			max_tokens,
+			0
+		},
+		xbinary {
+			xbinary::buffer{ NULL, 0, 0 },
+			xbinary::buffer{ body, max_binary_body, 0 },
+			xbinary::buffer{ NULL, 0, 0 }
+		}
+	};
+	p.scopes.index = 0;
+	p.max = p.in.l.last;
+	parser_state ps = new_state(&p, token::STOP_EOF);
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
-		return { lexer{{NULL,0},0}, xbinary{{NULL,0}, {NULL,0}, {NULL,0}}, 0, p.max_token, p.max_token_index, 1 };
+		return { lexer{{NULL,0},0}, xbinary{{NULL,0}, {NULL,0}, {NULL,0}}, 0, p.max, 1 };
 	}
-	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token, p.max_token_index, 0 };
+	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max, 0 };
 }
 
-xasm_out assemble_xasm(lexer l, xbinary memory)
+xasm_out xasm(lexer l, xbinary memory)
 {
-	parser p          = { { l, NULL, 0, 0 }, memory };
-	p.max_token_index = 0;
-	p.scopes.index    = 0;
-	p.max_col         = 0;
-	p.max_row         = 0;
-	parser_state ps   = new_state(&p, token::STOP_EOF);
+	parser p = parser {
+		input_tokens {
+			l,
+			NULL,
+			0,
+			0
+		},
+		memory
+	};
+	p.scopes.index = 0;
+	p.max = p.in.l.last;
+	parser_state ps = new_state(&p, token::STOP_EOF);
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
-		return { p.in.l, p.out, 0, p.max_token, p.max_token_index, 1, p.max_col, p.max_row };
+		return { p.in.l, p.out, 0, p.max, 1 };
 	}
-	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max_token, p.max_token_index, 0, p.max_col, p.max_row };
+	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max, 0 };
 }
