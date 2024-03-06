@@ -85,7 +85,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_literal ("0[xX][0-9a-fA-F]+",      17, xtoken::LITERAL_INT, hex2u)
 };
 
-token xlex(lexer *l)
+token xasm_lex(lexer *l)
 {
 	return lex(l, X_TOKENS, X_TOKEN_COUNT);
 }
@@ -274,7 +274,7 @@ struct parser
 {
 	input_tokens  in;     // The input tokens to parse.
 	xbinary       out;    // The resulting binary.
-	scope_stack   scopes; // The token with the highest sequential index we successfully parsed.
+	scope_stack   scopes; // The scope stack, containing all defined symbols.
 	token         max;    // The token furthest in the sequence that was lexed.
 };
 
@@ -290,7 +290,7 @@ static token peek(parser *p)
 		t = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
 	} else {
 		lexer l = p->in.l;
-		t = xlex(&l);
+		t = xasm_lex(&l);
 	}
 	return t;
 }
@@ -306,7 +306,7 @@ static bool match(parser *p, unsigned type, token *out = NULL)
 	}
 	// Otherwise read from lexer. This is done in a separate copy to avoid committing to reads of unexpected types.
 	else {
-		xlex(&l);
+		xasm_lex(&l);
 	}
 
 	// Record the read token if requested.
@@ -1087,7 +1087,7 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
-xasm_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
+xc_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
 {
 	parser p = parser {
 		input_tokens {
@@ -1111,7 +1111,7 @@ xasm_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *b
 	return { p.in.l, p.out, U16(p.out.head.index + p.out.body.index + p.out.tail.index), p.max, 0 };
 }
 
-xasm_out xasm(lexer l, xbinary memory)
+xc_out xasm(lexer l, xbinary memory)
 {
 	parser p = parser {
 		input_tokens {

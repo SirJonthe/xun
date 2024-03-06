@@ -1,8 +1,7 @@
 #ifndef XASM_H
 #define XASM_H
 
-#include "../../xarch.h"
-#include "../../lib/parsec/lex.h"
+#include "../xcbe/xcbe.h"
 
 // LAYOUT OF BINARY
 //
@@ -127,31 +126,7 @@ struct xtoken
 /// @brief Lexes XASM assembly code.
 /// @param l The lexer.
 /// @return The lexed token.
-token xlex(lexer *l);
-
-/// @brief The writeable memory used for output in compiler/assembler output.
-struct xbinary
-{
-	struct buffer
-	{
-		XWORD *buffer;
-		U16    capacity;
-		U16    index;
-	};
-	buffer head;
-	buffer body;
-	buffer tail;
-};
-
-/// @brief Contains metadata about an output XASM binary.
-struct xasm_out
-{
-	lexer    l;           // The state of the lexer when successfully exiting the assembler.
-	xbinary  out;         // The state of the output binary when successfully existing the assembler.
-	U16      binary_size; // The number of elements in the output binary. Zero if the assembly failed.
-	token    max;         // The max token reached in the input token stream. Generally only interesting if the assembly failed.
-	U16      errors;
-};
+token xasm_lex(lexer *l);
 
 /// @brief Assembles extended assembly language in the form of input tokens.
 /// @param max_tokens The maximum number of tokens that is allowed to be generated. Generally corresponds to the number of elements in the tokens parameter. If the assembler exceeds this limit the assembly fails.
@@ -160,13 +135,13 @@ struct xasm_out
 /// @param body The output binary write target.
 /// @return Metadata relating to the output assembly.
 /// @sa xlex
-xasm_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
+xc_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
 
 /// @brief Assembles extended assembly language in the form of input tokens.
 /// @param l The lexer to be used to read code.
 /// @param memory The memory to write to.
 /// @return Metadata relating to the output assembly.
 /// @sa xlex
-xasm_out xasm(lexer l, xbinary memory);
+xc_out xasm(lexer l, xbinary memory);
 
 #endif

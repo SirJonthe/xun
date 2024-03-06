@@ -13,7 +13,7 @@
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
 
-Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_power(false)
+Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_latency_counter(0), m_cycles_per_second(10000000), m_power(false)
 {
 	Device::Connect(*this, m_relay);
 	Connect(m_clock,            0);
@@ -34,9 +34,52 @@ void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 	B.u  = C.u;
 	SP.u = C.u - 1;
 	if (debug) {
-		for (unsigned i = C.u; i < U_MAX; ++i) {
+		for (unsigned i = C.u; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = XIS::HALT;
 		}
+	} else {
+		for (unsigned i = C.u; i < MEM_SIZE_MAX; ++i) {
+			AT(XWORD{U16(i)}).u = U16(rand());
+		}
+	}
+}
+
+void Computer::PowerOff( void )
+{
+	if (m_power) {
+		m_power = false;
+		A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
+		for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
+			AT(XWORD{U16(i)}).u = 0;
+		}
+	}
+}
+
+void Computer::PowerOn( void )
+{
+	if (!m_power) {
+		m_power = true;
+		A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
+		for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
+			AT(XWORD{U16(i)}).u = U16(rand());
+		}
+	}
+}
+
+void Computer::PowerToggle( void )
+{
+	if (!m_power) {
+		PowerOn();
+	} else {
+		PowerOff();
+	}
+}
+
+void Computer::PowerCycle( void )
+{
+	if (m_power) {
+		PowerOff();
+		PowerOn();
 	}
 }
 
@@ -299,7 +342,7 @@ XWORD Computer::Cycle( void )
 		break;
 	case XIS::SVB:
 		// [ ]...[B][C][SP]
-		// A^           BC^
+		// A^          BC^
 		PUSH_STACK(1);
 		TOP.u = B.u;
 		PUSH_STACK(1);
