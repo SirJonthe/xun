@@ -150,7 +150,15 @@ void xdebugger::ui( void ) const
 	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC() + 1;
 	if (stack_size < 0) { stack_size = 0; }
 
-	std::cout << " LIST   PROG                    INST    STK=" << stack_size << std::endl;
+	std::cout << " LIST   PROG                    INST    STK=";
+	print_padded_hex(stack_size);
+	std::cout << "  " << "A=";
+	print_padded_hex(m_computer.StackOffsetA());
+	std::cout << "  " << "B=";
+	print_padded_hex(m_computer.StackOffsetB());
+	std::cout << "  " << "C=";
+	print_padded_hex(m_computer.StackOffsetC());
+	std::cout << std::endl;
 	for (int y = 0; y < i_page_height; ++y) {
 		const U16 o = start_i + y * i_page_width;
 		
