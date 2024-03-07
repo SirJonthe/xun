@@ -872,7 +872,7 @@ static bool try_fn_def_sig_and_body(parser_state ps)
 			try_fn_rettype     (new_state(ps.p, ps.end))                                 &&
 			match              (ps.p,  token::ALIAS, &t)                                 &&
 			(sym = add_or_find_fn(ps, t.text.str, chcount(t.text.str))) != NULL          &&
-			(sym->data.u = ps.p->out.body.index - 1)                                     && // NOTE: This points the stored function address to the SVB instruction (i.e. first instruction of any function).
+			(sym->data.u = ps.p->out.body.index - 1)                                     && // NOTE: This points the stored function address to the SVC instruction (i.e. first instruction of any function).
 			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 			push_scope         (ps.p->scopes)                                            &&
 			try_first_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
@@ -1016,14 +1016,14 @@ static bool try_main_def(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			write_word        (ps.p->out.body, XWORD{XIS::SVB})                   &&
+			write_word        (ps.p->out.body, XWORD{XIS::SVC})                   &&
 			push_scope        (ps.p->scopes)                                      &&
 			try_main_signature(new_state(ps.p, ps.end))                           &&
 			match             (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)            &&
 			try_statements    (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
 			match             (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)            &&
 			emit_pop_scope    (ps.p)                                              &&
-			write_word        (ps.p->out.body, XWORD{XIS::LDB})
+			write_word        (ps.p->out.body, XWORD{XIS::LDC})
 		)
 	) {
 		return true;
@@ -1042,9 +1042,9 @@ static bool try_fn_def(parser_state ps)
 			(guard_jmp_idx = ps.p->out.body.index)                                  &&
 			write_word          (ps.p->out.body, XWORD{0})                          &&
 			write_word          (ps.p->out.body, XWORD{XIS::JMP})                   &&
-			write_word          (ps.p->out.body, XWORD{XIS::SVB})                   &&
+			write_word          (ps.p->out.body, XWORD{XIS::SVC})                   &&
 			try_fn_def_sig_and_body(new_state(ps.p, ps.end))                        &&
-			write_word          (ps.p->out.body, XWORD{XIS::LDB})                   &&
+			write_word          (ps.p->out.body, XWORD{XIS::LDC})                   &&
 			write_word          (ps.p->out.body, XWORD{XIS::JMP})
 		)
 	) {
