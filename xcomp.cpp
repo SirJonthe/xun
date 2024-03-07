@@ -31,6 +31,7 @@ void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 	for (C.u = 0; C.u < bin_count; ++C.u) {
 		AT(C) = bin[C.u];
 	}
+	AT(XWORD{C.u++}).u = XIS::HALT;
 	B.u  = C.u;
 	SP.u = C.u - 1;
 	if (debug) {

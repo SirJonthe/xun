@@ -1079,8 +1079,7 @@ static bool try_program(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_statements(new_state(ps.p, ps.end))) &&
-			write_word(ps.p->out.body, XWORD{XIS::HALT})
+			try_statements(new_state(ps.p, ps.end)))
 		) {
 		return true;
 	}
