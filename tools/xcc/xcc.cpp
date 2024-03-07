@@ -392,7 +392,7 @@ static bool try_call_fn(parser_state ps)
 			// If the number of instructions changes we also need to update the constant.
 		// (ps.p->out.body.index - off_index) is the number of instructions emitted as a result of calculating input parameter values.
 			// Currently, this should be at least 2 since we are emitting 2 instructions to offset the instruction pointer.
-		ps.p->out.body.buffer[off_index].u = (ps.p->out.body.index - off_index) + 4;
+		ps.p->out.body.buffer[off_index].u = (ps.p->out.body.index - off_index) + 5;
 
 		symbol *sym = find_fn(t.text.str, chcount(t.text.str), ps.p->scopes);
 		if (sym == NULL) {

@@ -2,13 +2,13 @@
 #include "xcomp.h"
 
 #define AT(x)         RAM[x.u]
-#define ATN(x,n)      RAM[x.u + n]
+#define ATN(x,n)      RAM[U16(x.u + n)]
 
 #define READI         RAM[IP.u++].u
 
-#define TOP           RAM[uint16_t(SP.u)]
-#define LST           RAM[uint16_t(SP.u - 1)]
-#define SAT(n)        RAM[uint16_t(SP.u + n)]
+#define TOP           RAM[SP.u]
+#define LST           RAM[U16(SP.u - 1)]
+#define SAT(n)        RAM[U16(SP.u + n)]
 
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
@@ -90,22 +90,22 @@ void Computer::Poke(U16 addr, XWORD val)
 
 void Computer::PokeA(U16 addr, XWORD val)
 {
-	RAM[addr + A.u] = val;
+	RAM[U16(addr + A.u)] = val;
 }
 
 void Computer::PokeB(U16 addr, XWORD val)
 {
-	RAM[addr + B.u] = val;
+	RAM[U16(addr + B.u)] = val;
 }
 
 void Computer::PokeC(U16 addr, XWORD val)
 {
-	RAM[addr + C.u] = val;
+	RAM[U16(addr + C.u)] = val;
 }
 
 void Computer::PokeTop(U16 addr, XWORD val)
 {
-	RAM[addr + SP.u] = val;
+	RAM[U16(addr + SP.u)] = val;
 }
 
 XWORD Computer::Peek(U16 addr) const
@@ -115,22 +115,22 @@ XWORD Computer::Peek(U16 addr) const
 
 XWORD Computer::PeekA(U16 addr) const
 {
-	return RAM[addr + A.u];
+	return RAM[U16(addr + A.u)];
 }
 
 XWORD Computer::PeekB(U16 addr) const
 {
-	return RAM[addr + B.u];
+	return RAM[U16(addr + B.u)];
 }
 
 XWORD Computer::PeekC(U16 addr) const
 {
-	return RAM[addr + C.u];
+	return RAM[U16(addr + C.u)];
 }
 
 XWORD Computer::PeekTop(U16 addr) const
 {
-	return RAM[addr + SP.u];
+	return RAM[U16(addr + SP.u)];
 }
 
 XWORD Computer::Cycle( void )
@@ -280,7 +280,7 @@ XWORD Computer::Cycle( void )
 		break;
 	case XIS::PUTI:
 		PUSH_STACK(1);
-		TOP.u = IP.u;
+		TOP.u = IP.u - 1;
 		break;
 	case XIS::TOSS:
 		POP_STACK(1);

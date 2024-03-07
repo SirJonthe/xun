@@ -181,22 +181,23 @@ void xdebugger::ui( void ) const
 			std::cout << "        ";
 		}
 
-		if (stack_size < i_page_height) {
-			const int display_offset = i_page_height - stack_size;
-			if (y - display_offset >= 0) {
-				if (y - display_offset == 0) {
-					std::cout << " >";
-				} else {
-					std::cout << "  ";
-				}
-				print_padded_hex(m_computer.PeekTop(y - display_offset).u);
+//		if (stack_size < i_page_height) {
+		const int display_offset = stack_size < i_page_height ? i_page_height - stack_size : 0;
+		if (y - display_offset >= 0) {
+			if (y - display_offset == 0) {
+				std::cout << " >";
 			} else {
-				std::cout << "      ";
+				std::cout << "  ";
 			}
+			print_padded_hex(m_computer.PeekTop(-(y - display_offset)).u);
 		} else {
-			std::cout << "  ";
-			print_padded_hex(m_computer.PeekTop(-y).u);
+			std::cout << "      ";
 		}
+//		}
+//		else {
+//			std::cout << "  ";
+//			print_padded_hex(m_computer.PeekTop(-y).u);
+//		}
 
 		std::cout << std::endl;
 	}

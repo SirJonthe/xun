@@ -4,6 +4,8 @@
 #include "../xasm/xasm.h"
 #include "../../xcomp.h"
 
+// [ ] Fix stack view
+
 /// @brief A debugger for binary programs.
 class xdebugger
 {
