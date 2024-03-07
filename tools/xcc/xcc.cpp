@@ -1096,7 +1096,8 @@ static bool try_program(parser_state ps)
 					write_word(ps.p->out.body, XWORD{XIS::POP})
 				)
 			) &&
-			write_word(ps.p->out.body, XWORD{XIS::LDA});
+			write_word(ps.p->out.body, XWORD{XIS::LDA}) && // Restore stack pointer to program call site.
+			write_word(ps.p->out.body, XWORD{XIS::JMP}); // Jump to program call site (assumes this is done when loading a new program).
 	}
 	return false;
 }
