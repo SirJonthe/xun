@@ -147,7 +147,7 @@ void xdebugger::ui( void ) const
 	
 	const int start_i = (m_computer.InstructionPointer() / i_page_size) * i_page_size;
 	
-	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC() + 1;
+	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC();
 	if (stack_size < 0) { stack_size = 0; }
 
 	std::cout << " LIST   PROG                    INST    STK=";

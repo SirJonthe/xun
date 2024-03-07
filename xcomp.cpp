@@ -33,7 +33,7 @@ void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 	}
 	AT(XWORD{C.u++}).u = XIS::HALT;
 	B.u  = C.u;
-	SP.u = C.u - 1;
+	SP.u = C.u;
 	if (debug) {
 		for (unsigned i = C.u; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = XIS::HALT;
