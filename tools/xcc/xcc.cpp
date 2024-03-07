@@ -27,15 +27,22 @@ static bool write_word(xbinary::buffer &buf, XWORD data)
 /// @brief The data structure containing meta data about a declared symbol in code, e.g. variables, constants, functions, structures, etc.
 struct symbol
 {
-	enum type_t { VAR, LIT, LBL, FN };
-	char      name[32];
-	XWORD     data;
-	unsigned  type;
-	U16       size;
-	U16       scope_index;
-	U16       dim;         // The dimension if this is an array (if multi-dimensional, the next dimension will be stored in the 'next' pointer).
-	U16       deref;       // The number of times it should be dereferenced to access an underlying value. For literals 0, variables 1, single pointers 2, multi-pointers >2.
-	symbol   *next;        // The next dimension in a multi-dimensional array. The next name will be empty so that there are no accidental naming collisions.
+	enum {
+		VAR, // A modifiable value.
+		LIT, // An immediate constant.
+		LBL, // An immediate constant for use as a target for jump instructions.
+		FN,  // An immediate constant for use as a target for jump instructions.
+		USR  // A user-defined data type.
+	};
+	chars   name;        // The name of the symbol.
+	XWORD   data;        // The address of a variable/function, or the value of a literal/label.
+	U16     category;    // VAR, LIT, LBL, FN, USR
+	U16     type_exact;  // A hash representing the exact type, i.e. int, unsigned int, char**, UserType. Computed as the hash of the type name or function signature.
+	U16     size;        // The number of bytes the base type occupies.
+	U16     scope_index; // The scope index this symbol is defined in.
+	U16     deref;       // The number of times it should be automatically dereferenced to access an underlying value. For literals 0, variables 1.
+	U16     dimensions;  // The number of elements if this is an array.
+	symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter.
 };
 
 /// @brief The data structure containing the current state of declared and defined symbols in the compiler.
@@ -99,7 +106,7 @@ static unsigned chcount(const char *s)
 static symbol *find_symbol(const char *name, unsigned name_char_count, symbol_stack &ss)
 {
 	for (signed i = ss.count - 1; i >= 0; --i) {
-		if (strcmp(name, name_char_count, ss.symbols[i].name, chcount(ss.symbols[i].name))) {
+		if (strcmp(name, name_char_count, ss.symbols[i].name.str, chcount(ss.symbols[i].name.str))) {
 			return ss.symbols + i;
 		}
 	}
@@ -109,7 +116,7 @@ static symbol *find_symbol(const char *name, unsigned name_char_count, symbol_st
 static symbol *find_var(const char *name, unsigned name_char_count, symbol_stack &ss)
 {
 	symbol *sym = find_symbol(name, name_char_count, ss);
-	if (sym != NULL && sym->type != symbol::VAR) {
+	if (sym != NULL && sym->category != symbol::VAR) {
 		return NULL;
 	}
 	return sym;
@@ -118,13 +125,13 @@ static symbol *find_var(const char *name, unsigned name_char_count, symbol_stack
 static symbol *find_fn(const char *name, unsigned name_char_count, symbol_stack &ss)
 {
 	symbol *sym = find_symbol(name, name_char_count, ss);
-	if (sym != NULL && sym->type != symbol::FN) {
+	if (sym != NULL && sym->category != symbol::FN) {
 		return NULL;
 	}
 	return sym;
 }
 
-static symbol *add_symbol(const char *name, unsigned name_char_count, unsigned type, symbol_stack &s)
+static symbol *add_symbol(const char *name, unsigned name_char_count, unsigned category, symbol_stack &s)
 {
 	if (s.count >= s.capacity) {
 		// TODO FATAL ERROR
@@ -132,7 +139,7 @@ static symbol *add_symbol(const char *name, unsigned name_char_count, unsigned t
 	}
 
 	for (U16 i = s.top_index; i < s.count; ++i) {
-		if (strcmp(s.symbols[i].name, chcount(s.symbols[i].name), name, name_char_count)) {
+		if (strcmp(s.symbols[i].name.str, chcount(s.symbols[i].name.str), name, name_char_count)) {
 			return NULL;
 		}
 	}
@@ -141,15 +148,15 @@ static symbol *add_symbol(const char *name, unsigned name_char_count, unsigned t
 
 	const unsigned count = name_char_count < sizeof(sym.name) - 1 ? name_char_count : sizeof(sym.name) - 1;
 	unsigned i;
-	for (i = 0; i < count; ++i)       { sym.name[i] = name[i]; }
-	for (; i < sizeof(sym.name); ++i) { sym.name[i] = 0; }
-	sym.type        = type;
-	sym.size        = 1;
-	sym.scope_index = s.scope;
-	sym.dim         = 0;
-	sym.deref       = 0;
-	sym.next        = NULL;
-	if (type == symbol::VAR) {
+	for (i = 0; i < count; ++i)       { sym.name.str[i] = name[i]; }
+	for (; i < sizeof(sym.name); ++i) { sym.name.str[i] = 0; }
+	sym.category      = category;
+	sym.size          = 1; // TODO This needs a better way to be determined
+	sym.scope_index   = s.scope;
+	sym.deref         = 0;
+	sym.dimensions    = 0;
+	sym.type_exact    = 0; // TODO Base this on the type signature of the variable/function.
+	if (category == symbol::VAR) {
 		sym.data.u = top_scope_size(s);
 	}
 	++s.count;
@@ -708,7 +715,7 @@ static bool try_new_var(parser_state ps)
 	return false;
 }
 
-static bool try_fn_param(parser_state ps)
+static bool try_fn_param(parser_state ps, symbol *param)
 {
 	token t;
 	if (
@@ -718,26 +725,29 @@ static bool try_fn_param(parser_state ps)
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
-		symbol *sym = add_var(t.text.str, chcount(t.text.str), ps.p->scopes); // TODO: Add a 'add_param' version that does not modify LSP
+		symbol *sym = param->param = add_var(t.text.str, chcount(t.text.str), ps.p->scopes);
 		if (sym == NULL) { return false; }
-		return write_word(ps.p->out.body, XWORD{XIS::PUT}) && write_word(ps.p->out.body, XWORD{U16(1)}) && write_word(ps.p->out.body, XWORD{XIS::PUSH}); // TODO: This should really not affect LSP, but since we do we emit 1 (ideally we emit the actual word size of the symbol, but currently only size=1 is supported)
+		return
+			write_word(ps.p->out.body, XWORD{XIS::PUT})  &&
+			write_word(ps.p->out.body, XWORD{sym->size}) &&
+			write_word(ps.p->out.body, XWORD{XIS::SUB});
 	}
 	return false;
 }
 
-static bool try_fn_params(parser_state ps)
+static bool try_fn_params(parser_state ps, symbol *param)
 {
 	if (
 		manage_state(
 			ps,
 			peek(ps.p).user_type == ps.end ||
 			(
-				try_fn_param(new_state(ps.p, ps.end)) &&
+				try_fn_param(new_state(ps.p, ps.end), param) &&
 				(
 					peek(ps.p).user_type == ps.end ||
 					(
 						match(ps.p, ctoken::OPERATOR_COMMA) &&
-						try_fn_params(new_state(ps.p, ps.end))
+						try_fn_params(new_state(ps.p, ps.end), param->param)
 					)
 				)
 			)
@@ -748,13 +758,27 @@ static bool try_fn_params(parser_state ps)
 	return false;
 }
 
-static bool try_first_fn_params(parser_state ps)
+static bool try_void_param(parser_state ps, symbol *fn)
 {
 	if (
 		manage_state(
 			ps,
-			match(ps.p, ctoken::KEYWORD_TYPE_VOID) ||
-			try_fn_params(new_state(ps.p, ps.end))
+			match(ps.p, ctoken::KEYWORD_TYPE_VOID)
+		)
+	) {
+		fn->param = NULL;
+		return true;
+	}
+	return false;
+}
+
+static bool try_first_fn_params(parser_state ps, symbol *fn)
+{
+	if (
+		manage_state(
+			ps,
+			try_void_param(new_state(ps.p, ps.end), fn) ||
+			try_fn_params(new_state(ps.p, ps.end), fn)
 		)
 	) {
 		return true;
@@ -827,26 +851,6 @@ static bool try_fn_rettype(parser_state ps)
 	return false;
 }
 
-static bool try_fn_signature(parser_state ps)
-{
-	token t;
-	if (
-		manage_state(
-			ps,
-			try_fn_rettype     (new_state(ps.p, ps.end))                                 &&
-			match              (ps.p,  token::ALIAS, &t)                                 &&
-			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			try_first_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
-		)
-	) {
-		symbol *sym = add_fn(t.text.str, chcount(t.text.str), ps.p->out.body.index, 0, ps.p->scopes); // TODO: The size of the function should correspond to the size out the return value.
-		if (sym == NULL) { return false; }
-		return true;
-	}
-	return false;
-}
-
 static symbol *add_or_find_fn(parser_state &ps, const char *name, unsigned name_char_count)
 {
 	symbol *sym = find_fn(name, name_char_count, ps.p->scopes);
@@ -869,17 +873,17 @@ static bool try_fn_def_sig_and_body(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_fn_rettype     (new_state(ps.p, ps.end))                                 &&
-			match              (ps.p,  token::ALIAS, &t)                                 &&
-			(sym = add_or_find_fn(ps, t.text.str, chcount(t.text.str))) != NULL          &&
-			(sym->data.u = ps.p->out.body.index - 1)                                     && // NOTE: This points the stored function address to the SVC instruction (i.e. first instruction of any function).
-			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			push_scope         (ps.p->scopes)                                            &&
-			try_first_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
-			match              (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                  &&
-			try_statements     (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))       &&
-			match              (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                  &&
+			try_fn_rettype     (new_state(ps.p, ps.end))                                      &&
+			match              (ps.p,  token::ALIAS, &t)                                      &&
+			(sym = add_or_find_fn(ps, t.text.str, chcount(t.text.str))) != NULL               &&
+			(sym->data.u = ps.p->out.body.index - 1)                                          && // NOTE: This points the stored function address to the SVC instruction (i.e. first instruction of any function).
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                 &&
+			push_scope         (ps.p->scopes)                                                 &&
+			try_first_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                 &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                       &&
+			try_statements     (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))            &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                       &&
 			emit_pop_scope     (ps.p)
 		)
 	) {
@@ -972,6 +976,11 @@ static bool try_expr_stmt(parser_state ps)
 			ps,
 			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
 			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
+			// TODO
+			// Evaluate size of the expression
+			// PUT EXPR_SIZE
+			// POP
+			// Remove TOSS
 			write_word(ps.p->out.body, XWORD{XIS::TOSS})
 		)
 	) {
@@ -1038,13 +1047,13 @@ static bool try_fn_def(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			write_word          (ps.p->out.body, XWORD{XIS::PUT})                   &&
-			(guard_jmp_idx = ps.p->out.body.index)                                  &&
-			write_word          (ps.p->out.body, XWORD{0})                          &&
-			write_word          (ps.p->out.body, XWORD{XIS::JMP})                   &&
-			write_word          (ps.p->out.body, XWORD{XIS::SVC})                   &&
-			try_fn_def_sig_and_body(new_state(ps.p, ps.end))                        &&
-			write_word          (ps.p->out.body, XWORD{XIS::LDC})                   &&
+			write_word          (ps.p->out.body, XWORD{XIS::PUT}) &&
+			(guard_jmp_idx = ps.p->out.body.index)                &&
+			write_word          (ps.p->out.body, XWORD{0})        &&
+			write_word          (ps.p->out.body, XWORD{XIS::JMP}) &&
+			write_word          (ps.p->out.body, XWORD{XIS::SVC}) &&
+			try_fn_def_sig_and_body(new_state(ps.p, ps.end))      &&
+			write_word          (ps.p->out.body, XWORD{XIS::LDC}) &&
 			write_word          (ps.p->out.body, XWORD{XIS::JMP})
 		)
 	) {
@@ -1095,9 +1104,7 @@ static bool try_program(parser_state ps)
 					write_word(ps.p->out.body, XWORD{lsp})      &&
 					write_word(ps.p->out.body, XWORD{XIS::POP})
 				)
-			); //&&
-			//write_word(ps.p->out.body, XWORD{XIS::LDA}) && // Restore stack pointer to program call site.
-			//write_word(ps.p->out.body, XWORD{XIS::JMP}); // Jump to program call site (assumes this is done when loading a new program).
+			);
 	}
 	return false;
 }
