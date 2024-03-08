@@ -192,10 +192,11 @@ static symbol *add_fn(const char *name, unsigned name_char_count, U16 addr, U16 
 /// @brief The main data structure used for parsing C code.
 struct parser
 {
-	input_tokens in;
-	xbinary      out;
-	token        max;
-	symbol_stack scopes;
+	input_tokens  in;     // The parser input.
+	xbinary       out;    // The parser output.
+	token         max;    // The maximally reached token.
+	symbol_stack  scopes; // The symbols ordered into scopes.
+	symbol       *fn;     // The current function being parsed.
 };
 
 static U16 top_scope_size(const parser *p)
@@ -279,11 +280,12 @@ struct parser_state
 	parser   *p;
 	parser    restore_point;
 	unsigned  end;
+	symbol   *fn;
 };
 
 static parser_state new_state(parser *p, unsigned end)
 {
-	parser_state ps = { p, *p, end };
+	parser_state ps = { p, *p, end, p->fn };
 	return ps;
 }
 
@@ -865,6 +867,7 @@ static symbol *add_or_find_fn(parser_state &ps, const char *name, unsigned name_
 			return NULL;
 		}
 	}
+	ps.p->fn = ps.fn = sym;
 	return sym;
 }
 
@@ -1008,6 +1011,30 @@ static bool try_reass_var_stmt(parser_state ps)
 	}
 	return false;
 }
+#include <iostream>
+static bool try_return_stmt(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, ctoken::KEYWORD_CONTROL_RETURN)           &&
+			((ps.fn != NULL && ps.fn->eval_size == 0) || try_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON))) &&
+			match(ps.p, ctoken::OPERATOR_SEMICOLON)
+		)
+	) {
+		// TODO There is now a return value on top of the stack.
+		// TODO We need to assign that value back to the reserved return memory.
+		// TODO Should be: C - sizeof(params...) - 2
+		// TODO After removing SVC from function body, return value is at C - 2
+		if (ps.fn != NULL) {
+			std::cout << ps.fn->name.str << "," << ps.fn->eval_size << std::endl;
+		} else {
+			std::cout << "NO TARGET" << std::endl;
+		}
+		return true;
+	}
+	return false;
+}
 
 static bool try_statement(parser_state ps)
 {
@@ -1016,6 +1043,7 @@ static bool try_statement(parser_state ps)
 			ps,
 			try_new_var       (new_state(ps.p, ps.end)) ||
 			try_if            (new_state(ps.p, ps.end)) ||
+			try_return_stmt   (new_state(ps.p, ps.end)) ||
 			try_scope         (new_state(ps.p, ps.end)) ||
 			try_reass_var_stmt(new_state(ps.p, ps.end)) ||
 			try_expr_stmt     (new_state(ps.p, ps.end))

@@ -2,13 +2,13 @@
 #include "xcomp.h"
 
 #define AT(x)         RAM[x.u]
-#define ATN(x,n)      RAM[U16(x.u + n)]
+#define ATN(x,n)      RAM[U16(x.u + (n))]
 
 #define READI         RAM[IP.u++].u
 
 #define TOP           RAM[SP.u]
 #define LST           RAM[U16(SP.u - 1)]
-#define SAT(n)        RAM[U16(SP.u + n)]
+#define SAT(n)        RAM[U16(SP.u + (n))]
 
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
