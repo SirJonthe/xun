@@ -39,6 +39,7 @@ struct symbol
 	U16     category;    // VAR, LIT, LBL, FN, USR
 	U16     type_exact;  // A hash representing the exact type, i.e. int, unsigned int, char**, UserType. Computed as the hash of the type name or function signature.
 	U16     size;        // The number of bytes the base type occupies.
+	U16     eval_size;   // The size of the type that is emitted on the stack when this symbol in invoked. Literals also generate > 0. Size of the return value for functions.
 	U16     scope_index; // The scope index this symbol is defined in.
 	U16     deref;       // The number of times it should be automatically dereferenced to access an underlying value. For literals 0, variables 1.
 	U16     dimensions;  // The number of elements if this is an array.
@@ -152,9 +153,10 @@ static symbol *add_symbol(const char *name, unsigned name_char_count, unsigned c
 	for (; i < sizeof(sym.name); ++i) { sym.name.str[i] = 0; }
 	sym.category      = category;
 	sym.size          = 1; // TODO This needs a better way to be determined
+	sym.eval_size     = 1; // TODO This needs a better way to be determined
 	sym.scope_index   = s.scope;
 	sym.deref         = 0;
-	sym.dimensions    = 0;
+	sym.dimensions    = 1;
 	sym.type_exact    = 0; // TODO Base this on the type signature of the variable/function.
 	if (category == symbol::VAR) {
 		sym.data.u = top_scope_size(s);
@@ -653,6 +655,7 @@ static bool try_ass_var(parser_state ps, const symbol *sym)
 	if (
 		manage_state(
 			ps,
+			sym->category == symbol::VAR                                                                                       &&
 			match(ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)                                                                       &&
 			(sym->size == 1 || match(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L))                                                  &&
 			try_ass_expr(new_state(ps.p, sym->size == 1 ? ctoken::OPERATOR_SEMICOLON : ctoken::OPERATOR_ENCLOSE_BRACE_R), sym) &&
@@ -676,6 +679,7 @@ static bool try_new_arr(parser_state ps, symbol *sym)
 		)
 	) {
 		sym->size *= result;
+		sym->dimensions *= result;
 		ps.p->out.body.buffer[ps.p->out.body.index - 2].u = sym->size;
 		return manage_state(
 			ps,
@@ -976,12 +980,28 @@ static bool try_expr_stmt(parser_state ps)
 			ps,
 			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
 			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
-			// TODO
-			// Evaluate size of the expression
-			// PUT EXPR_SIZE
-			// POP
-			// Remove TOSS
+			// [ ] Remove TOSS
+			// [ ] Replace with PUT EXPR_SIZE POP
+			// [ ] Fix tests.
 			write_word(ps.p->out.body, XWORD{XIS::TOSS})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_reass_var_stmt(parser_state ps)
+{
+	token t;
+	symbol *sym;
+	if (
+		manage_state(
+			ps,
+			match(ps.p, token::ALIAS, &t)                                             &&
+			((sym = find_var(t.text.str, chcount(t.text.str), ps.p->scopes)) != NULL) &&
+			try_ass_var(new_state(ps.p, ctoken::OPERATOR_SEMICOLON), sym)             &&
+			match(ps.p, ctoken::OPERATOR_SEMICOLON)
 		)
 	) {
 		return true;
@@ -994,10 +1014,11 @@ static bool try_statement(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_new_var  (new_state(ps.p, ps.end)) ||
-			try_if       (new_state(ps.p, ps.end)) ||
-			try_scope    (new_state(ps.p, ps.end)) ||
-			try_expr_stmt(new_state(ps.p, ps.end))
+			try_new_var       (new_state(ps.p, ps.end)) ||
+			try_if            (new_state(ps.p, ps.end)) ||
+			try_scope         (new_state(ps.p, ps.end)) ||
+			try_reass_var_stmt(new_state(ps.p, ps.end)) ||
+			try_expr_stmt     (new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
