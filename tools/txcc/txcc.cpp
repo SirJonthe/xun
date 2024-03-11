@@ -224,7 +224,7 @@ static symbol *find_symbol(const chars &name, parser *p)
 static symbol *find_var(const chars &name, parser *p)
 {
 	symbol *sym = find_symbol(name, p);
-	if (sym != NULL && sym->category != symbol::VAR) {
+	if (sym != NULL && sym->category != symbol::VAR && sym->category != symbol::PARAM) {
 		return NULL;
 	}
 	return sym;
@@ -776,7 +776,7 @@ static bool try_new_var(parser_state ps)
 			ps,
 			match(ps.p, token::ALIAS, &t)                              &&
 			(sym = add_var(t.text, ps.p)) != NULL                      &&
-			(ps.p->out.size -= 2)                                      && // NOTE: Undo PUT 0 (unecessary). Won't evaluate to 0 since 'main' function pointer guarantees there are two instructions in the output.
+			((ps.p->out.size -= 2) || ps.p->out.size == 0)             && // TODO: This is a hack used to remove two instructions from the binary because add_var adds instructions we do not want. Maybe I should revert so that add_symbol does not emit instructions...
 			match(ps.p, ctoken::OPERATOR_COLON)                        &&
 			match(ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)               &&
 			try_decl_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
@@ -1114,12 +1114,37 @@ static bool try_global_statements(parser_state ps)
 	return false;
 }
 
+static bool emit_call_main(parser *op)
+{
+	symbol *sym = find_fn(to_chars("main",4), op);
+	if (sym == NULL) {
+		// NOTE: There is no formal entry point defined.
+		return true;
+	}
+
+	parser p = *op;
+	// p.in.l = init_lexer(chars::view{"*0x00=main(*0x01,*0x02);", 24}); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
+	p.in.l = init_lexer(chars::view{ "main();", 7 });
+	parser_state ps = new_state(&p, token::STOP_EOF);
+	if (
+		manage_state(
+			ps,
+			try_statement(new_state(ps.p, ps.end))
+		)
+	) {
+		op->out = p.out;
+		return true;
+	}
+	return false;
+}
+
 static bool try_program(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
-			try_global_statements(new_state(ps.p, ps.end))
+			try_global_statements(new_state(ps.p, ps.end)) &&
+			emit_call_main(ps.p)
 		)
 	) {
 		// NOTE: pop_scope not possible since we are at index 0 here.
@@ -1145,30 +1170,6 @@ parser init_parser(lexer l, xbinary bin_mem, symbol *sym_mem, U16 sym_capacity)
 	return p;
 }
 
-static bool emit_call_main(parser *op)
-{
-	symbol *sym = find_fn(to_chars("main",4), op);
-	if (sym == NULL || sym->data.u == 0) {
-		// NOTE: There is no formal entry point defined.
-		return true;
-	}
-
-	parser p = *op;
-	// p.in.l = init_lexer(chars::view{"*0x00=main(*0x01,*0x02);", 24}); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
-	p.in.l = init_lexer(chars::view{ "main();", 7 });
-	parser_state ps = new_state(&p, token::STOP_EOF);
-	if (
-		manage_state(
-			ps,
-			try_statement(new_state(ps.p, ps.end))
-		)
-	) {
-		op->out = p.out;
-		return true;
-	}
-	return false;
-}
-
 xc_out txcc(lexer l, xbinary mem, const U16 sym_capacity)
 {
 	symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
@@ -1178,9 +1179,7 @@ xc_out txcc(lexer l, xbinary mem, const U16 sym_capacity)
 	if (
 		manage_state(
 			ps,
-			add_fn(to_chars("main", 4), ps.p) != NULL && // Add 'main' function pointer to symbol stack.
-			try_program(new_state(ps.p, ps.end))      &&
-			emit_call_main(ps.p)
+			try_program(new_state(ps.p, ps.end))
 		)
 	) {
 		return xc_out{ p.in.l, p.out, p.max, 0 };
