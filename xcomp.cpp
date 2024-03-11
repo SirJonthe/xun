@@ -277,7 +277,7 @@ XWORD Computer::Cycle( void )
 		break;
 	case XIS::PUTS:
 		PUSH_STACK(1);
-		TOP.u = SP.u + C.u;
+		TOP.u = SP.u;
 		break;
 	case XIS::PUTI:
 		PUSH_STACK(1);

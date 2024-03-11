@@ -491,6 +491,10 @@ static bool try_call_fn(parser_state ps)
 			(off_index = ps.p->out.size)                                               &&
 			write_word       (ps.p->out, XWORD{0})                                     && // NOTE: Unable to determine return address offset here, so just emit 0.
 			write_word       (ps.p->out, XWORD{XIS::ADD})                              && // NOTE: Adjust return address to move ahead of call site.
+			write_word       (ps.p->out, XWORD{XIS::PUTS})                             && // NOTE: Put the address of the return value on the stack.
+			write_word       (ps.p->out, XWORD{XIS::PUT})                              &&
+			write_word       (ps.p->out, XWORD{2})                                     &&
+			write_word       (ps.p->out, XWORD{XIS::SUB})                              && // NOTE: Adjustment of the return value on stack since stack size and return address are top. Now points to return value address.
 			try_put_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match            (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
 			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)         && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
@@ -969,6 +973,20 @@ static bool try_reass_var_stmt(parser_state ps)
 
 static bool try_return_stmt(parser_state ps)
 {
+	// BUG: Fix this...
+	if (
+		manage_state(
+			ps,
+			match               (ps.p, ctoken::KEYWORD_CONTROL_RETURN)        &&
+			match               (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
+			write_word          (ps.p->out, XWORD{XIS::LDC})                  &&
+			try_expr            (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) && // BUG: Return value needs to be computed after LDC, but calling LDC messes up local variable addressing...
+			write_word          (ps.p->out, XWORD{XIS::MOVD})                 && // NOTE: Jump back to call site
+			write_word          (ps.p->out, XWORD{XIS::JMP})
+		)
+	) {
+		return true;
+	}
 	return false;
 }
 
@@ -1006,6 +1024,7 @@ static bool try_statements(parser_state ps)
 static bool try_main_def(parser_state ps)
 {
 	// TODO main jumps back to call site just like ordinary functions, otherwise calling main() explicitly will break program.
+	// TODO Return value
 	U16 jmp_idx = 0;
 	token t;
 	if (
@@ -1029,7 +1048,10 @@ static bool try_main_def(parser_state ps)
 			try_statements(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
 			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)            &&
 			emit_pop_scope(ps.p)                                              &&
-			write_word    (ps.p->out, XWORD{XIS::LDC})
+			write_word    (ps.p->out, XWORD{XIS::LDC})                        &&
+			write_word    (ps.p->out, XWORD{XIS::PUT})                        && // NOTE: Set return value to 0 if not explicitly done.
+			write_word    (ps.p->out, XWORD{0})                               &&
+			write_word    (ps.p->out, XWORD{XIS::MOVD})
 		)
 	) {
 		return true;
@@ -1067,7 +1089,10 @@ static bool try_fn_def(parser_state ps)
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                  &&
 			emit_pop_scope      (ps.p)                                                    &&
 			write_word          (ps.p->out, XWORD{XIS::LDC})                              &&
-			write_word          (ps.p->out, XWORD{XIS::JMP})
+			write_word          (ps.p->out, XWORD{XIS::PUT})                              && // NOTE: Set return value to 0 if not explicitly done.
+			write_word          (ps.p->out, XWORD{0})                                     &&
+			write_word          (ps.p->out, XWORD{XIS::MOVD})                             &&
+			write_word          (ps.p->out, XWORD{XIS::JMP})                                 // NOTE: Jump back to call site
 		)
 	) {
 		ps.p->out.buffer[guard_jmp_idx].u = ps.p->out.size;
