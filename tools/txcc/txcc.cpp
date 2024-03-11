@@ -136,6 +136,7 @@ struct symbol
 	XWORD   data;        // The address of a variable/function, or the value of a literal.
 	U16     category;    // VAR, PARAM, LIT, FN
 	U16     scope_index; // The scope index this symbol is defined in.
+	U16     param_count; // For functions, the number of parameters a function takes.
 	symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter.
 };
 
@@ -260,6 +261,7 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 	sym.name        = name;
 	sym.category    = category;
 	sym.scope_index = p->scopes.scope;
+	sym.param_count = 0;
 	sym.param       = NULL;
 	if (category != symbol::PARAM) {
 		if (category != symbol::LIT) {
@@ -774,13 +776,13 @@ static bool try_new_var(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match(ps.p, token::ALIAS, &t)                              &&
+			match        (ps.p, token::ALIAS, &t)                      &&
 			(sym = add_var(t.text, ps.p)) != NULL                      &&
 			((ps.p->out.size -= 2) || ps.p->out.size == 0)             && // TODO: This is a hack used to remove two instructions from the binary because add_var adds instructions we do not want. Maybe I should revert so that add_symbol does not emit instructions...
-			match(ps.p, ctoken::OPERATOR_COLON)                        &&
-			match(ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)               &&
+			match        (ps.p, ctoken::OPERATOR_COLON)                &&
+			match        (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)       &&
 			try_decl_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
-			match(ps.p, ctoken::OPERATOR_SEMICOLON)
+			match        (ps.p, ctoken::OPERATOR_SEMICOLON)
 		)
 	) {
 		return true;
@@ -802,10 +804,7 @@ static bool try_fn_param(parser_state ps, symbol *param)
 			// TODO FATAL ERROR
 			return false;
 		}
-		return
-			write_word(ps.p->out, XWORD{XIS::PUT})  &&
-			write_word(ps.p->out, XWORD{U16(1)})    &&
-			write_word(ps.p->out, XWORD{XIS::SUB});
+		return true;
 	}
 	return false;
 }
@@ -833,23 +832,11 @@ static bool try_fn_params(parser_state ps, symbol *param)
 	return false;
 }
 
-static U16 num_params(symbol *fn)
-{
-	U16 p = 0;
-	fn = fn->param;
-	while (fn != NULL) {
-		++p;
-		fn = fn->param;
-	}
-	return p;
-}
-
 static void adjust_param_addr(symbol *fn)
 {
-	U16 params = num_params(fn);
 	symbol *p = fn->param;
 	while (p != NULL) {
-		p->data.u -= params;
+		p->data.u -= fn->param_count;
 		p = p->param;
 	}
 }
@@ -862,14 +849,20 @@ static bool try_fn_params(parser_state ps, bool verify_params)
 		std::cout << "unexpected compiler error" << std::endl;
 		return false;
 	}
-	U16 params = num_params(ps.p->fn);
+	const symbol fn = *ps.p->fn;
 	if (
 		manage_state(
 			ps,
 			try_fn_params(new_state(ps.p, ps.end), ps.p->fn)
 		)
 	) {
-		if (verify_params && num_params(ps.p->fn) != params) {
+		ps.p->fn->param_count = 0;
+		const symbol *p = ps.p->fn->param;
+		while (p != NULL) {
+			++ps.p->fn->param_count;
+			p = p->param;
+		}
+		if (verify_params && ps.p->fn->param_count != fn.param_count) {
 			// TODO FATAL ERROR
 			// PARAMETER COUNT MISMATCH
 			std::cout << "parameter count mismatch" << std::endl;
@@ -878,6 +871,7 @@ static bool try_fn_params(parser_state ps, bool verify_params)
 		adjust_param_addr(ps.p->fn);
 		return true;
 	}
+	*ps.p->fn = fn;
 	return false;
 }
 
@@ -1045,6 +1039,23 @@ static bool try_statements(parser_state ps)
 	return false;
 }
 
+static bool adjust_fn_rel_ptr(parser_state ps)
+{
+	const symbol *p = ps.p->fn->param;
+	U16 params = 0;
+	while (p != NULL) {
+		++params;
+		p = p->param;
+	}
+	if (params == 0) {
+		return true;
+	}
+	return
+		write_word(ps.p->out, XWORD{XIS::PUT}) &&
+		write_word(ps.p->out, XWORD{params})   &&
+		write_word(ps.p->out, XWORD{XIS::SUB});
+}
+
 static bool try_fn_def(parser_state ps)
 {
 	U16   guard_jmp_idx = 0;
@@ -1073,6 +1084,7 @@ static bool try_fn_def(parser_state ps)
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                           &&
 			push_scope          (ps.p->scopes)                                                           &&
 			try_fn_params       (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
+			adjust_fn_rel_ptr   (new_state(ps.p, ps.end))                                                &&
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
 			try_statements      (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
@@ -1092,13 +1104,73 @@ static bool try_fn_def(parser_state ps)
 	return false;
 }
 
+static bool try_count_fn_param(parser_state ps)
+{
+	token t;
+	if (
+		manage_state(
+			ps,
+			match(ps.p, token::ALIAS, &t)
+		)
+	) {
+		++ps.p->fn->param_count;
+		return true;
+	}
+	return false;
+}
+
+static bool try_count_fn_params(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			peek(ps.p).user_type == ps.end ||
+			(
+				try_count_fn_param(new_state(ps.p, ps.end)) &&
+				(
+					peek(ps.p).user_type == ps.end ||
+					(
+						match(ps.p, ctoken::OPERATOR_COMMA) &&
+						try_count_fn_params(new_state(ps.p, ps.end))
+					)
+				)
+			)
+		)
+	) {
+		return true;
+	}
+	ps.p->fn->param_count = 0;
+	return false;
+}
+
+static bool try_fn_decl(parser_state ps)
+{
+	token t;
+	if (
+		manage_state(
+			ps,
+			match              (ps.p, token::ALIAS, &t)                                  &&
+			(ps.p->fn = add_fn(t.text, ps.p)) != NULL                                    &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			try_count_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
+			match              (ps.p, ctoken::OPERATOR_SEMICOLON)
+		)
+	) {
+		ps.p->fn = NULL;
+		return true;
+	}
+	return false;
+}
+
 static bool try_global_statement(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
-			try_new_var (new_state(ps.p, ps.end)) ||
-			try_fn_def  (new_state(ps.p, ps.end))
+			try_new_var(new_state(ps.p, ps.end)) ||
+			try_fn_def (new_state(ps.p, ps.end)) ||
+			try_fn_decl(new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
