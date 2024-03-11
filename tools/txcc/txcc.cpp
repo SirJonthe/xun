@@ -47,6 +47,7 @@
 // factor ::= *val | &val | "(" expr ")"
 // val ::= *val | name "(" exprs ")" | val "[" expr "]" | name | num
 
+#include <iostream>
 #include <cstdlib>
 #include "txcc.h"
 #include "../../xis.h"
@@ -115,6 +116,7 @@ static bool write_word(xbinary &buf, XWORD data)
 	if (buf.size >= buf.capacity) {
 		// TODO FATAL ERROR
 		// OUT OF MEMORY
+		std::cout << "out of memory" << std::endl;
 		return false;
 	}
 	buf.buffer[buf.size++] = data;
@@ -125,13 +127,14 @@ static bool write_word(xbinary &buf, XWORD data)
 struct symbol
 {
 	enum {
-		VAR, // A modifiable value.
-		LIT, // An immediate constant.
-		FN   // An immediate constant for use as a target for jump instructions.
+		VAR,   // A modifiable value.
+		PARAM, // A modifiable value, that does not modify the stack.
+		LIT,   // An immediate constant.
+		FN     // An immediate constant for use as a target for jump instructions.
 	};
 	chars   name;        // The name of the symbol.
 	XWORD   data;        // The address of a variable/function, or the value of a literal.
-	U16     category;    // VAR, LIT, FN
+	U16     category;    // VAR, PARAM, LIT, FN
 	U16     scope_index; // The scope index this symbol is defined in.
 	symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter.
 };
@@ -150,7 +153,8 @@ static U16 top_scope_stack_size(const symbol_stack &s)
 {
 	U16 size = 0;
 	for (U16 i = s.top_index; i < s.count; ++i) {
-		if (s.symbols[i].category != symbol::LIT) {
+		const symbol *sym = &s.symbols[i];
+		if (sym->category != symbol::LIT && sym->category != symbol::PARAM) {
 			++size;
 		}
 	}
@@ -240,6 +244,7 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 	if (p->scopes.count >= p->scopes.capacity) {
 		// TODO FATAL ERROR
 		// OUT OF MEMORY
+		std::cout << "out of memory" << std::endl;
 		return NULL;
 	}
 	const unsigned name_char_count = chcount(name.str);
@@ -256,18 +261,20 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 	sym.category    = category;
 	sym.scope_index = p->scopes.scope;
 	sym.param       = NULL;
-	if (category != symbol::LIT) {
-		sym.data.u = top_scope_stack_size(p->scopes);
-		if (
-			!write_word(p->out, XWORD{XIS::PUT}) ||
-			!write_word(p->out, XWORD{value})
-		) {
-			// TODO FATAL ERROR
-			// OUT OF MEMORY
-			return NULL;
+	if (category != symbol::PARAM) {
+		if (category != symbol::LIT) {
+			sym.data.u = top_scope_stack_size(p->scopes);
+			if (
+				!write_word(p->out, XWORD{XIS::PUT}) ||
+				!write_word(p->out, XWORD{value})
+			) {
+				// TODO FATAL ERROR
+				// OUT OF MEMORY
+				return NULL;
+			}
+		} else {
+			sym.data.u = value;
 		}
-	} else {
-		sym.data.u = value;
 	}
 	++p->scopes.count;
 	return &sym;
@@ -276,6 +283,11 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 static symbol *add_var(const chars &name, parser *p)
 {
 	return add_symbol(name, symbol::VAR, p);
+}
+
+static symbol *add_param(const chars &name, parser *p)
+{
+	return add_symbol(name, symbol::PARAM, p);
 }
 
 static symbol *add_lit(const chars &name, U16 value, parser *p)
@@ -301,7 +313,7 @@ static bool emit_pop_scope(parser *p)
 			lsp == 0 ||
 			(
 				write_word(p->out, XWORD{XIS::PUT}) &&
-				write_word(p->out, XWORD{lsp}) &&
+				write_word(p->out, XWORD{lsp})      &&
 				write_word(p->out, XWORD{XIS::POP})
 			)
 		) &&
@@ -475,13 +487,14 @@ static bool try_put_fn_params(parser_state ps)
 
 static bool try_call_fn(parser_state ps)
 {
+	// TODO If the symbol is a FN, then verify the number of parameters we input.
 	symbol *sym;
 	U16 off_index = 0;
 	token t;
 	if (
 		manage_state(
 			ps,
-			match            (ps.p, token::ALIAS, &t)                                  &&
+			match            (ps.p, token::ALIAS, &t)                                  && // TODO Replace this with any value (can be alias, literal, indirection etc.)
 			(sym = find_symbol(t.text, ps.p)) != NULL                                  && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
 			match            (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 			write_word       (ps.p->out, XWORD{XIS::PUT})                              &&
@@ -784,14 +797,14 @@ static bool try_fn_param(parser_state ps, symbol *param)
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
-		symbol *sym = param->param = add_var(t.text, ps.p);
-		if (sym == NULL) {
+		param->param = add_param(t.text, ps.p);
+		if (param->param == NULL) {
 			// TODO FATAL ERROR
 			return false;
 		}
 		return
-			write_word(ps.p->out, XWORD{XIS::PUT}) &&
-			write_word(ps.p->out, XWORD{U16(1)}) &&
+			write_word(ps.p->out, XWORD{XIS::PUT})  &&
+			write_word(ps.p->out, XWORD{U16(1)})    &&
 			write_word(ps.p->out, XWORD{XIS::SUB});
 	}
 	return false;
@@ -820,41 +833,52 @@ static bool try_fn_params(parser_state ps, symbol *param)
 	return false;
 }
 
-static bool try_fn_params(parser_state ps)
+static U16 num_params(symbol *fn)
 {
+	U16 p = 0;
+	fn = fn->param;
+	while (fn != NULL) {
+		++p;
+		fn = fn->param;
+	}
+	return p;
+}
+
+static void adjust_param_addr(symbol *fn)
+{
+	U16 params = num_params(fn);
+	symbol *p = fn->param;
+	while (p != NULL) {
+		p->data.u -= params;
+		p = p->param;
+	}
+}
+
+static bool try_fn_params(parser_state ps, bool verify_params)
+{
+	if (ps.p->fn == NULL) {
+		// TODO FATAL ERROR
+		// ERROR IN COMPILER
+		std::cout << "unexpected compiler error" << std::endl;
+		return false;
+	}
+	U16 params = num_params(ps.p->fn);
 	if (
 		manage_state(
 			ps,
 			try_fn_params(new_state(ps.p, ps.end), ps.p->fn)
 		)
 	) {
-		U16 num_params = 0;
-		symbol *p = ps.p->fn->param;
-		while (p != NULL) {
-			++num_params;
-			p = p->param;
+		if (verify_params && num_params(ps.p->fn) != params) {
+			// TODO FATAL ERROR
+			// PARAMETER COUNT MISMATCH
+			std::cout << "parameter count mismatch" << std::endl;
+			return false;
 		}
-		p = ps.p->fn->param;
-		while (p != NULL) {
-			p->data.u -= num_params;
-			p = p->param;
-		}
+		adjust_param_addr(ps.p->fn);
 		return true;
 	}
 	return false;
-}
-
-static symbol *add_or_find_fn(parser_state &ps, const chars &name)
-{
-	symbol *sym = find_fn(name, ps.p);
-	if (sym == NULL) {
-		sym = add_fn(name, ps.p);
-		if (sym == NULL) {
-			// TODO FATAL ERROR
-			return NULL;
-		}
-	}
-	return sym;
 }
 
 static bool try_statements(parser_state ps);
@@ -1021,81 +1045,48 @@ static bool try_statements(parser_state ps)
 	return false;
 }
 
-static bool try_main_def(parser_state ps)
-{
-	// TODO main jumps back to call site just like ordinary functions, otherwise calling main() explicitly will break program.
-	// TODO Return value
-	U16 jmp_idx = 0;
-	token t;
-	if (
-		manage_state(
-			ps,
-			push_scope    (ps.p->scopes)                                      &&
-			match         (ps.p,  token::ALIAS, &t)                           &&
-			strcmp        (t.text.str, chcount(t.text.str), "main", 4)        &&
-			match         (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
-			match         (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)      &&
-			(ps.p->fn = find_fn(t.text, ps.p)) != NULL                        &&
-			write_rel     (ps.p, ps.p->fn)                                    &&
-			write_word    (ps.p->out, XWORD{XIS::PUTI})                       &&
-			write_word    (ps.p->out, XWORD{XIS::PUT})                        &&
-			write_word    (ps.p->out, XWORD{6})                               && // NOTE: 6 is the offset to get to SVC (the first instruction of the function body).
-			write_word    (ps.p->out, XWORD{XIS::ADD})                        &&
-			write_word    (ps.p->out, XWORD{XIS::RLA})                        &&
-			write_word    (ps.p->out, XWORD{XIS::MOVD})                       &&
-			write_word    (ps.p->out, XWORD{XIS::SVC})                        &&
-			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)            &&
-			try_statements(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)            &&
-			emit_pop_scope(ps.p)                                              &&
-			write_word    (ps.p->out, XWORD{XIS::LDC})                        &&
-			write_word    (ps.p->out, XWORD{XIS::PUT})                        && // NOTE: Set return value to 0 if not explicitly done.
-			write_word    (ps.p->out, XWORD{0})                               &&
-			write_word    (ps.p->out, XWORD{XIS::MOVD})
-		)
-	) {
-		return true;
-	}
-	return false;
-}
-
 static bool try_fn_def(parser_state ps)
 {
 	U16   guard_jmp_idx = 0;
 	token t;
+	bool verify_params = false;
 	if (
 		manage_state(
 			ps,
-			match               (ps.p,  token::ALIAS, &t)                                 &&
-			(ps.p->fn = add_or_find_fn(ps, t.text)) != NULL                               &&
-			write_rel           (ps.p, ps.p->fn)                                          &&
-			write_word          (ps.p->out, XWORD{XIS::PUTI})                             &&
-			write_word          (ps.p->out, XWORD{XIS::PUT})                              &&
-			write_word          (ps.p->out, XWORD{9})                                     && // NOTE: 9 is the offset to get to SVB (the first instruction of the function body).
-			write_word          (ps.p->out, XWORD{XIS::ADD})                              &&
-			write_word          (ps.p->out, XWORD{XIS::RLA})                              &&
-			write_word          (ps.p->out, XWORD{XIS::MOVD})                             &&
-			write_word          (ps.p->out, XWORD{XIS::PUT})                              &&
-			(guard_jmp_idx = ps.p->out.size)                                              &&
-			write_word          (ps.p->out, XWORD{0})                                     &&
-			write_word          (ps.p->out, XWORD{XIS::JMP})                              &&
-			write_word          (ps.p->out, XWORD{XIS::SVC})                              &&
-			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			push_scope          (ps.p->scopes)                                            &&
-			try_fn_params       (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
-			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                  &&
-			try_statements      (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))       &&
-			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                  &&
-			emit_pop_scope      (ps.p)                                                    &&
-			write_word          (ps.p->out, XWORD{XIS::LDC})                              &&
-			write_word          (ps.p->out, XWORD{XIS::PUT})                              && // NOTE: Set return value to 0 if not explicitly done.
-			write_word          (ps.p->out, XWORD{0})                                     &&
-			write_word          (ps.p->out, XWORD{XIS::MOVD})                             &&
-			write_word          (ps.p->out, XWORD{XIS::JMP})                                 // NOTE: Jump back to call site
+			match               (ps.p,  token::ALIAS, &t)                                                &&
+			(
+				(verify_params = ((ps.p->fn = find_fn(t.text, ps.p)) != NULL)) ||
+				(ps.p->fn = add_fn(t.text, ps.p)) != NULL
+			)                                                                                            &&
+			write_rel           (ps.p, ps.p->fn)                                                         &&
+			write_word          (ps.p->out, XWORD{XIS::PUTI})                                            &&
+			write_word          (ps.p->out, XWORD{XIS::PUT})                                             &&
+			write_word          (ps.p->out, XWORD{9})                                                    && // NOTE: 9 is the offset to get to SVB (the first instruction of the function body).
+			write_word          (ps.p->out, XWORD{XIS::ADD})                                             &&
+			write_word          (ps.p->out, XWORD{XIS::RLA})                                             &&
+			write_word          (ps.p->out, XWORD{XIS::MOVD})                                            &&
+			write_word          (ps.p->out, XWORD{XIS::PUT})                                             &&
+			(guard_jmp_idx = ps.p->out.size)                                                             &&
+			write_word          (ps.p->out, XWORD{0})                                                    &&
+			write_word          (ps.p->out, XWORD{XIS::JMP})                                             &&
+			write_word          (ps.p->out, XWORD{XIS::SVC})                                             &&
+			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                           &&
+			push_scope          (ps.p->scopes)                                                           &&
+			try_fn_params       (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
+			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
+			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
+			try_statements      (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
+			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                                 &&
+			emit_pop_scope      (ps.p)                                                                   &&
+			write_word          (ps.p->out, XWORD{XIS::LDC})                                             &&
+			write_word          (ps.p->out, XWORD{XIS::PUT})                                             && // NOTE: Set return value to 0 if there is no explicit return.
+			write_word          (ps.p->out, XWORD{0})                                                    &&
+			write_word          (ps.p->out, XWORD{XIS::MOVD})                                            &&
+			write_word          (ps.p->out, XWORD{XIS::JMP})                                                // NOTE: Jump back to call site
 		)
 	) {
 		ps.p->out.buffer[guard_jmp_idx].u = ps.p->out.size;
+		ps.p->fn = NULL;
 		return true;
 	}
 	return false;
@@ -1107,7 +1098,6 @@ static bool try_global_statement(parser_state ps)
 		manage_state(
 			ps,
 			try_new_var (new_state(ps.p, ps.end)) ||
-			try_main_def(new_state(ps.p, ps.end)) ||
 			try_fn_def  (new_state(ps.p, ps.end))
 		)
 	) {
@@ -1147,18 +1137,50 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
+parser init_parser(lexer l, xbinary bin_mem, symbol *sym_mem, U16 sym_capacity)
+{
+	parser p = { { l, NULL, 0, 0 }, bin_mem, l.last };
+	p.scopes = symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 };
+	p.fn     = NULL;
+	return p;
+}
+
+static bool emit_call_main(parser *op)
+{
+	symbol *sym = find_fn(to_chars("main",4), op);
+	if (sym == NULL || sym->data.u == 0) {
+		// NOTE: There is no formal entry point defined.
+		return true;
+	}
+
+	parser p = *op;
+	// p.in.l = init_lexer(chars::view{"*0x00=main(*0x01,*0x02);", 24}); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
+	p.in.l = init_lexer(chars::view{ "main();", 7 });
+	parser_state ps = new_state(&p, token::STOP_EOF);
+	if (
+		manage_state(
+			ps,
+			try_statement(new_state(ps.p, ps.end))
+		)
+	) {
+		op->out = p.out;
+		return true;
+	}
+	return false;
+}
+
 xc_out txcc(lexer l, xbinary mem, const U16 sym_capacity)
 {
-	symbol sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
-	parser p         = { { l, NULL, 0, 0 }, mem, l.last };
-	p.scopes         = symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 };
-	parser_state ps  = new_state(&p, token::STOP_EOF);
+	symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
+	parser       p  = init_parser(l, mem, sym_mem, sym_capacity);
+	parser_state ps = new_state(&p, token::STOP_EOF);
 
 	if (
 		manage_state(
 			ps,
 			add_fn(to_chars("main", 4), ps.p) != NULL && // Add 'main' function pointer to symbol stack.
-			try_program(new_state(ps.p, ps.end))
+			try_program(new_state(ps.p, ps.end))      &&
+			emit_call_main(ps.p)
 		)
 	) {
 		return xc_out{ p.in.l, p.out, p.max, 0 };
