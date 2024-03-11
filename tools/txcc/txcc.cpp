@@ -778,7 +778,7 @@ static bool try_new_var(parser_state ps)
 			ps,
 			match        (ps.p, token::ALIAS, &t)                      &&
 			(sym = add_var(t.text, ps.p)) != NULL                      &&
-			((ps.p->out.size -= 2) || ps.p->out.size == 0)             && // TODO: This is a hack used to remove two instructions from the binary because add_var adds instructions we do not want. Maybe I should revert so that add_symbol does not emit instructions...
+			((ps.p->out.size -= 2) || ps.p->out.size == 0)             && // NOTE: A bit hacky. We want to undo instructions that were emitted by add_var.
 			match        (ps.p, ctoken::OPERATOR_COLON)                &&
 			match        (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)       &&
 			try_decl_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
@@ -1178,6 +1178,16 @@ static bool try_global_statement(parser_state ps)
 	return false;
 }
 
+static bool add_main(parser *p)
+{
+	symbol *sym = add_fn(to_chars("main",4), p);
+	if (sym == NULL) {
+		return false;
+	}
+	sym->param_count = 2; // argc, argv
+	return true;
+}
+
 static bool try_global_statements(parser_state ps)
 {
 	if (manage_state(ps, until_end(new_state(ps.p, ps.end), try_global_statement))) {
@@ -1189,14 +1199,13 @@ static bool try_global_statements(parser_state ps)
 static bool emit_call_main(parser *op)
 {
 	symbol *sym = find_fn(to_chars("main",4), op);
-	if (sym == NULL) {
-		// NOTE: There is no formal entry point defined.
+	if (sym == NULL || sym->param == NULL) { // NOTE: param will be null if there is no formal entry point defined.
 		return true;
 	}
 
 	parser p = *op;
 	// p.in.l = init_lexer(chars::view{"*0x00=main(*0x01,*0x02);", 24}); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
-	p.in.l = init_lexer(chars::view{ "main();", 7 });
+	p.in.l = init_lexer(chars::view{ "main(0,0);", 10 });
 	parser_state ps = new_state(&p, token::STOP_EOF);
 	if (
 		manage_state(
@@ -1215,6 +1224,7 @@ static bool try_program(parser_state ps)
 	if (
 		manage_state(
 			ps,
+			add_main(ps.p)                                 &&
 			try_global_statements(new_state(ps.p, ps.end)) &&
 			emit_call_main(ps.p)
 		)
