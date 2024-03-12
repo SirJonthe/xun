@@ -31,15 +31,15 @@ void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 	for (C.u = 0; C.u < bin_count; ++C.u) {
 		AT(C) = bin[C.u];
 	}
-	AT(XWORD{C.u}).u = XIS::HALT; // Emit implicit HALT for safety.
+	AT(XWORD{C.u++}).u = XIS::HALT; // Emit implicit HALT for safety.
 	B.u  = C.u;
-	SP.u = C.u;
+	SP.u = C.u - 1;
 	if (debug) {
-		for (unsigned i = C.u + 1; i < MEM_SIZE_MAX; ++i) {
+		for (unsigned i = C.u; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = XIS::HALT;
 		}
 	} else {
-		for (unsigned i = C.u + 1; i < MEM_SIZE_MAX; ++i) {
+		for (unsigned i = C.u; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = U16(rand());
 		}
 	}
