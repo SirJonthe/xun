@@ -1072,7 +1072,7 @@ static bool try_fn_def(parser_state ps)
 			write_rel           (ps.p, ps.p->fn)                                                         &&
 			write_word          (ps.p->out, XWORD{XIS::PUTI})                                            &&
 			write_word          (ps.p->out, XWORD{XIS::PUT})                                             &&
-			write_word          (ps.p->out, XWORD{9})                                                    && // NOTE: 9 is the offset to get to SVB (the first instruction of the function body).
+			write_word          (ps.p->out, XWORD{9})                                                    && // NOTE: 9 is the offset to get to SVC (the first instruction of the function body).
 			write_word          (ps.p->out, XWORD{XIS::ADD})                                             &&
 			write_word          (ps.p->out, XWORD{XIS::RLA})                                             &&
 			write_word          (ps.p->out, XWORD{XIS::MOVD})                                            &&
@@ -1224,9 +1224,9 @@ static bool try_program(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			add_main(ps.p)                                 &&
+			add_main             (ps.p)                    &&
 			try_global_statements(new_state(ps.p, ps.end)) &&
-			emit_call_main(ps.p)
+			emit_call_main       (ps.p)
 		)
 	) {
 		// NOTE: pop_scope not possible since we are at index 0 here.

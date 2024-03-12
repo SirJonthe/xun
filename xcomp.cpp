@@ -26,20 +26,20 @@ Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]
 // but can be any program.
 void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 {
-	IP.u = 0;
-	A.u  = 0;
-	for (C.u = 0; C.u < bin_count; ++C.u) {
-		AT(C) = bin[C.u];
+	// NOTE: This function emits a few additional instructions to make the binary work properly.
+	IP.u = A.u = B.u = C.u = SP.u = 0;
+	AT(XWORD{SP.u++}).u = XIS::SVB;
+	for (U16 i = 0; i < bin_count; ++SP.u, ++i) {
+		AT(SP) = bin[i];
 	}
-	AT(XWORD{C.u++}).u = XIS::HALT; // Emit implicit HALT for safety.
-	B.u  = C.u;
-	SP.u = C.u - 1;
+	AT(XWORD{SP.u++}).u = XIS::LDB;
+	AT(XWORD{SP.u}).u = XIS::HALT;
 	if (debug) {
-		for (unsigned i = C.u; i < MEM_SIZE_MAX; ++i) {
+		for (unsigned i = SP.u + 1; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = XIS::HALT;
 		}
 	} else {
-		for (unsigned i = C.u; i < MEM_SIZE_MAX; ++i) {
+		for (unsigned i = SP.u + 1; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = U16(rand());
 		}
 	}
@@ -136,7 +136,8 @@ XWORD Computer::PeekTop(U16 addr) const
 
 XWORD Computer::Cycle( void )
 {
-	switch (READI) {
+	const U16 I = READI;
+	switch (I) {
 	case XIS::NOP:
 		break;
 	case XIS::JMP:
@@ -394,7 +395,7 @@ XWORD Computer::Cycle( void )
 		ERR.u |= ERR_UNDEF;
 		break;
 	}
-	return RAM[IP.u];
+	return XWORD{I};
 }
 
 void Computer::Run( void )

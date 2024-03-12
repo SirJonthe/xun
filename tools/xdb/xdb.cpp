@@ -131,7 +131,7 @@ chars decode_instruction(XIS::Enum i)
 xdebugger::xdebugger(const xbinary &program) : m_computer()
 {
 	m_computer.Boot();
-	m_computer.BootDisk(program.buffer, program.size, false);
+	m_computer.BootDisk(program.buffer, program.size, true);
 }
 
 bool xdebugger::step( void )
@@ -147,11 +147,14 @@ void xdebugger::ui( void ) const
 	
 	const int start_i = (m_computer.InstructionPointer() / i_page_size) * i_page_size;
 	
-	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC() + 1;
+	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC();
 	if (stack_size < 0) { stack_size = 0; }
 
-	std::cout << " LIST   PROG                    INST    STK=";
+    std::cout << "                                            ";
 	print_padded_hex(stack_size);
+	std::cout << std::endl;
+	std::cout << " LIST   PROG                    INST    STK=";
+	print_padded_hex(m_computer.StackPointer());
 	std::cout << "  " << "A=";
 	print_padded_hex(m_computer.StackOffsetA());
 	std::cout << "  " << "B=";
