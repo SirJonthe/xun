@@ -778,7 +778,7 @@ static bool try_new_var(parser_state ps)
 			ps,
 			match        (ps.p, token::ALIAS, &t)                      &&
 			(sym = add_var(t.text, ps.p)) != NULL                      &&
-			((ps.p->out.size -= 2) || ps.p->out.size == 0)             && // NOTE: A bit hacky. We want to undo instructions that were emitted by add_var.
+			((ps.p->out.size -= 2) || ps.p->out.size == 0)             && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
 			match        (ps.p, ctoken::OPERATOR_COLON)                &&
 			match        (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)       &&
 			try_decl_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&

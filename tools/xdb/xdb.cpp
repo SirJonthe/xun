@@ -131,7 +131,7 @@ chars decode_instruction(XIS::Enum i)
 xdebugger::xdebugger(const xbinary &program) : m_computer()
 {
 	m_computer.Boot();
-	m_computer.BootDisk(program.buffer, program.size, true);
+	m_computer.BootDisk(program.buffer, program.size, false);
 }
 
 bool xdebugger::step( void )
