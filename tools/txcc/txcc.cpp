@@ -964,19 +964,32 @@ static bool try_expr_stmt(parser_state ps)
 	return false;
 }
 
-static bool try_reass_var_stmt(parser_state ps)
+static bool try_lexpr(parser_state ps)
 {
 	token t;
 	symbol *sym;
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, token::ALIAS, &t)                      && // TODO support *val=expr; val[i]=expr; etc.
-			((sym = find_var(t.text, ps.p)) != NULL)                &&
-			write_rel (ps.p, sym)                                   &&
-			match     (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)       &&
-			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
-			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
+			match     (ps.p, token::ALIAS, &t)       && // TODO support *val=expr; val[i]=expr; etc.
+			((sym = find_var(t.text, ps.p)) != NULL) &&
+			write_rel (ps.p, sym)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_reass_var_stmt(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_lexpr (new_state(ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)) &&
+			match     (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)            &&
+			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON))      &&
+			match     (ps.p, ctoken::OPERATOR_SEMICOLON)                 &&
 			write_word(ps.p->out, XWORD{XIS::MOVD})
 		)
 	) {
