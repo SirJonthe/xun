@@ -462,22 +462,50 @@ static bool try_put_var(parser_state ps)
 
 static bool try_expr(parser_state ps);
 
-static bool try_put_fn_params(parser_state ps)
+static bool try_put_fn_param(parser_state ps, U16 *param_count)
 {
 	if (
 		manage_state(
 			ps,
-			peek(ps.p).user_type == ps.end ||
+			try_expr(new_state(ps.p, ps.end))
+		)
+	) {
+		if (param_count != NULL) {
+			++(*param_count);
+		}
+		return true;
+	}
+	return false;
+}
+
+static bool try_put_fn_params(parser_state ps, U16 *param_count)
+{
+	if (
+		manage_state(
+			ps,
+			try_put_fn_param(new_state(ps.p, ps.end), param_count) &&
 			(
-				try_expr(new_state(ps.p, ps.end)) &&
+				peek(ps.p).user_type == ps.end ||
 				(
-					peek(ps.p).user_type == ps.end ||
-					(
-						match(ps.p, ctoken::OPERATOR_COMMA) &&
-						try_expr(new_state(ps.p, ps.end))
-					)
+					match(ps.p, ctoken::OPERATOR_COMMA) &&
+					try_put_fn_params(new_state(ps.p, ps.end), param_count)
 				)
 			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_put_opt_fn_params(parser_state ps, const symbol *sym)
+{
+	U16 param_count = 0;
+	if (
+		manage_state(
+			ps,
+			peek(ps.p).user_type == ps.end ||
+			try_put_fn_params(new_state(ps.p, ps.end), &param_count)
 		)
 	) {
 		return true;
@@ -494,25 +522,25 @@ static bool try_call_fn(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match            (ps.p, token::ALIAS, &t)                                  && // TODO Replace this with any value (can be alias, literal, indirection etc.)
-			(sym = find_symbol(t.text, ps.p)) != NULL                                  && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
-			match            (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			write_word       (ps.p->out, XWORD{XIS::PUT})                              &&
-			write_word       (ps.p->out, XWORD{0})                                     && // NOTE: Put return value memory on stack.
-			write_word       (ps.p->out, XWORD{XIS::PUTI})                             && // NOTE: Put return address on stack.
-			write_word       (ps.p->out, XWORD{XIS::PUT})                              &&
-			(off_index = ps.p->out.size)                                               &&
-			write_word       (ps.p->out, XWORD{0})                                     && // NOTE: Unable to determine return address offset here, so just emit 0.
-			write_word       (ps.p->out, XWORD{XIS::ADD})                              && // NOTE: Adjust return address to move ahead of call site.
-			write_word       (ps.p->out, XWORD{XIS::PUTS})                             && // NOTE: Put the address of the return value on the stack.
-			write_word       (ps.p->out, XWORD{XIS::PUT})                              &&
-			write_word       (ps.p->out, XWORD{2})                                     &&
-			write_word       (ps.p->out, XWORD{XIS::SUB})                              && // NOTE: Adjustment of the return value on stack since stack size and return address are top. Now points to return value address.
-			try_put_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match            (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
-			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)         && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
-			write_rel        (ps.p, sym)                                               &&
-			write_word       (ps.p->out, XWORD{XIS::AT})                               &&
+			match            (ps.p, token::ALIAS, &t)                                           && // TODO Replace this with any value (can be alias, literal, indirection etc.)
+			(sym = find_symbol(t.text, ps.p)) != NULL                                           && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
+			match            (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                     &&
+			write_word       (ps.p->out, XWORD{XIS::PUT})                                       &&
+			write_word       (ps.p->out, XWORD{0})                                              && // NOTE: Put return value memory on stack.
+			write_word       (ps.p->out, XWORD{XIS::PUTI})                                      && // NOTE: Put return address on stack.
+			write_word       (ps.p->out, XWORD{XIS::PUT})                                       &&
+			(off_index = ps.p->out.size)                                                        &&
+			write_word       (ps.p->out, XWORD{0})                                              && // NOTE: Unable to determine return address offset here, so just emit 0.
+			write_word       (ps.p->out, XWORD{XIS::ADD})                                       && // NOTE: Adjust return address to move ahead of call site.
+			write_word       (ps.p->out, XWORD{XIS::PUTS})                                      && // NOTE: Put the address of the return value on the stack.
+			write_word       (ps.p->out, XWORD{XIS::PUT})                                       &&
+			write_word       (ps.p->out, XWORD{2})                                              &&
+			write_word       (ps.p->out, XWORD{XIS::SUB})                                       && // NOTE: Adjustment of the return value on stack since stack size and return address are top. Now points to return value address.
+			try_put_opt_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
+			match            (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                     &&
+			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)                  && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
+			write_rel        (ps.p, sym)                                                        &&
+			write_word       (ps.p->out, XWORD{XIS::AT})                                        &&
 			write_word       (ps.p->out, XWORD{XIS::JMP})
 		)
 	) {
@@ -809,18 +837,16 @@ static bool try_fn_param(parser_state ps, symbol *param)
 
 static bool try_fn_params(parser_state ps, symbol *param)
 {
+	// BUG: This will accept 'fn(a,);'
 	if (
 		manage_state(
 			ps,
-			peek(ps.p).user_type == ps.end ||
+			try_fn_param(new_state(ps.p, ps.end), param) &&
 			(
-				try_fn_param(new_state(ps.p, ps.end), param) &&
+				peek(ps.p).user_type == ps.end ||
 				(
-					peek(ps.p).user_type == ps.end ||
-					(
-						match(ps.p, ctoken::OPERATOR_COMMA) &&
-						try_fn_params(new_state(ps.p, ps.end), param->param)
-					)
+					match(ps.p, ctoken::OPERATOR_COMMA) &&
+					try_fn_params(new_state(ps.p, ps.end), param->param)
 				)
 			)
 		)
@@ -839,7 +865,7 @@ static void adjust_param_addr(symbol *fn)
 	}
 }
 
-static bool try_fn_params(parser_state ps, bool verify_params)
+static bool try_opt_fn_params(parser_state ps, bool verify_params)
 {
 	if (ps.p->fn == NULL) {
 		// TODO FATAL ERROR
@@ -850,6 +876,7 @@ static bool try_fn_params(parser_state ps, bool verify_params)
 	if (
 		manage_state(
 			ps,
+			peek(ps.p).user_type == ps.end ||
 			try_fn_params(new_state(ps.p, ps.end), ps.p->fn)
 		)
 	) {
@@ -1130,7 +1157,7 @@ static bool try_fn_def(parser_state ps)
 			write_word          (ps.p->out, XWORD{XIS::SVC})                                             &&
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                           &&
 			push_scope          (ps.p->scopes)                                                           &&
-			try_fn_params       (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
+			try_opt_fn_params   (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
 			adjust_fn_rel_ptr   (new_state(ps.p, ps.end))                                                &&
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
@@ -1168,20 +1195,33 @@ static bool try_count_fn_param(parser_state ps)
 
 static bool try_count_fn_params(parser_state ps)
 {
+	// BUG: Accepts 'fn(a,)'
+	if (
+		manage_state(
+			ps,
+			try_count_fn_param(new_state(ps.p, ps.end)) &&
+			(
+				peek(ps.p).user_type == ps.end ||
+				(
+					match(ps.p, ctoken::OPERATOR_COMMA) &&
+					try_count_fn_params(new_state(ps.p, ps.end))
+				)
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_count_opt_fn_params(parser_state ps)
+{
+	ps.p->fn->param_count = 0;
 	if (
 		manage_state(
 			ps,
 			peek(ps.p).user_type == ps.end ||
-			(
-				try_count_fn_param(new_state(ps.p, ps.end)) &&
-				(
-					peek(ps.p).user_type == ps.end ||
-					(
-						match(ps.p, ctoken::OPERATOR_COMMA) &&
-						try_count_fn_params(new_state(ps.p, ps.end))
-					)
-				)
-			)
+			try_count_fn_params(new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
@@ -1196,12 +1236,12 @@ static bool try_fn_decl(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match              (ps.p, token::ALIAS, &t)                                  &&
-			(ps.p->fn = add_fn(t.text, ps.p)) != NULL                                    &&
-			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			try_count_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match              (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
-			match              (ps.p, ctoken::OPERATOR_SEMICOLON)
+			match                  (ps.p, token::ALIAS, &t)                                  &&
+			(ps.p->fn = add_fn(t.text, ps.p)) != NULL                                        &&
+			match                  (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			try_count_opt_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match                  (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
+			match                  (ps.p, ctoken::OPERATOR_SEMICOLON)
 		)
 	) {
 		ps.p->fn = NULL;
