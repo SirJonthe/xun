@@ -47,7 +47,6 @@
 // factor ::= *val | &val | "(" expr ")"
 // val ::= *val | name "(" exprs ")" | val "[" expr "]" | name | num
 
-#include <iostream>
 #include <cstdlib>
 #include "txcc.h"
 #include "../../xis.h"
@@ -116,7 +115,6 @@ static bool write_word(xcbe_binary &buf, XWORD data)
 	if (buf.size >= buf.capacity) {
 		// TODO FATAL ERROR
 		// OUT OF MEMORY
-		std::cout << "out of memory" << std::endl;
 		return false;
 	}
 	buf.buffer[buf.size++] = data;
@@ -245,7 +243,6 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 	if (p->scopes.count >= p->scopes.capacity) {
 		// TODO FATAL ERROR
 		// OUT OF MEMORY
-		std::cout << "out of memory" << std::endl;
 		return NULL;
 	}
 	const unsigned name_char_count = chcount(name.str);
@@ -846,7 +843,6 @@ static bool try_fn_params(parser_state ps, bool verify_params)
 	if (ps.p->fn == NULL) {
 		// TODO FATAL ERROR
 		// ERROR IN COMPILER
-		std::cout << "unexpected compiler error" << std::endl;
 		return false;
 	}
 	const symbol fn = *ps.p->fn;
@@ -865,7 +861,6 @@ static bool try_fn_params(parser_state ps, bool verify_params)
 		if (verify_params && ps.p->fn->param_count != fn.param_count) {
 			// TODO FATAL ERROR
 			// PARAMETER COUNT MISMATCH
-			std::cout << "parameter count mismatch" << std::endl;
 			return false;
 		}
 		adjust_param_addr(ps.p->fn);
@@ -1168,9 +1163,9 @@ static bool try_global_statement(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_new_var(new_state(ps.p, ps.end)) ||
 			try_fn_def (new_state(ps.p, ps.end)) ||
-			try_fn_decl(new_state(ps.p, ps.end))
+			try_fn_decl(new_state(ps.p, ps.end)) ||
+			try_new_var(new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
