@@ -1017,6 +1017,43 @@ static bool try_return_stmt(parser_state ps)
 	return false;
 }
 
+static bool try_asm_instr(parser_state ps)
+{
+	return false;
+}
+
+static bool try_asm_block(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match    (ps.p, ctoken::OPERATOR_ENCLOSE_BRACKET_L)                           &&
+			until_end(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACKET_R), try_asm_instr) &&
+			match    (ps.p, ctoken::OPERATOR_ENCLOSE_BRACKET_R)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_asm_stmt(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, ctoken::KEYWORD_INTRINSIC_ASM) &&
+			(
+				try_asm_instr(new_state(ps.p, ps.end)) ||
+				try_asm_block(new_state(ps.p, ps.end))
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_statement(parser_state ps)
 {
 	if (
@@ -1027,7 +1064,8 @@ static bool try_statement(parser_state ps)
 			try_return_stmt   (new_state(ps.p, ps.end)) ||
 			try_scope         (new_state(ps.p, ps.end)) ||
 			try_reass_var_stmt(new_state(ps.p, ps.end)) ||
-			try_expr_stmt     (new_state(ps.p, ps.end))
+			try_expr_stmt     (new_state(ps.p, ps.end)) ||
+			try_asm_stmt      (new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
