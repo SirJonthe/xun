@@ -203,10 +203,11 @@ static unsigned chcount(const char *s)
 struct parser
 {
 	input_tokens  in;     // The parser input.
-	xcbe_binary       out;    // The parser output.
+	xcbe_binary   out;    // The parser output.
 	token         max;    // The maximally reached token.
 	symbol_stack  scopes; // The symbols ordered into scopes.
 	symbol       *fn;     // The current function being parsed.
+	xcbe_error    error;  // The first fatal error.
 };
 
 static symbol *find_symbol(const chars &name, parser *p)
@@ -248,7 +249,7 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 	const unsigned name_char_count = chcount(name.str);
 	for (U16 i = p->scopes.top_index; i < p->scopes.count; ++i) {
 		if (strcmp(p->scopes.symbols[i].name.str, chcount(p->scopes.symbols[i].name.str), name.str, name_char_count)) {
-			// TODO FATAL ERROR
+			// TODO NON-FATAL ERROR
 			// REDEFINITION
 			return NULL;
 		}
@@ -1246,9 +1247,14 @@ static bool try_program(parser_state ps)
 
 parser init_parser(lexer l, xcbe_binary bin_mem, symbol *sym_mem, U16 sym_capacity)
 {
-	parser p = { { l, NULL, 0, 0 }, bin_mem, l.last };
-	p.scopes = symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 };
-	p.fn     = NULL;
+	parser p = {
+		input_tokens{ l, NULL, 0, 0 },
+		bin_mem,
+		l.last,
+		symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 },
+		NULL,
+		xcbe_error{ new_eof(), xcbe_error::NONE }
+	};
 	return p;
 }
 
