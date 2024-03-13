@@ -1199,7 +1199,6 @@ static bool try_count_fn_param(parser_state ps)
 
 static bool try_count_fn_params(parser_state ps)
 {
-	// BUG: Accepts 'fn(a,)'
 	if (
 		manage_state(
 			ps,
