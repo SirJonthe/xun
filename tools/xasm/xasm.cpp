@@ -16,7 +16,7 @@ static unsigned hex2u(const char *nums, unsigned len)
 	return h;
 }
 
-const signed X_TOKEN_COUNT = 64;
+const signed X_TOKEN_COUNT = 61;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("at",                      2, xtoken::KEYWORD_INSTRUCTION_AT),
@@ -63,9 +63,6 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("bin",                     3, xtoken::KEYWORD_DIRECTIVE_BIN),
 	new_keyword ("scope",                   5, xtoken::KEYWORD_DIRECTIVE_SCOPE),
 	new_keyword ("syntax",                  6, xtoken::KEYWORD_DIRECTIVE_SYNTAX),
-	new_keyword ("func",                    4, xtoken::KEYWORD_DIRECTIVE_FUNC),
-	new_keyword ("call",                    4, xtoken::KEYWORD_DIRECTIVE_CALL),
-	new_keyword ("return",                  6, xtoken::KEYWORD_DIRECTIVE_RETURN),
 	new_keyword ("here",                    4, xtoken::KEYWORD_DIRECTIVE_HERE),
 	new_keyword ("top",                     3, xtoken::KEYWORD_DIRECTIVE_TOP),
 	new_keyword ("frame",                   5, xtoken::KEYWORD_DIRECTIVE_FRAME),
@@ -273,7 +270,7 @@ static scope::symbol *add_fn(const char *name, unsigned name_char_count, U16 add
 struct parser
 {
 	input_tokens  in;     // The input tokens to parse.
-	xcbe_binary       out;    // The resulting binary.
+	xcbe_binary   out;    // The resulting binary.
 	scope_stack   scopes; // The scope stack, containing all defined symbols.
 	token         max;    // The token furthest in the sequence that was lexed.
 };
@@ -529,115 +526,6 @@ static bool try_label(parser_state ps)
 	return false;
 }
 
-static bool try_func_alias(parser_state ps)
-{
-	token t;
-	if (manage_state(ps, match(ps.p, token::ALIAS, &t))) {
-		scope::symbol *s = add_fn(t.text.str, chcount(t.text.str), ps.p->out.size, ps.p->out.buffer[--ps.p->out.size].u, ps.p->scopes);
-		return s != NULL;
-	}
-	return false;
-}
-
-// $func [LIT] NAME(PARAMS...) LOCALS... { STATEMENTS... }
-static bool try_directive_func(parser_state ps)
-{
-	token alias;
-	U16 jmp_index = ps.p->out.size + 1;
-	if (
-		manage_state(
-			ps,
-			write_word           (ps.p->out, XWORD{XIS::PUT})                                             &&
-			write_word           (ps.p->out, XWORD{0})                                                    && // NOTE: We put 0 here as a temp value, and modify it later
-			write_word           (ps.p->out, XWORD{XIS::JMP})                                             &&
-			match                (ps.p, xtoken::KEYWORD_DIRECTIVE_FUNC)                                   &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_L)                               &&
-			try_lit              (new_state(ps.p, ps.end))                                                &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACKET_R)                               &&
-			try_func_alias       (new_state(ps.p, ps.end))                                                &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                           &&
-			try_decl_list        (new_state(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R))                && // TODO: This probably needs to be a different/new function that merely aliases already declared memory on the stack
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
-			match                (ps.p, xtoken::OPERATOR_COLON)                                           &&
-			push_scope           (ps.p->scopes)                                                           &&
-			try_decl_list        (new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L))                      &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
-			try_scoped_statements(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R), top_scope(ps.p).lsp) &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R)
-		)
-	) {
-		pop_scope(ps.p->scopes);
-		ps.p->out.buffer[jmp_index].u = ps.p->out.size;
-		return true;
-	}
-	return false;
-}
-
-// TODO: Calling a function should be integrated in try_param instead of its own thing, although the call process is quite complex.
-static bool try_directive_call(parser_state ps)
-{
-	// Function frame data layout
-	// Return value
-	// Stack pointer
-	// Parameters...
-	// Instruction pointer
-	// Locals... (allocated by the function)
-	token t;
-	scope::symbol *fn;
-	if (
-		manage_state(
-			ps,
-			match        (ps.p, xtoken::KEYWORD_DIRECTIVE_CALL)                     &&
-			match        (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)             &&
-			match        (ps.p, token::ALIAS, &t)                                   &&
-			(fn = find_fn(t.text.str, chcount(t.text.str), ps.p->scopes)) != NULL   &&
-			write_word   (ps.p->out, XWORD{XIS::PUT})                               &&
-			write_word   (ps.p->out, XWORD{fn->size})                               &&
-			write_word   (ps.p->out, XWORD{XIS::PUTS})                              &&
-			try_put_param(new_state(ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R))  &&
-			write_word   (ps.p->out, XWORD{XIS::PUTI})                              &&
-			match        (ps.p, xtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
-		)
-	) {
-		return write_word(ps.p->out, XWORD{XIS::PUT}) && write_word(ps.p->out, XWORD{fn->data.u});
-	}
-	return false;
-}
-
-static bool try_return_param(parser_state ps)
-{
-	return false;
-}
-
-static bool try_return_params(parser_state ps, U16 num)
-{
-	for (U16 i = 0; i < num; ++i) {
-		if (try_return_param(new_state(ps.p, ps.end)) && match(ps.p, xtoken::OPERATOR_COMMA)) {
-			// TODO: compile something here
-		} else {
-			return false;
-		}
-	}
-	return match(ps.p, xtoken::OPERATOR_STOP);
-}
-
-static bool try_directive_return(parser_state ps)
-{
-	// TODO: Pop current stack down to locals
-	// TODO: Write return value with a start top-locals-1-params-1-return_size
-	if (
-		manage_state(
-			ps,
-			match(ps.p, xtoken::KEYWORD_DIRECTIVE_RETURN) &&
-			match(ps.p, xtoken::OPERATOR_STOP) // TODO: Replace this with try_return_params below...
-//			try_return_params(new_state(ps.p, ps.end), find_fn(top_scope(ps.p).name, chcount(top_scope(ps.p).name)->size))
-		)
-	) {
-		return true;
-	}
-	return false;
-}
-
 static bool try_directive(parser_state ps)
 {
 	if (
@@ -645,12 +533,9 @@ static bool try_directive(parser_state ps)
 			ps,
 			match(ps.p, xtoken::OPERATOR_DIRECTIVE_DOLLAR) &&
 			(
-				try_directive_scope (new_state(ps.p, ps.end)) ||
-				try_directive_bin   (new_state(ps.p, ps.end)) ||
-				try_directive_lit   (new_state(ps.p, ps.end)) ||
-				try_directive_func  (new_state(ps.p, ps.end)) ||
-				try_directive_call  (new_state(ps.p, ps.end)) ||
-				try_directive_return(new_state(ps.p, ps.end))
+				try_directive_scope(new_state(ps.p, ps.end)) ||
+				try_directive_bin  (new_state(ps.p, ps.end)) ||
+				try_directive_lit  (new_state(ps.p, ps.end))
 			)
 		)
 	) {
@@ -1079,8 +964,12 @@ static bool try_program(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_statements(new_state(ps.p, ps.end)))
-		) {
+			write_word    (ps.p->out, XWORD{XIS::SVB})  &&
+			try_statements(new_state(ps.p, ps.end))     &&
+			write_word    (ps.p->out, XWORD{XIS::LDB})  &&
+			write_word    (ps.p->out, XWORD{XIS::HALT})
+		)
+	) {
 		return true;
 	}
 	return false;
