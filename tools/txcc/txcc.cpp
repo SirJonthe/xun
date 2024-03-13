@@ -508,6 +508,11 @@ static bool try_put_opt_fn_params(parser_state ps, const symbol *sym)
 			try_put_fn_params(new_state(ps.p, ps.end), &param_count)
 		)
 	) {
+		if (sym != NULL && sym->category == symbol::FN && sym->param_count != param_count) {
+			// TODO FATAL ERROR
+			// PARAMETER COUNT MISMATCH
+			return false;
+		}
 		return true;
 	}
 	return false;
