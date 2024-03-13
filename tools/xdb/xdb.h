@@ -22,12 +22,13 @@ public:
 	bool step( void );
 
 	/// @brief Draws a UI for easy debugging.
-	void ui( void ) const;
+	/// @param rows The number of rows in the UI to list.
+	void ui(unsigned rows = 25) const;
 };
 
 /// @brief Decodes a given instruction into a readable string.
 /// @param i The instruction to decode.
 /// @return The readable string.
-chars decode_instruction(XIS::Enum i);
+chars decode_instruction(U16 i);
 
 #endif

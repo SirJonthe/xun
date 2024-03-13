@@ -265,7 +265,7 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 	sym.param       = NULL;
 	if (category != symbol::PARAM) {
 		if (category != symbol::LIT) {
-			sym.data.u = top_scope_stack_size(p->scopes);
+			sym.data.u = top_scope_stack_size(p->scopes) + 1;
 			if (
 				!write_word(p->out, XWORD{XIS::PUT}) ||
 				!write_word(p->out, XWORD{value})
@@ -1224,8 +1224,9 @@ static bool try_program(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			add_main             (ps.p)                    &&
-			try_global_statements(new_state(ps.p, ps.end)) &&
+			write_word           (ps.p->out, XWORD{XIS::SVB}) &&
+			add_main             (ps.p)                       &&
+			try_global_statements(new_state(ps.p, ps.end))    &&
 			emit_call_main       (ps.p)
 		)
 	) {
@@ -1233,12 +1234,16 @@ static bool try_program(parser_state ps)
 		const U16 lsp = top_scope_stack_size(ps.p);
 		return
 			(
-				lsp == 0 ||
 				(
-					write_word(ps.p->out, XWORD{XIS::PUT}) &&
-					write_word(ps.p->out, XWORD{lsp})      &&
-					write_word(ps.p->out, XWORD{XIS::POP})
-				)
+					lsp == 0 ||
+					(
+						write_word(ps.p->out, XWORD{XIS::PUT}) &&
+						write_word(ps.p->out, XWORD{lsp})      &&
+						write_word(ps.p->out, XWORD{XIS::POP})
+					)
+				) &&
+				write_word(ps.p->out, XWORD{XIS::LDB}) &&
+				write_word(ps.p->out, XWORD{XIS::HALT})
 			);
 	}
 	return false;

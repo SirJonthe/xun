@@ -26,23 +26,20 @@ Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]
 // but can be any program.
 void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 {
-	// NOTE: This function emits a few additional instructions to make the binary work properly.
 	IP.u = A.u = B.u = C.u = SP.u = 0;
-	AT(XWORD{SP.u++}).u = XIS::SVB;
 	for (U16 i = 0; i < bin_count; ++SP.u, ++i) {
 		AT(SP) = bin[i];
 	}
-	AT(XWORD{SP.u++}).u = XIS::LDB;
-	AT(XWORD{SP.u}).u = XIS::HALT;
 	if (debug) {
-		for (unsigned i = SP.u + 1; i < MEM_SIZE_MAX; ++i) {
+		for (unsigned i = SP.u; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = XIS::HALT;
 		}
 	} else {
-		for (unsigned i = SP.u + 1; i < MEM_SIZE_MAX; ++i) {
+		for (unsigned i = SP.u; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = U16(rand());
 		}
 	}
+	SP.u -= 1;
 }
 
 void Computer::PowerOff( void )

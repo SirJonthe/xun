@@ -41,7 +41,7 @@ void print_padded_hex(U16 num)
 	}
 }
 
-chars decode_instruction(XIS::Enum i)
+chars decode_instruction(U16 i)
 {
 	class RenderChars
 	{
@@ -139,10 +139,10 @@ bool xdebugger::step( void )
 	return m_computer.Cycle().u != XIS::HALT;
 }
 
-void xdebugger::ui( void ) const
+void xdebugger::ui(unsigned rows) const
 {
 	const int i_page_width  = 4;
-	const int i_page_height = 25;
+	const int i_page_height = rows;
 	const int i_page_size   = i_page_width * i_page_height;
 	
 	const int start_i = (m_computer.InstructionPointer() / i_page_size) * i_page_size;
