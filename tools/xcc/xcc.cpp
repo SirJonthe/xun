@@ -14,7 +14,7 @@ struct input_tokens
 	U16          index;
 };
 
-static bool write_word(xbinary &buf, XWORD data)
+static bool write_word(xcbe_binary &buf, XWORD data)
 {
 	if (buf.size >= buf.capacity) {
 		// TODO FATAL ERROR
@@ -194,7 +194,7 @@ static symbol *add_fn(const char *name, unsigned name_char_count, U16 addr, U16 
 struct parser
 {
 	input_tokens  in;     // The parser input.
-	xbinary       out;    // The parser output.
+	xcbe_binary       out;    // The parser output.
 	token         max;    // The maximally reached token.
 	symbol_stack  scopes; // The symbols ordered into scopes.
 	symbol       *fn;     // The current function being parsed.
@@ -1171,7 +1171,7 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
-xc_out xcc(lexer l, xbinary mem, const U16 sym_capacity)
+xcbe_out xcc(lexer l, xcbe_binary mem, const U16 sym_capacity)
 {
 	symbol sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	parser p         = { { l, NULL, 0, 0 }, mem, l.last };
@@ -1181,7 +1181,7 @@ xc_out xcc(lexer l, xbinary mem, const U16 sym_capacity)
 	add_fn("main", 4, 0, 0, p.scopes);
 
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
-		return xc_out{ p.in.l, p.out, p.max, 1 };
+		return xcbe_out{ p.in.l, p.out, p.max, 1 };
 	}
-	return xc_out{ p.in.l, p.out, p.max, 0 };
+	return xcbe_out{ p.in.l, p.out, p.max, 0 };
 }

@@ -9,6 +9,6 @@
 /// @param sym_capacity The maximum amount of symbols that can be stored at any one given time.
 /// @return The binary output.
 /// @sa init_lexer
-xc_out xcc(lexer l, xbinary mem, const U16 sym_capacity = 128);
+xcbe_out xcc(lexer l, xcbe_binary mem, const U16 sym_capacity = 128);
 
 #endif

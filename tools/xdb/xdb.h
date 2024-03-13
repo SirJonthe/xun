@@ -15,7 +15,7 @@ public:
 public:
 	/// @brief Creates a new debugging with a program attached.
 	/// @param program The program to debug.
-	xdebugger(const xbinary &program);
+	xdebugger(const xcbe_binary &program);
 
 	/// @brief Performs one instruction.
 	/// @return False if the program has terminated.
