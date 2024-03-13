@@ -842,7 +842,6 @@ static bool try_fn_param(parser_state ps, symbol *param)
 
 static bool try_fn_params(parser_state ps, symbol *param)
 {
-	// BUG: This will accept 'fn(a,);'
 	if (
 		manage_state(
 			ps,
