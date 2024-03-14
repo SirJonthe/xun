@@ -1057,9 +1057,12 @@ static bool try_return_stmt(parser_state ps)
 			ps,
 			match     (ps.p, ctoken::KEYWORD_CONTROL_RETURN)        &&
 			write_word(ps.p->out, XWORD{XIS::PUT})                  &&
-			write_word(ps.p->out, XWORD{U16(-1)})                   && // NOTE: 0 points to instruction return address, -1 points to external return value memory.
+			write_word(ps.p->out, XWORD{0})                         &&
 			write_word(ps.p->out, XWORD{XIS::RLC})                  &&
 			write_word(ps.p->out, XWORD{XIS::AT})                   &&
+			write_word(ps.p->out, XWORD{XIS::PUT})                  &&
+			write_word(ps.p->out, XWORD{1})                         &&
+			write_word(ps.p->out, XWORD{XIS::SUB})                  &&
 			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
 			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
 			write_word(ps.p->out, XWORD{XIS::MOVD})                 && // NOTE: Address of return value is top value. Move expression result to external return memory.
