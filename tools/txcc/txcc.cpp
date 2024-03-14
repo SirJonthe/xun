@@ -340,7 +340,8 @@ static bool emit_pop_scope(parser *p)
 				write_word(p->out, XWORD{lsp})      &&
 				write_word(p->out, XWORD{XIS::POP})
 			)
-		);
+		) &&
+		pop_scope(p->scopes);
 }
 
 static token peek(parser *p)
@@ -560,20 +561,16 @@ static bool try_call_fn(parser_state ps)
 			(off_index = ps.p->out.size)                                                        &&
 			write_word           (ps.p->out, XWORD{0})                                          && // NOTE: Unable to determine return address offset here, so just emit 0.
 			write_word           (ps.p->out, XWORD{XIS::ADD})                                   && // NOTE: Adjust return address to move ahead of call site.
-			write_word           (ps.p->out, XWORD{XIS::PUTS})                                  && // NOTE: Put the address of the return value on the stack.
-			write_word           (ps.p->out, XWORD{XIS::PUT})                                   &&
-			write_word           (ps.p->out, XWORD{2})                                          &&
-			write_word           (ps.p->out, XWORD{XIS::SUB})                                   && // NOTE: Adjustment of the return value on stack since stack size and return address are top. Now points to return value address.
 			try_put_opt_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
 			match                (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                 &&
-			(ps.p->out.buffer    [off_index].u = (ps.p->out.size - off_index) + 7)              && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
+			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)                  && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
 			write_rel            (ps.p, sym)                                                    &&
 			write_word           (ps.p->out, XWORD{XIS::AT})                                    &&
 			write_word           (ps.p->out, XWORD{XIS::JMP})
 		)
 	) {
+		// TODO Surely we can determine instruction pointer offset without constant 7...
 		return true;
-			
 	}
 	return false;
 }
@@ -945,7 +942,7 @@ static bool try_else(parser_state ps)
 		)
 	) {
 		ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size;
-		return emit_pop_scope(ps.p) && pop_scope(ps.p->scopes);
+		return emit_pop_scope(ps.p);
 	}
 	return false;
 }
@@ -974,7 +971,6 @@ static bool try_if(parser_state ps)
 		return manage_state(
 			ps,
 			emit_pop_scope(ps.p) &&
-			pop_scope(ps.p->scopes) &&
 			(
 				(
 					try_else(new_state(ps.p, ps.end)) &&
@@ -1000,7 +996,7 @@ static bool try_scope(parser_state ps)
 			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)
 		)
 	) {
-		return emit_pop_scope(ps.p) && pop_scope(ps.p->scopes);
+		return emit_pop_scope(ps.p);
 	}
 	return false;
 }
@@ -1056,17 +1052,19 @@ static bool try_reass_var_stmt(parser_state ps)
 
 static bool try_return_stmt(parser_state ps)
 {
-	// BUG: Fix this...
 	if (
 		manage_state(
 			ps,
-			match         (ps.p, ctoken::KEYWORD_CONTROL_RETURN)        &&
-			emit_pop_scope(ps.p)                                        && // NOTE: Just emit the pop instruction, do NOT actually alter compiler state.
-			write_word    (ps.p->out, XWORD{XIS::LDC})                  &&
-			try_expr      (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) && // BUG: Return value needs to be computed after LDC, but calling LDC messes up local variable addressing...
-			match         (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
-			write_word    (ps.p->out, XWORD{XIS::MOVD})                 && // NOTE: Address of return value is top value. Move expression result to return memory.
-			write_word    (ps.p->out, XWORD{XIS::JMP})                     // NOTE: Return address is top value. Jump back to call site
+			match     (ps.p, ctoken::KEYWORD_CONTROL_RETURN)        &&
+			write_word(ps.p->out, XWORD{XIS::PUT})                  &&
+			write_word(ps.p->out, XWORD{U16(-1)})                   && // NOTE: 0 points to instruction return address, -1 points to external return value memory.
+			write_word(ps.p->out, XWORD{XIS::RLC})                  &&
+			write_word(ps.p->out, XWORD{XIS::AT})                   &&
+			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
+			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
+			write_word(ps.p->out, XWORD{XIS::MOVD})                 && // NOTE: Address of return value is top value. Move expression result to external return memory.
+			write_word(ps.p->out, XWORD{XIS::LDC})                  &&
+			write_word(ps.p->out, XWORD{XIS::JMP})                     // NOTE: Return address is top value. Jump back to call site
 		)
 	) {
 		return true;
@@ -1195,11 +1193,7 @@ static bool try_fn_def(parser_state ps)
 			try_statements      (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                                 &&
 			emit_pop_scope      (ps.p)                                                                   &&
-			pop_scope           (ps.p->scopes)                                                           &&
-			write_word          (ps.p->out, XWORD{XIS::LDC})                                             &&
-			write_word          (ps.p->out, XWORD{XIS::PUT})                                             && // NOTE: Set return value to 0 if there is no explicit return.
-			write_word          (ps.p->out, XWORD{0})                                                    &&
-			write_word          (ps.p->out, XWORD{XIS::MOVD})                                            &&
+			write_word          (ps.p->out, XWORD{XIS::LDC})                                             && // NOTE: We do not explicitly set a return value since it is always 0 anyway.
 			write_word          (ps.p->out, XWORD{XIS::JMP})                                                // NOTE: Jump back to call site
 		)
 	) {

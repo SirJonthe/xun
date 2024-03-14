@@ -334,7 +334,7 @@ XWORD Computer::Cycle( void )
 		PUSH_STACK(1);
 		TOP.u = C.u;
 		PUSH_STACK(1);
-		TOP.u = SP.u;
+		TOP.u = SP.u - 4;
 		A.u = SP.u;
 		B.u = SP.u;
 		C.u = SP.u;
@@ -347,7 +347,7 @@ XWORD Computer::Cycle( void )
 		PUSH_STACK(1);
 		TOP.u = C.u;
 		PUSH_STACK(1);
-		TOP.u = SP.u;
+		TOP.u = SP.u - 3;
 		B.u = SP.u;
 		C.u = SP.u;
 		break;
@@ -357,7 +357,7 @@ XWORD Computer::Cycle( void )
 		PUSH_STACK(1);
 		TOP.u = C.u;
 		PUSH_STACK(1);
-		TOP.u = SP.u;
+		TOP.u = SP.u - 2;
 		C.u = SP.u;
 		break;
 	case XIS::LDA:
@@ -365,18 +365,18 @@ XWORD Computer::Cycle( void )
 		C  = ATN(A, -1);
 		B  = ATN(A, -2);
 		A  = ATN(A, -3);
-		POP_STACK(4);
+		//POP_STACK(4);
 		break;
 	case XIS::LDB:
 		SP = ATN(B,  0);
 		C  = ATN(B, -1);
 		B  = ATN(B, -2);
-		POP_STACK(3);
+		//POP_STACK(3);
 		break;
 	case XIS::LDC:
 		SP = ATN(C,  0);
 		C  = ATN(C, -1);
-		POP_STACK(2);
+		//POP_STACK(2);
 		break;
 	case XIS::RLA:
 		TOP.u = TOP.u + A.u;
