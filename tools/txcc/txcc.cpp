@@ -160,6 +160,25 @@ static U16 top_scope_stack_size(const symbol_stack &s)
 	return size;
 }
 
+static U16 fn_scope_stack_size(const symbol *fn, const symbol_stack &s)
+{
+	U16 size        = 0;
+	U16 scope_index = fn->scope_index + 1;
+	U16 i           = 0;
+	while (i < s.count && s.symbols[i].scope_index < scope_index) {
+		++i;
+	}
+	while (i < s.count) {
+		const symbol *sym = &s.symbols[i];
+		if (sym->category != symbol::LIT && sym->category != symbol::PARAM) {
+			++size;
+		}
+		++i;
+	}
+	return size;
+
+}
+
 static bool push_scope(symbol_stack &ss)
 {
 	++ss.scope;
@@ -303,6 +322,11 @@ static symbol *add_fn(const chars &name, parser *p)
 static U16 top_scope_stack_size(const parser *p)
 {
 	return top_scope_stack_size(p->scopes);
+}
+
+static U16 fn_scope_stack_size(const parser *p)
+{
+	return fn_scope_stack_size(p->fn, p->scopes);
 }
 
 static bool emit_pop_scope(parser *p)
