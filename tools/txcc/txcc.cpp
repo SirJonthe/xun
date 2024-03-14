@@ -316,8 +316,7 @@ static bool emit_pop_scope(parser *p)
 				write_word(p->out, XWORD{lsp})      &&
 				write_word(p->out, XWORD{XIS::POP})
 			)
-		) &&
-		pop_scope(p->scopes);
+		);
 }
 
 static token peek(parser *p)
@@ -922,7 +921,7 @@ static bool try_else(parser_state ps)
 		)
 	) {
 		ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size;
-		return emit_pop_scope(ps.p);
+		return emit_pop_scope(ps.p) && pop_scope(ps.p->scopes);
 	}
 	return false;
 }
@@ -951,6 +950,7 @@ static bool try_if(parser_state ps)
 		return manage_state(
 			ps,
 			emit_pop_scope(ps.p) &&
+			pop_scope(ps.p->scopes) &&
 			(
 				(
 					try_else(new_state(ps.p, ps.end)) &&
@@ -976,7 +976,7 @@ static bool try_scope(parser_state ps)
 			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)
 		)
 	) {
-		return emit_pop_scope(ps.p);
+		return emit_pop_scope(ps.p) && pop_scope(ps.p->scopes);
 	}
 	return false;
 }
@@ -1036,12 +1036,13 @@ static bool try_return_stmt(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, ctoken::KEYWORD_CONTROL_RETURN)        &&
-			write_word(ps.p->out, XWORD{XIS::LDC})                  &&
-			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) && // BUG: Return value needs to be computed after LDC, but calling LDC messes up local variable addressing...
-			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
-			write_word(ps.p->out, XWORD{XIS::MOVD})                 && // NOTE: Address of return value is top value. Move expression result to return memory.
-			write_word(ps.p->out, XWORD{XIS::JMP})                     // NOTE: Return address is top value. Jump back to call site
+			match         (ps.p, ctoken::KEYWORD_CONTROL_RETURN)        &&
+			emit_pop_scope(ps.p)                                        && // NOTE: Just emit the pop instruction, do NOT actually alter compiler state.
+			write_word    (ps.p->out, XWORD{XIS::LDC})                  &&
+			try_expr      (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) && // BUG: Return value needs to be computed after LDC, but calling LDC messes up local variable addressing...
+			match         (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
+			write_word    (ps.p->out, XWORD{XIS::MOVD})                 && // NOTE: Address of return value is top value. Move expression result to return memory.
+			write_word    (ps.p->out, XWORD{XIS::JMP})                     // NOTE: Return address is top value. Jump back to call site
 		)
 	) {
 		return true;
@@ -1164,11 +1165,13 @@ static bool try_fn_def(parser_state ps)
 			push_scope          (ps.p->scopes)                                                           &&
 			try_opt_fn_params   (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
 			adjust_fn_rel_ptr   (new_state(ps.p, ps.end))                                                &&
+			// TODO push another scope here (don't forget to pop)
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
 			try_statements      (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
 			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                                 &&
 			emit_pop_scope      (ps.p)                                                                   &&
+			pop_scope           (ps.p->scopes)                                                           &&
 			write_word          (ps.p->out, XWORD{XIS::LDC})                                             &&
 			write_word          (ps.p->out, XWORD{XIS::PUT})                                             && // NOTE: Set return value to 0 if there is no explicit return.
 			write_word          (ps.p->out, XWORD{0})                                                    &&
