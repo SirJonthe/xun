@@ -28,9 +28,10 @@
 //	}
 
 // TODO
-// [ ] Declare empty arrays
+// [ ] Push a second scope after parameter scope
 // [ ] Loops
 // [ ] Comparisons
+// [ ] Declare empty arrays
 // [ ] Bit operations
 // [ ] Arrays are pointers to first element
 // [ ] Indexing
@@ -936,12 +937,14 @@ static bool try_fn_params(parser_state ps, symbol *param)
 	return false;
 }
 
-static void adjust_param_addr(symbol *fn)
+static void set_param_addr(symbol *fn)
 {
 	symbol *p = fn->param;
+	U16 i = 0;
 	while (p != NULL) {
-		p->data.u -= fn->param_count;
+		p->data.u = i - fn->param_count - 1;
 		p = p->param;
+		++i;
 	}
 }
 
@@ -971,7 +974,7 @@ static bool try_opt_fn_params(parser_state ps, bool verify_params)
 			// PARAMETER COUNT MISMATCH
 			return false;
 		}
-		adjust_param_addr(ps.p->fn);
+		set_param_addr(ps.p->fn);
 		return true;
 	}
 	*ps.p->fn = fn;
