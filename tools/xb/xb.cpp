@@ -1255,7 +1255,7 @@ static bool try_fn_def(parser_state ps)
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)                                 &&
 			emit_pop_scope      (ps.p)                                                                    &&
 			write_word          (ps.p->out, XWORD{XIS::LDC})                                              && // NOTE: We do not explicitly set a return value since it is always 0 anyway.
-			write_word          (ps.p->out, XWORD{XIS::JMP})                                                // NOTE: Jump back to call site
+			write_word          (ps.p->out, XWORD{XIS::JMP})                                                 // NOTE: Jump back to call site
 		)
 	) {
 		ps.p->out.buffer[guard_jmp_idx].u = ps.p->out.size;
