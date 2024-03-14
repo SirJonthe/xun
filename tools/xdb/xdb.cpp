@@ -128,7 +128,7 @@ chars decode_instruction(U16 i)
 	return c;
 }
 
-xdebugger::xdebugger(const xcbe_binary &program) : m_computer()
+xdebugger::xdebugger(const xcc_binary &program) : m_computer()
 {
 	m_computer.Boot();
 	m_computer.BootDisk(program.buffer, program.size, true);

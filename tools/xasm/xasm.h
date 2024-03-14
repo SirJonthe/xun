@@ -1,7 +1,7 @@
 #ifndef XASM_H
 #define XASM_H
 
-#include "../xcbe/xcbe.h"
+#include "../xcc/xcc.h"
 
 // LAYOUT OF BINARY
 //
@@ -135,13 +135,13 @@ token xasm_lex(lexer *l);
 /// @param body The output binary write target.
 /// @return Metadata relating to the output assembly.
 /// @sa xlex
-xcbe_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
+xcc_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
 
 /// @brief Assembles extended assembly language in the form of input tokens.
 /// @param l The lexer to be used to read code.
 /// @param memory The memory to write to.
 /// @return Metadata relating to the output assembly.
 /// @sa xlex
-xcbe_out xasm(lexer l, xcbe_binary memory);
+xcc_out xasm(lexer l, xcc_binary memory);
 
 #endif

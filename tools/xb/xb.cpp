@@ -1,10 +1,10 @@
 #include <cstdlib>
-#include "txcc.h"
+#include "xb.h"
 #include "../../xis.h"
 #include "../../xarch.h"
 #include "../../lib/parsec/lex.h"
 
-// A much simplifed version of C with no typing (everything is an unsigned integer).
+// A much simplifed version of C with no typing (everything is an unsigned integer) - essentially the B programming language.
 //	function(a, b)
 //	{
 //		return a + b;
@@ -27,6 +27,16 @@
 //		return 1;
 //	}
 
+// TODO
+// [ ] Declare empty arrays
+// [ ] Loops
+// [ ] Comparisons
+// [ ] Bit operations
+// [ ] Arrays are pointers to first element
+// [ ] Indexing
+// [ ] Inline assembly
+// [ ] LHS expression
+
 // dec ::= 0-9
 // hex ::= 0x0-9a-fA-F
 // num ::= dec | hex
@@ -48,7 +58,7 @@
 // val ::= *val | name "(" exprs ")" | val "[" expr "]" | name | num
 
 #include <cstdlib>
-#include "txcc.h"
+#include "xb.h"
 #include "../../xis.h"
 #include "../../xarch.h"
 #include "../../lib/parsec/lex.h"
@@ -68,36 +78,81 @@ static unsigned hex2u(const char *nums, unsigned len)
 	return h;
 }
 
-const signed XC_TOKEN_COUNT = 23;
-const token XC_TOKENS[XC_TOKEN_COUNT] = {
-	new_keyword ("return",                  6, ctoken::KEYWORD_CONTROL_RETURN),
-	new_keyword ("if",                      2, ctoken::KEYWORD_CONTROL_IF),
-	new_keyword ("else",                    4, ctoken::KEYWORD_CONTROL_ELSE),
-	new_keyword ("while",                   5, ctoken::KEYWORD_CONTROL_WHILE),
-	new_keyword ("asm",                     3, ctoken::KEYWORD_INTRINSIC_ASM),
-	new_operator("(",                       1, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L),
-	new_operator(")",                       1, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R),
-	new_operator("{",                       1, ctoken::OPERATOR_ENCLOSE_BRACE_L),
-	new_operator("}",                       1, ctoken::OPERATOR_ENCLOSE_BRACE_R),
-	new_operator("[",                       1, ctoken::OPERATOR_ENCLOSE_BRACKET_L),
-	new_operator("]",                       1, ctoken::OPERATOR_ENCLOSE_BRACKET_R),
-	new_operator("+",                       1, ctoken::OPERATOR_ARITHMETIC_ADD),
-	new_operator("-",                       1, ctoken::OPERATOR_ARITHMETIC_SUB),
-	new_operator("*",                       1, ctoken::OPERATOR_ARITHMETIC_MUL),
-	new_operator("/",                       1, ctoken::OPERATOR_ARITHMETIC_DIV),
-	new_operator("%",                       1, ctoken::OPERATOR_ARITHMETIC_MOD),
-	new_operator("=",                       1, ctoken::OPERATOR_ASSIGNMENT_SET),
-	new_operator(",",                       1, ctoken::OPERATOR_COMMA),
-	new_operator(";",                       1, ctoken::OPERATOR_SEMICOLON),
-	new_operator(":",                       1, ctoken::OPERATOR_COLON),
-	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,  token::ALIAS),
-	new_literal ("[0-9]+",                  6, ctoken::LITERAL_INT),
-	new_literal ("0[xX][0-9a-fA-F]+",      17, ctoken::LITERAL_INT, hex2u)
+/// @brief Token data specific to the XB programming language.
+struct xbtoken
+{
+	/// @brief Token types specific to the XB programming language.
+	enum tokentype
+	{
+		KEYWORD_TYPE = token::KEYWORD | (1<<8),
+			KEYWORD_TYPE_AUTO,
+			KEYWORD_TYPE_CONST,
+		KEYWORD_CONTROL = token::KEYWORD | (2<<8),
+			KEYWORD_CONTROL_RETURN,
+			KEYWORD_CONTROL_IF,
+			KEYWORD_CONTROL_ELSE,
+			KEYWORD_CONTROL_WHILE,
+		KEYWORD_INTRINSIC = token::KEYWORD | (3<<8),
+			KEYWORD_INTRINSIC_ASM,
+		OPERATOR_ARITHMETIC = token::OPERATOR | (1<<8),
+			OPERATOR_ARITHMETIC_ADD,
+			OPERATOR_ARITHMETIC_SUB,
+			OPERATOR_ARITHMETIC_MUL,
+			OPERATOR_ARITHMETIC_DIV,
+			OPERATOR_ARITHMETIC_MOD,
+		OPERATOR_ASSIGNMENT = token::OPERATOR | (2<<8),
+			OPERATOR_ASSIGNMENT_SET,
+		OPERATOR_ENCLOSE = token::OPERATOR | (3<<8),
+			OPERATOR_ENCLOSE_PARENTHESIS = OPERATOR_ENCLOSE | (1<<4),
+				OPERATOR_ENCLOSE_PARENTHESIS_L,
+				OPERATOR_ENCLOSE_PARENTHESIS_R,
+			OPERATOR_ENCLOSE_BRACKET = OPERATOR_ENCLOSE | (2<<4),
+				OPERATOR_ENCLOSE_BRACKET_L,
+				OPERATOR_ENCLOSE_BRACKET_R,
+			OPERATOR_ENCLOSE_BRACE = OPERATOR_ENCLOSE | (3<<4),
+				OPERATOR_ENCLOSE_BRACE_L,
+				OPERATOR_ENCLOSE_BRACE_R,
+		OPERATOR_SEMICOLON = token::OPERATOR | 1,
+		OPERATOR_COLON,
+		OPERATOR_COMMA,
+
+		LITERAL_INT = token::LITERAL | (1<<8),
+		//LITERAL_FLOAT = token::LITERAL | (2<<8),
+	};
 };
 
-token xclex(lexer *l)
+const signed XB_TOKEN_COUNT = 25;
+const token XB_TOKENS[XB_TOKEN_COUNT] = {
+	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
+	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
+	new_keyword ("else",                    4, xbtoken::KEYWORD_CONTROL_ELSE),
+	new_keyword ("while",                   5, xbtoken::KEYWORD_CONTROL_WHILE),
+	new_keyword ("asm",                     3, xbtoken::KEYWORD_INTRINSIC_ASM),
+	new_keyword ("auto",                    4, xbtoken::KEYWORD_TYPE_AUTO),
+	new_keyword ("const",                   5, xbtoken::KEYWORD_TYPE_CONST),
+	new_operator("(",                       1, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L),
+	new_operator(")",                       1, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R),
+	new_operator("{",                       1, xbtoken::OPERATOR_ENCLOSE_BRACE_L),
+	new_operator("}",                       1, xbtoken::OPERATOR_ENCLOSE_BRACE_R),
+	new_operator("[",                       1, xbtoken::OPERATOR_ENCLOSE_BRACKET_L),
+	new_operator("]",                       1, xbtoken::OPERATOR_ENCLOSE_BRACKET_R),
+	new_operator("+",                       1, xbtoken::OPERATOR_ARITHMETIC_ADD),
+	new_operator("-",                       1, xbtoken::OPERATOR_ARITHMETIC_SUB),
+	new_operator("*",                       1, xbtoken::OPERATOR_ARITHMETIC_MUL),
+	new_operator("/",                       1, xbtoken::OPERATOR_ARITHMETIC_DIV),
+	new_operator("%",                       1, xbtoken::OPERATOR_ARITHMETIC_MOD),
+	new_operator("=",                       1, xbtoken::OPERATOR_ASSIGNMENT_SET),
+	new_operator(",",                       1, xbtoken::OPERATOR_COMMA),
+	new_operator(";",                       1, xbtoken::OPERATOR_SEMICOLON),
+	new_operator(":",                       1, xbtoken::OPERATOR_COLON),
+	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,  token::ALIAS),
+	new_literal ("[0-9]+",                  6, xbtoken::LITERAL_INT),
+	new_literal ("0[xX][0-9a-fA-F]+",      17, xbtoken::LITERAL_INT, hex2u)
+};
+
+token xblex(lexer *l)
 {
-	return lex(l, XC_TOKENS, XC_TOKEN_COUNT);
+	return lex(l, XB_TOKENS, XB_TOKEN_COUNT);
 }
 
 /// @brief The input stream of tokens. If the user provides a pre-lexed array of tokens then the match function will consume from that array, while if the token array is null then the match function will instead lex code as attached to the lexer.
@@ -110,7 +165,7 @@ struct input_tokens
 	U16          index;
 };
 
-static bool write_word(xcbe_binary &buf, XWORD data)
+static bool write_word(xcc_binary &buf, XWORD data)
 {
 	if (buf.size >= buf.capacity) {
 		// TODO FATAL ERROR
@@ -222,11 +277,11 @@ static unsigned chcount(const char *s)
 struct parser
 {
 	input_tokens  in;     // The parser input.
-	xcbe_binary   out;    // The parser output.
+	xcc_binary   out;    // The parser output.
 	token         max;    // The maximally reached token.
 	symbol_stack  scopes; // The symbols ordered into scopes.
 	symbol       *fn;     // The current function being parsed.
-	xcbe_error    error;  // The first fatal error.
+	xcc_error    error;  // The first fatal error.
 };
 
 static symbol *find_symbol(const chars &name, parser *p)
@@ -351,7 +406,7 @@ static token peek(parser *p)
 		t = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
 	} else {
 		lexer l = p->in.l;
-		t = xclex(&l);
+		t = xblex(&l);
 	}
 	return t;
 }
@@ -367,7 +422,7 @@ static bool match(parser *p, unsigned type, token *out = NULL)
 	}
 	// Otherwise read from lexer. This is done in a separate copy to avoid committing to reads of unexpected types.
 	else {
-		xclex(&l);
+		xblex(&l);
 	}
 
 	// Record the read token if requested.
@@ -443,7 +498,7 @@ static bool until_end(parser_state ps, bool (*try_fn)(parser_state))
 static bool try_put_lit(parser_state ps)
 {
 	token t;
-	if (match(ps.p, ctoken::LITERAL_INT, &t)) {
+	if (match(ps.p, xbtoken::LITERAL_INT, &t)) {
 		return
 			write_word(ps.p->out, XWORD{XIS::PUT})    &&
 			write_word(ps.p->out, XWORD{U16(t.hash)});
@@ -511,7 +566,7 @@ static bool try_put_fn_params(parser_state ps, U16 *param_count)
 			(
 				peek(ps.p).user_type == ps.end ||
 				(
-					match(ps.p, ctoken::OPERATOR_COMMA) &&
+					match(ps.p, xbtoken::OPERATOR_COMMA) &&
 					try_put_fn_params(new_state(ps.p, ps.end), param_count)
 				)
 			)
@@ -551,21 +606,21 @@ static bool try_call_fn(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match                (ps.p, token::ALIAS, &t)                                       && // TODO Replace this with any value (can be alias, literal, indirection etc.)
-			(sym = find_symbol(t.text, ps.p)) != NULL                                           && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
-			match                (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                 &&
-			write_word           (ps.p->out, XWORD{XIS::PUT})                                   &&
-			write_word           (ps.p->out, XWORD{0})                                          && // NOTE: Put return value memory on stack.
-			write_word           (ps.p->out, XWORD{XIS::PUTI})                                  && // NOTE: Put return address on stack.
-			write_word           (ps.p->out, XWORD{XIS::PUT})                                   &&
-			(off_index = ps.p->out.size)                                                        &&
-			write_word           (ps.p->out, XWORD{0})                                          && // NOTE: Unable to determine return address offset here, so just emit 0.
-			write_word           (ps.p->out, XWORD{XIS::ADD})                                   && // NOTE: Adjust return address to move ahead of call site.
-			try_put_opt_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
-			match                (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                 &&
-			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)                  && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
-			write_rel            (ps.p, sym)                                                    &&
-			write_word           (ps.p->out, XWORD{XIS::AT})                                    &&
+			match                (ps.p, token::ALIAS, &t)                                        && // TODO Replace this with any value (can be alias, literal, indirection etc.)
+			(sym = find_symbol(t.text, ps.p)) != NULL                                            && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
+			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                 &&
+			write_word           (ps.p->out, XWORD{XIS::PUT})                                    &&
+			write_word           (ps.p->out, XWORD{0})                                           && // NOTE: Put return value memory on stack.
+			write_word           (ps.p->out, XWORD{XIS::PUTI})                                   && // NOTE: Put return address on stack.
+			write_word           (ps.p->out, XWORD{XIS::PUT})                                    &&
+			(off_index = ps.p->out.size)                                                         &&
+			write_word           (ps.p->out, XWORD{0})                                           && // NOTE: Unable to determine return address offset here, so just emit 0.
+			write_word           (ps.p->out, XWORD{XIS::ADD})                                    && // NOTE: Adjust return address to move ahead of call site.
+			try_put_opt_fn_params(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
+			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                 &&
+			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)                   && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
+			write_rel            (ps.p, sym)                                                     &&
+			write_word           (ps.p->out, XWORD{XIS::AT})                                     &&
 			write_word           (ps.p->out, XWORD{XIS::JMP})
 		)
 	) {
@@ -583,15 +638,15 @@ static bool try_lit_opt_term(parser_state ps, type_t &result)
 {
 	token t;
 	type_t l;
-	while (match(ps.p, ctoken::OPERATOR_ARITHMETIC_ADD, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_SUB, &t)) {
+	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB, &t)) {
 		if (!manage_state(ps, try_lit_term(new_state(ps.p, ps.end), l))) {
 			return false;
 		}
 		switch (t.user_type) {
-		case ctoken::OPERATOR_ARITHMETIC_ADD:
+		case xbtoken::OPERATOR_ARITHMETIC_ADD:
 			result += l;
 			break;
-		case ctoken::OPERATOR_ARITHMETIC_SUB:
+		case xbtoken::OPERATOR_ARITHMETIC_SUB:
 			result -= l;
 			break;
 		default:
@@ -609,18 +664,18 @@ static bool try_lit_opt_factor(parser_state ps, type_t &result)
 {
 	token t;
 	type_t l;
-	while (match(ps.p, ctoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_MOD, &t)) {
+	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MOD, &t)) {
 		if (!manage_state(ps, try_lit_factor(new_state(ps.p, ps.end), l))) {
 			return false;
 		}
 		switch (t.user_type) {
-		case ctoken::OPERATOR_ARITHMETIC_MUL:
+		case xbtoken::OPERATOR_ARITHMETIC_MUL:
 			result *= l;
 			break;
-		case ctoken::OPERATOR_ARITHMETIC_DIV:
+		case xbtoken::OPERATOR_ARITHMETIC_DIV:
 			result /= l;
 			break;
-		case ctoken::OPERATOR_ARITHMETIC_MOD:
+		case xbtoken::OPERATOR_ARITHMETIC_MOD:
 			result %= l;
 			break;
 		default:
@@ -637,7 +692,7 @@ template < typename type_t >
 static bool try_read_lit(parser_state ps, type_t &result)
 {
 	token t;
-	if (match(ps.p, ctoken::LITERAL_INT, &t)) {
+	if (match(ps.p, xbtoken::LITERAL_INT, &t)) {
 		result = t.hash;
 		return true;
 	}
@@ -652,9 +707,9 @@ static bool try_lit_factor(parser_state ps, type_t &result)
 			ps,
 			try_read_lit(new_state(ps.p, ps.end), result) ||
 			(
-				match       (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                    &&
-				try_lit_expr(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), result) &&
-				match       (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+				match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                    &&
+				try_lit_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), result) &&
+				match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 			)
 		)
 	) {
@@ -698,15 +753,15 @@ static bool try_term(parser_state ps);
 static bool try_opt_term(parser_state ps)
 {
 	token t;
-	while (match(ps.p, ctoken::OPERATOR_ARITHMETIC_ADD, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_SUB, &t)) {
+	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB, &t)) {
 		if (!manage_state(ps, try_term(new_state(ps.p, ps.end)))) {
 			return false;
 		}
 		switch (t.user_type) {
-		case ctoken::OPERATOR_ARITHMETIC_ADD:
+		case xbtoken::OPERATOR_ARITHMETIC_ADD:
 			if (!write_word(ps.p->out, XWORD{XIS::ADD})) { return false; }
 			break;
-		case ctoken::OPERATOR_ARITHMETIC_SUB:
+		case xbtoken::OPERATOR_ARITHMETIC_SUB:
 			if (!write_word(ps.p->out, XWORD{XIS::SUB})) { return false; }
 			break;
 		default:
@@ -721,18 +776,18 @@ static bool try_factor(parser_state ps);
 static bool try_opt_factor(parser_state ps)
 {
 	token t;
-	while (match(ps.p, ctoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, ctoken::OPERATOR_ARITHMETIC_MOD, &t)) {
+	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MOD, &t)) {
 		if (!manage_state(ps, try_factor(new_state(ps.p, ps.end)))) {
 			return false;
 		}
 		switch (t.user_type) {
-		case ctoken::OPERATOR_ARITHMETIC_MUL:
+		case xbtoken::OPERATOR_ARITHMETIC_MUL:
 			if (!write_word(ps.p->out, XWORD{XIS::MUL})) { return false; }
 			break;
-		case ctoken::OPERATOR_ARITHMETIC_DIV:
+		case xbtoken::OPERATOR_ARITHMETIC_DIV:
 			if (!write_word(ps.p->out, XWORD{XIS::DIV})) { return false; }
 			break;
-		case ctoken::OPERATOR_ARITHMETIC_MOD:
+		case xbtoken::OPERATOR_ARITHMETIC_MOD:
 			if (!write_word(ps.p->out, XWORD{XIS::MOD})) { return false; }
 			break;
 		default:
@@ -752,9 +807,9 @@ static bool try_factor(parser_state ps)
 			try_put_lit(new_state(ps.p, ps.end)) ||
 			try_put_var(new_state(ps.p, ps.end)) ||
 			(
-				match   (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-				try_expr(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-				match   (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+				try_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 			)
 		)
 	) {
@@ -798,7 +853,7 @@ static bool try_expr_list(parser_state ps)
 			try_expr(new_state(ps.p, ps.end))
 		)
 	) {
-		return match(ps.p, ctoken::OPERATOR_COMMA) ? try_expr_list(new_state(ps.p, ps.end)) : true;
+		return match(ps.p, xbtoken::OPERATOR_COMMA) ? try_expr_list(new_state(ps.p, ps.end)) : true;
 	}
 	return false;
 }
@@ -808,11 +863,11 @@ static bool try_decl_expr(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) ||
+			try_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) ||
 			(
-				match(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                    &&
-				try_expr_list(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-				match(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)
+				match(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)                    &&
+				try_expr_list(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+				match(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
 			)
 		)
 	) {
@@ -828,13 +883,13 @@ static bool try_new_var(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match        (ps.p, token::ALIAS, &t)                      &&
-			(sym = add_var(t.text, ps.p)) != NULL                      &&
-			((ps.p->out.size -= 2) || ps.p->out.size == 0)             && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
-			match        (ps.p, ctoken::OPERATOR_COLON)                &&
-			match        (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)       &&
-			try_decl_expr(new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
-			match        (ps.p, ctoken::OPERATOR_SEMICOLON)
+			match        (ps.p, xbtoken::KEYWORD_TYPE_AUTO)             &&
+			match        (ps.p, token::ALIAS, &t)                       &&
+			(sym = add_var(t.text, ps.p)) != NULL                       &&
+			((ps.p->out.size -= 2) || ps.p->out.size == 0)              && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
+			match        (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)       &&
+			try_decl_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			match        (ps.p, xbtoken::OPERATOR_SEMICOLON)
 		)
 	) {
 		return true;
@@ -870,7 +925,7 @@ static bool try_fn_params(parser_state ps, symbol *param)
 			(
 				peek(ps.p).user_type == ps.end ||
 				(
-					match(ps.p, ctoken::OPERATOR_COMMA) &&
+					match(ps.p, xbtoken::OPERATOR_COMMA) &&
 					try_fn_params(new_state(ps.p, ps.end), param->param)
 				)
 			)
@@ -932,12 +987,12 @@ static bool try_else(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match        (ps.p, ctoken::KEYWORD_CONTROL_ELSE) &&
-			write_word   (ps.p->out, XWORD{XIS::PUT})         &&
-			(jmp_addr_idx = ps.p->out.size)                   &&
-			write_word   (ps.p->out, XWORD{0})                &&
-			write_word   (ps.p->out, XWORD{XIS::JMP})         &&
-			push_scope   (ps.p->scopes)                       &&
+			match        (ps.p, xbtoken::KEYWORD_CONTROL_ELSE) &&
+			write_word   (ps.p->out, XWORD{XIS::PUT})          &&
+			(jmp_addr_idx = ps.p->out.size)                    &&
+			write_word   (ps.p->out, XWORD{0})                 &&
+			write_word   (ps.p->out, XWORD{XIS::JMP})          &&
+			push_scope   (ps.p->scopes)                        &&
 			try_statement(new_state(ps.p, ps.end))
 		)
 	) {
@@ -955,15 +1010,15 @@ static bool try_if(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match        (ps.p, ctoken::KEYWORD_CONTROL_IF)                        &&
-			push_scope   (ps.p->scopes)                                            &&
-			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			try_expr     (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match        (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
-			write_word   (ps.p->out, XWORD{XIS::PUT})                              &&
-			(jmp_addr_idx = ps.p->out.size)                                        &&
-			write_word   (ps.p->out, XWORD{0})                                     &&
-			write_word   (ps.p->out, XWORD{XIS::CNJMP})                            &&
+			match        (ps.p, xbtoken::KEYWORD_CONTROL_IF)                        &&
+			push_scope   (ps.p->scopes)                                             &&
+			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			try_expr     (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
+			write_word   (ps.p->out, XWORD{XIS::PUT})                               &&
+			(jmp_addr_idx = ps.p->out.size)                                         &&
+			write_word   (ps.p->out, XWORD{0})                                      &&
+			write_word   (ps.p->out, XWORD{XIS::CNJMP})                             &&
 			try_statement(new_state(ps.p, ps.end))
 		)
 	) {
@@ -990,10 +1045,10 @@ static bool try_scope(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)            &&
-			push_scope    (ps.p->scopes)                                      &&
-			try_statements(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-			match         (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)            &&
+			push_scope    (ps.p->scopes)                                       &&
+			try_statements(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
 		)
 	) {
 		return emit_pop_scope(ps.p);
@@ -1006,8 +1061,8 @@ static bool try_expr_stmt(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
-			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
+			try_expr  (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)            &&
 			write_word(ps.p->out, XWORD{XIS::TOSS})
 		)
 	) {
@@ -1038,10 +1093,10 @@ static bool try_reass_var_stmt(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_lexpr (new_state(ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)) &&
-			match     (ps.p, ctoken::OPERATOR_ASSIGNMENT_SET)            &&
-			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON))      &&
-			match     (ps.p, ctoken::OPERATOR_SEMICOLON)                 &&
+			try_lexpr (new_state(ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)) &&
+			match     (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)            &&
+			try_expr  (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON))      &&
+			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)                 &&
 			write_word(ps.p->out, XWORD{XIS::MOVD})
 		)
 	) {
@@ -1055,18 +1110,18 @@ static bool try_return_stmt(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, ctoken::KEYWORD_CONTROL_RETURN)        &&
-			write_word(ps.p->out, XWORD{XIS::PUT})                  &&
-			write_word(ps.p->out, XWORD{0})                         &&
-			write_word(ps.p->out, XWORD{XIS::RLC})                  &&
-			write_word(ps.p->out, XWORD{XIS::AT})                   &&
-			write_word(ps.p->out, XWORD{XIS::PUT})                  &&
-			write_word(ps.p->out, XWORD{1})                         &&
-			write_word(ps.p->out, XWORD{XIS::SUB})                  &&
-			try_expr  (new_state(ps.p, ctoken::OPERATOR_SEMICOLON)) &&
-			match     (ps.p, ctoken::OPERATOR_SEMICOLON)            &&
-			write_word(ps.p->out, XWORD{XIS::MOVD})                 && // NOTE: Address of return value is top value. Move expression result to external return memory.
-			write_word(ps.p->out, XWORD{XIS::LDC})                  &&
+			match     (ps.p, xbtoken::KEYWORD_CONTROL_RETURN)        &&
+			write_word(ps.p->out, XWORD{XIS::PUT})                   &&
+			write_word(ps.p->out, XWORD{0})                          &&
+			write_word(ps.p->out, XWORD{XIS::RLC})                   &&
+			write_word(ps.p->out, XWORD{XIS::AT})                    &&
+			write_word(ps.p->out, XWORD{XIS::PUT})                   &&
+			write_word(ps.p->out, XWORD{1})                          &&
+			write_word(ps.p->out, XWORD{XIS::SUB})                   &&
+			try_expr  (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)            &&
+			write_word(ps.p->out, XWORD{XIS::MOVD})                  && // NOTE: Address of return value is top value. Move expression result to external return memory.
+			write_word(ps.p->out, XWORD{XIS::LDC})                   &&
 			write_word(ps.p->out, XWORD{XIS::JMP})                     // NOTE: Return address is top value. Jump back to call site
 		)
 	) {
@@ -1085,9 +1140,9 @@ static bool try_asm_block(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match    (ps.p, ctoken::OPERATOR_ENCLOSE_BRACKET_L)                           &&
-			until_end(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACKET_R), try_asm_instr) &&
-			match    (ps.p, ctoken::OPERATOR_ENCLOSE_BRACKET_R)
+			match    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                           &&
+			until_end(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R), try_asm_instr) &&
+			match    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)
 		)
 	) {
 		return true;
@@ -1100,7 +1155,7 @@ static bool try_asm_stmt(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match(ps.p, ctoken::KEYWORD_INTRINSIC_ASM) &&
+			match(ps.p, xbtoken::KEYWORD_INTRINSIC_ASM) &&
 			(
 				try_asm_instr(new_state(ps.p, ps.end)) ||
 				try_asm_block(new_state(ps.p, ps.end))
@@ -1169,34 +1224,34 @@ static bool try_fn_def(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match               (ps.p,  token::ALIAS, &t)                                                &&
+			match               (ps.p,  token::ALIAS, &t)                                                 &&
 			(
 				(verify_params = ((ps.p->fn = find_fn(t.text, ps.p)) != NULL)) ||
 				(ps.p->fn = add_fn(t.text, ps.p)) != NULL
-			)                                                                                            &&
-			write_rel           (ps.p, ps.p->fn)                                                         &&
-			write_word          (ps.p->out, XWORD{XIS::PUTI})                                            &&
-			write_word          (ps.p->out, XWORD{XIS::PUT})                                             &&
-			write_word          (ps.p->out, XWORD{9})                                                    && // NOTE: 9 is the offset to get to SVC (the first instruction of the function body).
-			write_word          (ps.p->out, XWORD{XIS::ADD})                                             &&
-			write_word          (ps.p->out, XWORD{XIS::RLA})                                             &&
-			write_word          (ps.p->out, XWORD{XIS::MOVD})                                            &&
-			write_word          (ps.p->out, XWORD{XIS::PUT})                                             &&
-			(guard_jmp_idx = ps.p->out.size)                                                             &&
-			write_word          (ps.p->out, XWORD{0})                                                    &&
-			write_word          (ps.p->out, XWORD{XIS::JMP})                                             &&
-			write_word          (ps.p->out, XWORD{XIS::SVC})                                             &&
-			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                           &&
-			push_scope          (ps.p->scopes)                                                           &&
-			try_opt_fn_params   (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
-			adjust_fn_rel_ptr   (new_state(ps.p, ps.end))                                                &&
+			)                                                                                             &&
+			write_rel           (ps.p, ps.p->fn)                                                          &&
+			write_word          (ps.p->out, XWORD{XIS::PUTI})                                             &&
+			write_word          (ps.p->out, XWORD{XIS::PUT})                                              &&
+			write_word          (ps.p->out, XWORD{9})                                                     && // NOTE: 9 is the offset to get to SVC (the first instruction of the function body).
+			write_word          (ps.p->out, XWORD{XIS::ADD})                                              &&
+			write_word          (ps.p->out, XWORD{XIS::RLA})                                              &&
+			write_word          (ps.p->out, XWORD{XIS::MOVD})                                             &&
+			write_word          (ps.p->out, XWORD{XIS::PUT})                                              &&
+			(guard_jmp_idx = ps.p->out.size)                                                              &&
+			write_word          (ps.p->out, XWORD{0})                                                     &&
+			write_word          (ps.p->out, XWORD{XIS::JMP})                                              &&
+			write_word          (ps.p->out, XWORD{XIS::SVC})                                              &&
+			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                           &&
+			push_scope          (ps.p->scopes)                                                            &&
+			try_opt_fn_params   (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
+			adjust_fn_rel_ptr   (new_state(ps.p, ps.end))                                                 &&
 			// TODO push another scope here (don't forget to pop)
-			match               (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
-			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
-			try_statements      (new_state(ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
-			match               (ps.p, ctoken::OPERATOR_ENCLOSE_BRACE_R)                                 &&
-			emit_pop_scope      (ps.p)                                                                   &&
-			write_word          (ps.p->out, XWORD{XIS::LDC})                                             && // NOTE: We do not explicitly set a return value since it is always 0 anyway.
+			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
+			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
+			try_statements      (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
+			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)                                 &&
+			emit_pop_scope      (ps.p)                                                                    &&
+			write_word          (ps.p->out, XWORD{XIS::LDC})                                              && // NOTE: We do not explicitly set a return value since it is always 0 anyway.
 			write_word          (ps.p->out, XWORD{XIS::JMP})                                                // NOTE: Jump back to call site
 		)
 	) {
@@ -1231,7 +1286,7 @@ static bool try_count_fn_params(parser_state ps)
 			(
 				peek(ps.p).user_type == ps.end ||
 				(
-					match(ps.p, ctoken::OPERATOR_COMMA) &&
+					match(ps.p, xbtoken::OPERATOR_COMMA) &&
 					try_count_fn_params(new_state(ps.p, ps.end))
 				)
 			)
@@ -1264,12 +1319,12 @@ static bool try_fn_decl(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match                  (ps.p, token::ALIAS, &t)                                  &&
-			(ps.p->fn = add_fn(t.text, ps.p)) != NULL                                        &&
-			match                  (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			try_count_opt_fn_params(new_state(ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match                  (ps.p, ctoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
-			match                  (ps.p, ctoken::OPERATOR_SEMICOLON)
+			match                  (ps.p, token::ALIAS, &t)                                   &&
+			(ps.p->fn = add_fn(t.text, ps.p)) != NULL                                         &&
+			match                  (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+			try_count_opt_fn_params(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match                  (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
+			match                  (ps.p, xbtoken::OPERATOR_SEMICOLON)
 		)
 	) {
 		ps.p->fn = NULL;
@@ -1364,7 +1419,7 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
-parser init_parser(lexer l, xcbe_binary bin_mem, symbol *sym_mem, U16 sym_capacity)
+parser init_parser(lexer l, xcc_binary bin_mem, symbol *sym_mem, U16 sym_capacity)
 {
 	parser p = {
 		input_tokens{ l, NULL, 0, 0 },
@@ -1372,12 +1427,12 @@ parser init_parser(lexer l, xcbe_binary bin_mem, symbol *sym_mem, U16 sym_capaci
 		l.last,
 		symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 },
 		NULL,
-		xcbe_error{ new_eof(), xcbe_error::NONE }
+		xcc_error{ new_eof(), xcc_error::NONE }
 	};
 	return p;
 }
 
-xcbe_out txcc(lexer l, xcbe_binary mem, const U16 sym_capacity)
+xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
 {
 	symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	parser       p  = init_parser(l, mem, sym_mem, sym_capacity);
@@ -1389,8 +1444,8 @@ xcbe_out txcc(lexer l, xcbe_binary mem, const U16 sym_capacity)
 			try_program(new_state(ps.p, ps.end))
 		)
 	) {
-		return xcbe_out{ p.in.l, p.out, p.max, 0 };
+		return xcc_out{ p.in.l, p.out, p.max, 0 };
 	}
-	return xcbe_out{ p.in.l, p.out, p.max, 1 };
+	return xcc_out{ p.in.l, p.out, p.max, 1 };
 }
 

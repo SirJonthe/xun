@@ -95,7 +95,7 @@ struct input_tokens
 	U16          index;    // The index in the input token array to currently read (not used for the lexer).
 };
 
-static bool write_word(xcbe_binary &buf, XWORD data)
+static bool write_word(xcc_binary &buf, XWORD data)
 {
 	if (buf.size >= buf.capacity) { return false; }
 	buf.buffer[buf.size++] = data;
@@ -270,7 +270,7 @@ static scope::symbol *add_fn(const char *name, unsigned name_char_count, U16 add
 struct parser
 {
 	input_tokens  in;     // The input tokens to parse.
-	xcbe_binary   out;    // The resulting binary.
+	xcc_binary   out;    // The resulting binary.
 	scope_stack   scopes; // The scope stack, containing all defined symbols.
 	token         max;    // The token furthest in the sequence that was lexed.
 };
@@ -975,7 +975,7 @@ static bool try_program(parser_state ps)
 	return false;
 }
 
-xcbe_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
+xcc_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body)
 {
 	parser p = parser {
 		input_tokens {
@@ -984,7 +984,7 @@ xcbe_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *b
 			max_tokens,
 			0
 		},
-		xcbe_binary {
+		xcc_binary {
 			body, max_binary_body, 0
 		}
 	};
@@ -992,12 +992,12 @@ xcbe_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *b
 	p.max = p.in.l.last;
 	parser_state ps = new_state(&p, token::STOP_EOF);
 	if (!manage_state(ps, try_program(new_state(ps.p, ps.end)))) {
-		return { lexer{{NULL,0},0}, xcbe_binary{NULL,0,0}, p.max, 1 };
+		return { lexer{{NULL,0},0}, xcc_binary{NULL,0,0}, p.max, 1 };
 	}
 	return { p.in.l, p.out, p.max, 0 };
 }
 
-xcbe_out xasm(lexer l, xcbe_binary memory)
+xcc_out xasm(lexer l, xcc_binary memory)
 {
 	parser p = parser {
 		input_tokens {
