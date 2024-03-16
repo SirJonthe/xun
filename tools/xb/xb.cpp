@@ -1533,13 +1533,28 @@ static bool try_expr_stmt(parser_state ps)
 	return false;
 }
 
+static bool try_redir_lval(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
+			try_rval(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_lval(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
 			try_put_index_addr(new_state(ps.p, ps.end)) ||
-			try_put_var_addr  (new_state(ps.p, ps.end))
+			try_put_var_addr  (new_state(ps.p, ps.end)) ||
+			try_redir_lval    (new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
