@@ -113,15 +113,15 @@ struct xbtoken
 			OPERATOR_ENCLOSE_BRACE = OPERATOR_ENCLOSE | (3<<4),
 				OPERATOR_ENCLOSE_BRACE_L,
 				OPERATOR_ENCLOSE_BRACE_R,
-		OPERATOR_COMPARISON = token::OPERATOR | (4<<8),
-			OPERATOR_COMPARISON_LESS,
-			OPERATOR_COMPARISON_LESSEQUAL,
-			OPERATOR_COMPARISON_GREATER,
-			OPERATOR_COMPARISON_GREATEREQUAL,
-			OPERATOR_COMPARISON_EQUAL,
-			OPERATOR_COMPARISON_NOTEQUAL,
-			OPERATOR_COMPARISON_AND,
-			OPERATOR_COMPARISON_OR,
+		OPERATOR_LOGICAL = token::OPERATOR | (4<<8),
+			OPERATOR_LOGICAL_LESS,
+			OPERATOR_LOGICAL_LESSEQUAL,
+			OPERATOR_LOGICAL_GREATER,
+			OPERATOR_LOGICAL_GREATEREQUAL,
+			OPERATOR_LOGICAL_EQUAL,
+			OPERATOR_LOGICAL_NOTEQUAL,
+			OPERATOR_LOGICAL_AND,
+			OPERATOR_LOGICAL_OR,
 		OPERATOR_BITWISE = token::OPERATOR | (5<<8),
 			OPERATOR_BITWISE_AND,
 			OPERATOR_BITWISE_OR,
@@ -146,12 +146,12 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_keyword ("asm",                     3, xbtoken::KEYWORD_INTRINSIC_ASM),
 	new_keyword ("auto",                    4, xbtoken::KEYWORD_TYPE_AUTO),
 	new_keyword ("const",                   5, xbtoken::KEYWORD_TYPE_CONST),
-	new_operator("<=",                      2, xbtoken::OPERATOR_COMPARISON_LESSEQUAL),
-	new_operator(">=",                      2, xbtoken::OPERATOR_COMPARISON_GREATEREQUAL),
-	new_operator("==",                      2, xbtoken::OPERATOR_COMPARISON_EQUAL),
-	new_operator("!=",                      2, xbtoken::OPERATOR_COMPARISON_NOTEQUAL),
-	new_operator("&&",                      2, xbtoken::OPERATOR_COMPARISON_AND),
-	new_operator("||",                      2, xbtoken::OPERATOR_COMPARISON_OR),
+	new_operator("<=",                      2, xbtoken::OPERATOR_LOGICAL_LESSEQUAL),
+	new_operator(">=",                      2, xbtoken::OPERATOR_LOGICAL_GREATEREQUAL),
+	new_operator("==",                      2, xbtoken::OPERATOR_LOGICAL_EQUAL),
+	new_operator("!=",                      2, xbtoken::OPERATOR_LOGICAL_NOTEQUAL),
+	new_operator("&&",                      2, xbtoken::OPERATOR_LOGICAL_AND),
+	new_operator("||",                      2, xbtoken::OPERATOR_LOGICAL_OR),
 	new_operator("<<",                      2, xbtoken::OPERATOR_BITWISE_LSHIFT),
 	new_operator(">>",                      2, xbtoken::OPERATOR_BITWISE_RSHIFT),
 	new_operator("(",                       1, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L),
@@ -169,8 +169,8 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_operator(",",                       1, xbtoken::OPERATOR_COMMA),
 	new_operator(";",                       1, xbtoken::OPERATOR_SEMICOLON),
 	new_operator(":",                       1, xbtoken::OPERATOR_COLON),
-	new_operator("<",                       1, xbtoken::OPERATOR_COMPARISON_LESS),
-	new_operator(">",                       1, xbtoken::OPERATOR_COMPARISON_GREATER),
+	new_operator("<",                       1, xbtoken::OPERATOR_LOGICAL_LESS),
+	new_operator(">",                       1, xbtoken::OPERATOR_LOGICAL_GREATER),
 	new_operator("&",                       1, xbtoken::OPERATOR_BITWISE_AND),
 	new_operator("|",                       1, xbtoken::OPERATOR_BITWISE_OR),
 	new_operator("^",                       1, xbtoken::OPERATOR_BITWISE_XOR),
@@ -903,21 +903,21 @@ static bool try_less_greater(parser_state ps);
 static bool try_opt_less_greater(parser_state ps)
 {
 	token t;
-	while (match(ps.p, xbtoken::OPERATOR_COMPARISON_LESS, &t) || match(ps.p, xbtoken::OPERATOR_COMPARISON_LESSEQUAL, &t) || match(ps.p, xbtoken::OPERATOR_COMPARISON_GREATER, &t) || match(ps.p, xbtoken::OPERATOR_COMPARISON_GREATEREQUAL, &t)) {
+	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_LESS, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_LESSEQUAL, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_GREATER, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_GREATEREQUAL, &t)) {
 		if (!manage_state(ps, try_less_greater(new_state(ps.p, ps.end)))) {
 			return false;
 		}
 		switch (t.user_type) {
-		case xbtoken::OPERATOR_COMPARISON_LESS:
+		case xbtoken::OPERATOR_LOGICAL_LESS:
 			if (!write_word(ps.p->out, XWORD{XIS::LT})) { return false; }
 			break;
-		case xbtoken::OPERATOR_COMPARISON_LESSEQUAL:
+		case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:
 			if (!write_word(ps.p->out, XWORD{XIS::LE})) { return false; }
 			break;
-		case xbtoken::OPERATOR_COMPARISON_GREATER:
+		case xbtoken::OPERATOR_LOGICAL_GREATER:
 			if (!write_word(ps.p->out, XWORD{XIS::GT})) { return false; }
 			break;
-		case xbtoken::OPERATOR_COMPARISON_GREATEREQUAL:
+		case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL:
 			if (!write_word(ps.p->out, XWORD{XIS::GE})) { return false; }
 			break;
 		default:
@@ -946,15 +946,15 @@ static bool try_equality(parser_state ps);
 static bool try_opt_equality(parser_state ps)
 {
 	token t;
-	while (match(ps.p, xbtoken::OPERATOR_COMPARISON_EQUAL, &t) || match(ps.p, xbtoken::OPERATOR_COMPARISON_NOTEQUAL, &t)) {
+	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_EQUAL, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_NOTEQUAL, &t)) {
 		if (!manage_state(ps, try_equality(new_state(ps.p, ps.end)))) {
 			return false;
 		}
 		switch (t.user_type) {
-		case xbtoken::OPERATOR_COMPARISON_EQUAL:
+		case xbtoken::OPERATOR_LOGICAL_EQUAL:
 			if (!write_word(ps.p->out, XWORD{XIS::EQ})) { return false; }
 			break;
-		case xbtoken::OPERATOR_COMPARISON_NOTEQUAL:
+		case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:
 			if (!write_word(ps.p->out, XWORD{XIS::NE})) { return false; }
 			break;
 		default:
@@ -1080,13 +1080,83 @@ static bool try_or(parser_state ps)
 	return false;
 }
 
-static bool try_expr(parser_state ps)
+static bool try_logical_and(parser_state ps);
+
+static bool try_opt_logical_and(parser_state ps)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_AND, &t)) {
+		if (!manage_state(ps, try_logical_and(new_state(ps.p, ps.end)))) {
+			return false;
+		}
+		switch (t.user_type) {
+		case xbtoken::OPERATOR_LOGICAL_AND:
+			// TODO Short-circuit
+			if (!write_word(ps.p->out, XWORD{XIS::AND})) { return false; }
+			break;
+		default:
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool try_logical_and(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
 			try_or    (new_state(ps.p, ps.end)) &&
 			try_opt_or(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_logical_or(parser_state ps);
+
+static bool try_opt_logical_or(parser_state ps)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_OR, &t)) {
+		if (!manage_state(ps, try_logical_or(new_state(ps.p, ps.end)))) {
+			return false;
+		}
+		switch (t.user_type) {
+		case xbtoken::OPERATOR_LOGICAL_OR:
+			// TODO Short-circuit
+			if (!write_word(ps.p->out, XWORD{XIS::OR})) { return false; }
+			break;
+		default:
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool try_logical_or(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_logical_and    (new_state(ps.p, ps.end)) &&
+			try_opt_logical_and(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_expr(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_logical_or    (new_state(ps.p, ps.end)) &&
+			try_opt_logical_or(new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
