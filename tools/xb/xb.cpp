@@ -620,7 +620,6 @@ static bool try_put_fn_params(parser_state ps, U16 *param_count)
 
 static bool try_put_opt_fn_params(parser_state ps, const symbol *sym)
 {
-	// BUG Not properly counting params and verifying.
 	U16 param_count = 0;
 	if (
 		manage_state(
@@ -850,7 +849,7 @@ static bool try_index_src(parser_state ps)
 	return false;
 }
 
-static bool try_put_index(parser_state ps)
+static bool try_put_index_addr(parser_state ps)
 {
 	if (
 		manage_state(
@@ -859,8 +858,21 @@ static bool try_put_index(parser_state ps)
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)            &&
 			try_expr     (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)            &&
-			write_word   (ps.p->out, XWORD{XIS::ADD})                           &&
-			write_word   (ps.p->out, XWORD{XIS::AT})
+			write_word   (ps.p->out, XWORD{XIS::ADD})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_put_index(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_put_index_addr(new_state(ps.p, ps.end))   &&
+			write_word        (ps.p->out, XWORD{XIS::AT})
 		)
 	) {
 		return true;
