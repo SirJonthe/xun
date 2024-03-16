@@ -137,7 +137,7 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 38;
+const signed XB_TOKEN_COUNT = 37;
 const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -145,7 +145,6 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_keyword ("while",                   5, xbtoken::KEYWORD_CONTROL_WHILE),
 	new_keyword ("asm",                     3, xbtoken::KEYWORD_INTRINSIC_ASM),
 	new_keyword ("auto",                    4, xbtoken::KEYWORD_TYPE_AUTO),
-	new_keyword ("const",                   5, xbtoken::KEYWORD_TYPE_CONST),
 	new_operator("<=",                      2, xbtoken::OPERATOR_LOGICAL_LESSEQUAL),
 	new_operator(">=",                      2, xbtoken::OPERATOR_LOGICAL_GREATEREQUAL),
 	new_operator("==",                      2, xbtoken::OPERATOR_LOGICAL_EQUAL),
@@ -306,11 +305,11 @@ static unsigned chcount(const char *s)
 struct parser
 {
 	input_tokens  in;     // The parser input.
-	xcc_binary   out;    // The parser output.
+	xcc_binary    out;    // The parser output.
 	token         max;    // The maximally reached token.
 	symbol_stack  scopes; // The symbols ordered into scopes.
 	symbol       *fn;     // The current function being parsed.
-	xcc_error    error;  // The first fatal error.
+	xcc_error     error;  // The first fatal error.
 };
 
 static symbol *find_symbol(const chars &name, parser *p)
@@ -803,15 +802,28 @@ static bool try_opt_factor(parser_state ps)
 	return true;
 }
 
+static bool try_rval(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_call_fn(new_state(ps.p, ps.end)) ||
+			try_put_lit(new_state(ps.p, ps.end)) ||
+			try_put_var(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_factor(parser_state ps)
 {
 	// BUG: A failed function call (i.e. mismatched number of parameters) still passes one of the rules below (probably parenthesis).
 	if (
 		manage_state(
 			ps,
-			try_call_fn(new_state(ps.p, ps.end)) ||
-			try_put_lit(new_state(ps.p, ps.end)) ||
-			try_put_var(new_state(ps.p, ps.end)) ||
+			try_rval(new_state(ps.p, ps.end)) ||
 			(
 				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 				try_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
