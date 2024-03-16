@@ -31,8 +31,7 @@
 // [ ] Push a second scope after parameter scope
 // [ ] Loops
 // [ ] Comparisons
-// [ ] Declare empty arrays
-// [ ] Compiletime evaluator that is as capable as runtime evaluator
+// [ ] Compile-time evaluator that is as capable as run-time evaluator
 // [ ] Arrays are pointers to first element
 // [ ] Inline assembly
 
