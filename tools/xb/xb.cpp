@@ -11,9 +11,9 @@
 //	}
 //	
 //	main() {
-//		a := 1;
+//		auto a = 1;
 //		a = function(1, 1);
-//		b := { 1, 1 };
+//		auto b = { 1, 1 };
 //		if (1) {
 //	
 //		} else {
@@ -32,31 +32,8 @@
 // [ ] Loops
 // [ ] Comparisons
 // [ ] Declare empty arrays
-// [ ] Bit operations
 // [ ] Arrays are pointers to first element
-// [ ] Indexing
 // [ ] Inline assembly
-// [ ] LHS expression
-
-// dec ::= 0-9
-// hex ::= 0x0-9a-fA-F
-// num ::= dec | hex
-// name ::= a-zA-Z0-9_
-
-// fn ::= name "(" pms ")" "{" stmts "}"
-// pms ::= E | pm,pms | pm
-// pm ::= name
-// glob_stmts ::= E | glob_stmt glob_stmts
-// stmt ::= name ":=" expr ";" | name ":=" "{" exprs "}" ";" | fn
-// stmts ::= E | stmt stmts
-// stmt ::= name ":=" expr ";" | name ":=" "{" exprs "}" ";" | name "=" expr ";" | "{" stmts "}" | "if" "(" expr ")" stmt | "while" "(" expr ")" stmt | "return" expr ";" | "asm" asm_stmt | expr ";"
-// asm_stmt ::= asm | "{" asm_stmts "}"
-// asm_stmts ::= E | asm_stmt asm_stmts
-// exprs ::= E | expr,exprs | expr
-// expr ::= term | term (+|-) term
-// term ::= factor | factor ("*" | "/") factor
-// factor ::= "*" val | "&" val | "(" expr ")"
-// val ::= "*" val | name "(" exprs ")" | val "[" expr "]" | name | num
 
 #include <cstdlib>
 #include "xb.h"
