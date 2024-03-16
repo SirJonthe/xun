@@ -850,17 +850,17 @@ static bool try_index_src(parser_state ps)
 	return false;
 }
 
-static bool try_index_val(parser_state ps)
+static bool try_put_index(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
-			try_put_var_addr(new_state(ps.p, ps.end))                              &&
-			match           (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)            &&
-			try_expr        (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
-			match           (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)            &&
-			write_word      (ps.p->out, XWORD{XIS::ADD})                           &&
-			write_word      (ps.p->out, XWORD{XIS::AT})
+			try_index_src(new_state(ps.p, ps.end))                              &&
+			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)            &&
+			try_expr     (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
+			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)            &&
+			write_word   (ps.p->out, XWORD{XIS::ADD})                           &&
+			write_word   (ps.p->out, XWORD{XIS::AT})
 		)
 	) {
 		return true;
@@ -877,6 +877,7 @@ static bool try_rval(parser_state ps)
 			try_redir_val(new_state(ps.p, ps.end)) ||
 			try_call_fn  (new_state(ps.p, ps.end)) ||
 			try_put_lit  (new_state(ps.p, ps.end)) ||
+			try_put_index(new_state(ps.p, ps.end)) ||
 			try_put_var  (new_state(ps.p, ps.end))
 		)
 	) {
