@@ -1281,30 +1281,48 @@ static bool try_expr_list(parser_state ps)
 	return false;
 }
 
-static bool try_new_arr_item(parser_state ps)
-{
-	// TODO implement
-	return false;
-}
+static bool try_new_var_list(parser_state ps);
 
-static bool try_opt_decl_expr(parser_state ps)
+static bool try_opt_arr_def_expr(parser_state ps, U16 size)
 {
-	if (peek(ps.p).user_type == ps.end) {
+	token p = peek(ps.p);
+	if (p.user_type == ps.end || p.user_type == xbtoken::OPERATOR_COMMA) {
 		return
-			write_word(ps.p->out, XWORD{XIS::PUT}) &&
-			write_word(ps.p->out, XWORD{0});
+			write_word(ps.p->out, XWORD{XIS::PUT})  &&
+			write_word(ps.p->out, XWORD{size})      &&
+			write_word(ps.p->out, XWORD{XIS::PUSH});
 	}
 	if (
 		manage_state(
 			ps,
-			match(ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET) &&
+			match        (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)             &&
+			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)            &&
+			try_expr_list(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
+		)
+	) {
+		// TODO Verify size
+		return true;
+	}
+	return false;
+}
+
+static bool try_new_arr_item(parser_state ps)
+{
+	token t;
+	symbol *sym;
+	if (
+		manage_state(
+			ps,
+			match               (ps.p, token::ALIAS, &t)                                          &&
+			(sym = add_var(t.text, ps.p)) != NULL                                                 &&
+			((ps.p->out.size -= 2) || ps.p->out.size == 0)                                        && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
+			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                       &&
+			try_lit_expr        (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
+			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                       &&
+			try_opt_arr_def_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON), sym->size)         &&
 			(
-				try_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) ||
-				(
-					match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)            &&
-					try_expr_list(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-					match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
-				)
+				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_var_list(new_state(ps.p, ps.end)) : true
 			)
 		)
 	) {
@@ -1313,7 +1331,25 @@ static bool try_opt_decl_expr(parser_state ps)
 	return false;
 }
 
-static bool try_new_var_list(parser_state ps);
+static bool try_opt_var_def_expr(parser_state ps)
+{
+	token p = peek(ps.p);
+	if (p.user_type == ps.end || p.user_type == xbtoken::OPERATOR_COMMA) {
+		return
+			write_word(ps.p->out, XWORD{XIS::PUT}) &&
+			write_word(ps.p->out, XWORD{0});
+	}
+	if (
+		manage_state(
+			ps,
+			match   (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)      &&
+			try_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
 
 static bool try_new_var_item(parser_state ps)
 {
@@ -1321,10 +1357,10 @@ static bool try_new_var_item(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match            (ps.p, token::ALIAS, &t)                       &&
-			add_var(t.text, ps.p) != NULL                                   &&
-			((ps.p->out.size -= 2) || ps.p->out.size == 0)                  && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
-			try_opt_decl_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			match               (ps.p, token::ALIAS, &t)                       &&
+			add_var             (t.text, ps.p) != NULL                         &&
+			((ps.p->out.size -= 2) || ps.p->out.size == 0)                     && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
+			try_opt_var_def_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_var_list(new_state(ps.p, ps.end)) : true
 			)
@@ -1355,9 +1391,9 @@ static bool try_new_vars(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match            (ps.p, xbtoken::KEYWORD_TYPE_AUTO)             &&
-			try_new_var_list (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
-			match            (ps.p, xbtoken::OPERATOR_SEMICOLON)
+			match           (ps.p, xbtoken::KEYWORD_TYPE_AUTO)             &&
+			try_new_var_list(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			match           (ps.p, xbtoken::OPERATOR_SEMICOLON)
 		)
 	) {
 		return true;

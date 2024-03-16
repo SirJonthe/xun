@@ -1,4 +1,4 @@
-auto font = {
+auto font[380] = {
 	0xfffd, 0xfdfd, 0xfffd, 0xffff, 0xfff5, 0xf5ff,
 	0xffff, 0xffff, 0xffeb, 0xc1eb, 0xc1eb, 0xffff,
 	0xffc3, 0xe9c1, 0xcbe1, 0xffff, 0xffdd, 0xeff7,
@@ -83,7 +83,7 @@ auto VIDMEM_BITS_PER_PX     =   1;
 auto VIDMEM_YSTRIDE_WORDS   = ((VIDMEM_PX_WIDTH * VIDMEM_BITS_PER_PX) / 16);
 auto VIDMEM_SIZE_WORDS      = (VIDMEM_YSTRIDE_WORDS * VIDMEM_PX_HEIGHT);
 
-auto PALETTE = {
+auto PALETTE[2] = {
 	0x0000, 0xffff
 };
 
