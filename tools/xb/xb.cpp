@@ -54,9 +54,9 @@
 // asm_stmts ::= E | asm_stmt asm_stmts
 // exprs ::= E | expr,exprs | expr
 // expr ::= term | term (+|-) term
-// term ::= factor | factor (*|/) factor
-// factor ::= *val | &val | "(" expr ")"
-// val ::= *val | name "(" exprs ")" | val "[" expr "]" | name | num
+// term ::= factor | factor ("*" | "/") factor
+// factor ::= "*" val | "&" val | "(" expr ")"
+// val ::= "*" val | name "(" exprs ")" | val "[" expr "]" | name | num
 
 #include <cstdlib>
 #include "xb.h"
@@ -549,20 +549,33 @@ static bool write_rel(parser *p, const symbol *sym)
 			write_word(p->out, XWORD{XIS::RLB});
 }
 
-static bool try_put_var(parser_state ps)
+static bool try_put_var_addr(parser_state ps)
 {
 	token t;
+	symbol *sym;
 	if (
 		manage_state(
 			ps,
-			match(ps.p, token::ALIAS, &t)
+			match(ps.p, token::ALIAS, &t)          &&
+			(sym = find_var(t.text, ps.p)) != NULL &&
+			write_rel(ps.p, sym)
 		)
 	) {
-		symbol *sym = find_var(t.text, ps.p);
-		if (sym == NULL) { return false; }
-		return
-			write_rel (ps.p, sym)                 &&
-			write_word(ps.p->out, XWORD{XIS::AT});
+		return true;
+	}
+	return false;
+}
+
+static bool try_put_var(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_put_var_addr(new_state(ps.p, ps.end)) &&
+			write_word(ps.p->out, XWORD{XIS::AT})
+		)
+	) {
+		return true;
 	}
 	return false;
 }
@@ -802,14 +815,16 @@ static bool try_opt_factor(parser_state ps)
 	return true;
 }
 
-static bool try_rval(parser_state ps)
+static bool try_rval(parser_state ps);
+
+static bool try_redir_val(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
-			try_call_fn(new_state(ps.p, ps.end)) ||
-			try_put_lit(new_state(ps.p, ps.end)) ||
-			try_put_var(new_state(ps.p, ps.end))
+			match     (ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
+			try_rval  (new_state(ps.p, ps.end))                &&
+			write_word(ps.p->out, XWORD{XIS::AT})
 		)
 	) {
 		return true;
@@ -817,13 +832,114 @@ static bool try_rval(parser_state ps)
 	return false;
 }
 
-static bool try_factor(parser_state ps)
+static bool try_index_src(parser_state ps)
 {
-	// BUG: A failed function call (i.e. mismatched number of parameters) still passes one of the rules below (probably parenthesis).
 	if (
 		manage_state(
 			ps,
-			try_rval(new_state(ps.p, ps.end)) ||
+			try_put_var_addr(new_state(ps.p, ps.end)) ||
+			(
+				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+				try_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_index_val(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_put_var_addr(new_state(ps.p, ps.end))                              &&
+			match           (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)            &&
+			try_expr        (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
+			match           (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)            &&
+			write_word      (ps.p->out, XWORD{XIS::ADD})                           &&
+			write_word      (ps.p->out, XWORD{XIS::AT})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+// val ::= "*" val | name "(" exprs ")" | val "[" expr "]" | name | num
+static bool try_rval(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_redir_val(new_state(ps.p, ps.end)) ||
+			try_call_fn  (new_state(ps.p, ps.end)) ||
+			try_put_lit  (new_state(ps.p, ps.end)) ||
+			try_put_var  (new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_uni_addr(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xbtoken::OPERATOR_BITWISE_AND) &&
+			try_put_var_addr(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_uni_pos(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD) &&
+			try_rval(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_uni_neg(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match     (ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB) &&
+			write_word(ps.p->out, XWORD{XIS::PUT})             &&
+			write_word(ps.p->out, XWORD{0})                    &&
+			try_rval  (new_state(ps.p, ps.end))                &&
+			write_word(ps.p->out, XWORD{XIS::SUB})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+// factor ::= "&" val | "+" val | "-" val | "(" expr ")"
+static bool try_factor(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_uni_addr(new_state(ps.p, ps.end)) ||
+			try_uni_pos (new_state(ps.p, ps.end)) ||
+			try_uni_neg (new_state(ps.p, ps.end)) ||
+			try_rval    (new_state(ps.p, ps.end)) ||
 			(
 				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
 				try_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
