@@ -988,7 +988,7 @@ static bool try_opt_and(parser_state ps)
 			return false;
 		}
 		switch (t.user_type) {
-		case xbtoken::OPERATOR_COMPARISON_AND:
+		case xbtoken::OPERATOR_BITWISE_AND:
 			if (!write_word(ps.p->out, XWORD{XIS::AND})) { return false; }
 			break;
 		default:
