@@ -1533,6 +1533,20 @@ static bool try_expr_stmt(parser_state ps)
 	return false;
 }
 
+static bool try_lval(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			try_put_index_addr(new_state(ps.p, ps.end)) ||
+			try_put_var_addr  (new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_lexpr(parser_state ps)
 {
 	token t;
@@ -1540,9 +1554,7 @@ static bool try_lexpr(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, token::ALIAS, &t)       && // TODO support *val=expr; val[i]=expr; etc.
-			((sym = find_var(t.text, ps.p)) != NULL) &&
-			write_rel (ps.p, sym)
+			try_lval(new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
