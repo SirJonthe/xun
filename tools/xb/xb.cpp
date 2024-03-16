@@ -32,6 +32,7 @@
 // [ ] Loops
 // [ ] Comparisons
 // [ ] Declare empty arrays
+// [ ] Compiletime evaluator that is as capable as runtime evaluator
 // [ ] Arrays are pointers to first element
 // [ ] Inline assembly
 
@@ -195,6 +196,7 @@ struct symbol
 	U16     category;    // VAR, PARAM, LIT, FN
 	U16     scope_index; // The scope index this symbol is defined in.
 	U16     param_count; // For functions, the number of parameters a function takes.
+	U16     size;        // 0 for literals and parameters, 1 for functions, 1 or more for variables.
 	symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter.
 };
 
@@ -212,31 +214,9 @@ static U16 top_scope_stack_size(const symbol_stack &s)
 {
 	U16 size = 0;
 	for (U16 i = s.top_index; i < s.count; ++i) {
-		const symbol *sym = &s.symbols[i];
-		if (sym->category != symbol::LIT && sym->category != symbol::PARAM) {
-			++size;
-		}
+		size += s.symbols[i].size;
 	}
 	return size;
-}
-
-static U16 fn_scope_stack_size(const symbol *fn, const symbol_stack &s)
-{
-	U16 size        = 0;
-	U16 scope_index = fn->scope_index + 1;
-	U16 i           = 0;
-	while (i < s.count && s.symbols[i].scope_index < scope_index) {
-		++i;
-	}
-	while (i < s.count) {
-		const symbol *sym = &s.symbols[i];
-		if (sym->category != symbol::LIT && sym->category != symbol::PARAM) {
-			++size;
-		}
-		++i;
-	}
-	return size;
-
 }
 
 static bool push_scope(symbol_stack &ss)
@@ -339,7 +319,18 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 	sym.category    = category;
 	sym.scope_index = p->scopes.scope;
 	sym.param_count = 0;
+	sym.size        = 1;
 	sym.param       = NULL;
+	switch (category) {
+	case symbol::PARAM:
+	case symbol::LIT:
+		sym.size = 0;
+		break;
+	case symbol::VAR:
+	case symbol::FN:
+		sym.size = 1;
+		break;
+	}
 	if (category != symbol::PARAM) {
 		if (category != symbol::LIT) {
 			sym.data.u = top_scope_stack_size(p->scopes) + 1;
@@ -382,11 +373,6 @@ static symbol *add_fn(const chars &name, parser *p)
 static U16 top_scope_stack_size(const parser *p)
 {
 	return top_scope_stack_size(p->scopes);
-}
-
-static U16 fn_scope_stack_size(const parser *p)
-{
-	return fn_scope_stack_size(p->fn, p->scopes);
 }
 
 static bool emit_pop_scope(parser *p)
@@ -1295,16 +1281,30 @@ static bool try_expr_list(parser_state ps)
 	return false;
 }
 
-static bool try_decl_expr(parser_state ps)
+static bool try_new_arr_item(parser_state ps)
 {
+	// TODO implement
+	return false;
+}
+
+static bool try_opt_decl_expr(parser_state ps)
+{
+	if (peek(ps.p).user_type == ps.end) {
+		return
+			write_word(ps.p->out, XWORD{XIS::PUT}) &&
+			write_word(ps.p->out, XWORD{0});
+	}
 	if (
 		manage_state(
 			ps,
-			try_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) ||
+			match(ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET) &&
 			(
-				match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)            &&
-				try_expr_list(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-				match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
+				try_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) ||
+				(
+					match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)            &&
+					try_expr_list(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+					match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
+				)
 			)
 		)
 	) {
@@ -1313,20 +1313,51 @@ static bool try_decl_expr(parser_state ps)
 	return false;
 }
 
-static bool try_new_var(parser_state ps)
+static bool try_new_var_list(parser_state ps);
+
+static bool try_new_var_item(parser_state ps)
 {
 	token t;
-	symbol *sym;
 	if (
 		manage_state(
 			ps,
-			match        (ps.p, xbtoken::KEYWORD_TYPE_AUTO)             &&
-			match        (ps.p, token::ALIAS, &t)                       &&
-			(sym = add_var(t.text, ps.p)) != NULL                       &&
-			((ps.p->out.size -= 2) || ps.p->out.size == 0)              && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
-			match        (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)       &&
-			try_decl_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
-			match        (ps.p, xbtoken::OPERATOR_SEMICOLON)
+			match            (ps.p, token::ALIAS, &t)                       &&
+			add_var(t.text, ps.p) != NULL                                   &&
+			((ps.p->out.size -= 2) || ps.p->out.size == 0)                  && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
+			try_opt_decl_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			(
+				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_var_list(new_state(ps.p, ps.end)) : true
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_new_var_list(parser_state ps)
+{
+	token t;
+	if (
+		manage_state(
+			ps,
+			try_new_arr_item(new_state(ps.p, ps.end)) ||
+			try_new_var_item(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_new_vars(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match            (ps.p, xbtoken::KEYWORD_TYPE_AUTO)             &&
+			try_new_var_list (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			match            (ps.p, xbtoken::OPERATOR_SEMICOLON)
 		)
 	) {
 		return true;
@@ -1638,7 +1669,7 @@ static bool try_statement(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			try_new_var       (new_state(ps.p, ps.end)) ||
+			try_new_vars      (new_state(ps.p, ps.end)) ||
 			try_if            (new_state(ps.p, ps.end)) ||
 			try_return_stmt   (new_state(ps.p, ps.end)) ||
 			try_scope         (new_state(ps.p, ps.end)) ||
@@ -1798,15 +1829,35 @@ static bool try_fn_decl(parser_state ps)
 	}
 	return false;
 }
+#include <iostream>
+static bool dummy_lit_expr(parser_state ps)
+{
+	// TODO Remove me
+	U16 result = 0;
+	if (
+		manage_state(
+			ps,
+			match(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L) &&
+			try_lit_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R), result) &&
+			match(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R) &&
+			match(ps.p, xbtoken::OPERATOR_SEMICOLON)
+		)
+	) {
+		std::cout << "RESULT IS = " << result << std::endl;
+		return true;
+	}
+	return false;
+}
 
 static bool try_global_statement(parser_state ps)
 {
 	if (
 		manage_state(
 			ps,
-			try_fn_def (new_state(ps.p, ps.end)) ||
-			try_fn_decl(new_state(ps.p, ps.end)) ||
-			try_new_var(new_state(ps.p, ps.end))
+			dummy_lit_expr(new_state(ps.p, ps.end)) || // TODO Remove me
+			try_fn_def  (new_state(ps.p, ps.end)) ||
+			try_fn_decl (new_state(ps.p, ps.end)) ||
+			try_new_vars(new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
