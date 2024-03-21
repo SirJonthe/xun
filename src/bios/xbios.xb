@@ -1,4 +1,12 @@
-auto font[380] = {
+const VIDEO_PX_WIDTH           = 320;
+const VIDEO_PX_HEIGHT          = 240;
+const VIDEO_BITS_PER_PX        =   1;
+const VIDEO_WORDS_PER_SCANLINE = ((VIDEO_PX_WIDTH * VIDEO_BITS_PER_PX) / 16);
+const VIDEO_SIZE_WORDS         = (VIDEO_WORDS_PER_SCANLINE * VIDEO_PX_HEIGHT);
+auto  VIDEO[VIDEO_SIZE_WORDS];
+
+const FONT_ATLAS_SIZE_WORDS = 380;
+auto FONT_ATLAS[FONT_ATLAS_SIZE_WORDS] = {
 	0xfffd, 0xfdfd, 0xfffd, 0xffff, 0xfff5, 0xf5ff,
 	0xffff, 0xffff, 0xffeb, 0xc1eb, 0xc1eb, 0xffff,
 	0xffc3, 0xe9c1, 0xcbe1, 0xffff, 0xffdd, 0xeff7,
@@ -65,28 +73,75 @@ auto font[380] = {
 	0xc1c1, 0xffff
 };
 
-auto FONT_BITS_PER_PX       =   1;
-auto FONT_ATLAS_PX_WIDTH    =   8;
-auto FONT_ATLAS_PX_HEIGHT   = 760;
-auto FONT_CHAR_WIDTH_COUNT  =   1;
-auto FONT_CHAR_HEIGHT_COUNT =  95;
-auto FONT_CHAR_PX_WIDTH     =   6;
-auto FONT_CHAR_PX_HEIGHT    =   8;
-auto FONT_SIZE_WORDS        = ((FONT_ATLAS_PX_WIDTH * FONT_ATLAS_PX_HEIGHT * FONT_BITS_PER_PX) / 16);
+const FONT_BITS_PER_PX             =   1;
+const FONT_ATLAS_PX_WIDTH          =   8;
+const FONT_ATLAS_PX_HEIGHT         = 760;
+const FONT_ATLAS_CHAR_WIDTH_COUNT  =   1;
+const FONT_ATLAS_CHAR_HEIGHT_COUNT =  95;
+const FONT_CHAR_PX_WIDTH           =   6;
+const FONT_CHAR_PX_HEIGHT          =   8;
+const FONT_CHAR_SCANLINES_PER_WORD =   2;
+const FONT_SIZE_WORDS              = ((FONT_ATLAS_PX_WIDTH * FONT_ATLAS_PX_HEIGHT * FONT_BITS_PER_PX) / 16);
 
-auto FONT_CHAR_ASCII_START  =  33;
-auto FONT_CHAR_ASCII_END    = 126;
+const FONT_CHAR_ASCII_START =  33;
+const FONT_CHAR_ASCII_END   = 126;
 
-auto VIDMEM_PX_WIDTH        = 320;
-auto VIDMEM_PX_HEIGHT       = 240;
-auto VIDMEM_BITS_PER_PX     =   1;
-auto VIDMEM_YSTRIDE_WORDS   = ((VIDMEM_PX_WIDTH * VIDMEM_BITS_PER_PX) / 16);
-auto VIDMEM_SIZE_WORDS      = (VIDMEM_YSTRIDE_WORDS * VIDMEM_PX_HEIGHT);
+const VIDEO_CHARS_WIDTH  = VIDEO_PX_WIDTH  / FONT_CHAR_PX_WIDTH;
+const VIDEO_CHARS_HEIGHT = VIDEO_PX_HEIGHT / FONT_CHAR_PX_HEIGHT;
 
-auto PALETTE[2] = {
-	0x0000, 0xffff
-};
+draw_glyph(ch, x, y)
+{
+	if (ch == 32) { return x + 1; }
+	if (ch ==  9) { return x / 4 * 4; }
 
-main(a,b) {
+	auto glyph = FONT_ATLAS;
+	if (ch < FONT_CHAR_ASCII_START || ch > FONT_CHAR_ASCII_END) { glyph = ((FONT_CHAR_ASCII_END + 1) * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD; }
+	else                                                        { glyph = (ch * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD; }
+
+	auto video = VIDEO + VIDEO_WORDS_PER_SCANLINE * y * FONT_CHAR_PX_HEIGHT + (x / FONT_CHAR_SCANLINES_PER_WORD);
+	y = 0;
+	if (x % FONT_CHAR_SCANLINES_PER_WORD == 0) {
+		while (y < FONT_CHAR_PX_HEIGHT) {
+			auto mask = 0xff00;
+			*video = *video | (mask & glyph);
+			video = video + VIDEO_WORDS_PER_SCANLINE;
+			mask = mask >> 8;
+			*video = *video | ((mask & glyph) << 8);
+			video = video + VIDEO_WORDS_PER_SCANLINE;
+			glyph = glyph + 1;
+			y = y + 2;
+		}
+	} else {
+		while (y < FONT_CHAR_PX_HEIGHT) {
+			auto mask = 0xff00;
+			*video = *video | ((mask & glyph) >> 8);
+			video = video + VIDEO_WORDS_PER_SCANLINE;
+			mask = mask >> 8;
+			*video = *video | (mask & glyph);
+			video = video + VIDEO_WORDS_PER_SCANLINE;
+			glyph = glyph + 1;
+			y = y + 2;
+		}
+	}
+
+	return x + 1;
+}
+
+main(a,b)
+{
+	auto x = 0;
+	x = draw_glyph( 72, x, 0);
+	x = draw_glyph(101, x, 0);
+	x = draw_glyph(108, x, 0);
+	x = draw_glyph(108, x, 0);
+	x = draw_glyph(111, x, 0);
+	x = draw_glyph( 44, x, 0);
+	x = draw_glyph( 32, x, 0);
+	x = draw_glyph( 87, x, 0);
+	x = draw_glyph(111, x, 0);
+	x = draw_glyph(114, x, 0);
+	x = draw_glyph(108, x, 0);
+	x = draw_glyph(100, x, 0);
+	x = draw_glyph( 33, x, 0);
 	return 1;
 }
