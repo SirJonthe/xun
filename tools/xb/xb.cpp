@@ -31,12 +31,12 @@
 
 // TODO
 // [ ] Operators consisting of multiple special characters
-// [ ] Strings
 // [ ] Short-circuit comparisons
 // [ ] Compile-time evaluator that is as capable as run-time evaluator
-// [ ] Include files (hard because it requires a virtual file system)
-// [ ] Inline assembly
+// [ ] Strings
 // [ ] Push a second scope after parameter scope in functions
+// [ ] Inline assembly
+// [ ] Include files (hard because it requires a virtual file system)
 
 #include <cstdlib>
 #include "xb.h"
@@ -104,7 +104,7 @@ struct xbtoken
 		OPERATOR_COLON,
 		OPERATOR_COMMA,
 		LITERAL_INT
-		//LITERAL_FLOAT = token::LITERAL | (2<<8),
+		// LITERAL_FLOAT
 	};
 };
 
