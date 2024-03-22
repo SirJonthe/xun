@@ -3,12 +3,65 @@ const NULL = 0;
 const EXIT_FAILURE = -1;
 const EXIT_SUCCESS =  0;
 
+str8(str, i)
+{
+	if (i%2) {
+		return str[i/2] & 0x00ff;
+	}
+	return str[i/2] >> 8;
+}
+
 atof(str);
+
 atoi(str);
+
 rand();
 srand(seed);
-calloc(n);
-malloc(n);
+
+malloc(n)
+{
+	if (n <= 0) {
+		return NULL;
+	}
+	// TODO: More here...
+}
+
+calloc(n)
+{
+	auto mem = malloc(n);
+	auto i = 0;
+	while (i < n) {
+		mem[i] = 0;
+		i = i + 1;
+	}
+	return mem;
+}
+
 free(mem);
-atexit(fn);
-exit();
+
+auto __exitfn = NULL;
+
+atexit(fn)
+{
+	__exitfn = fn;
+}
+
+auto __exitlock = 0;
+
+exit(status)
+{
+	if (__exitlock > 0) {
+		return -1;
+	}
+	__exitlock = __exitlock + 1;
+	if (__exitfn != NULL) {
+		__exitfn();
+	}
+	asm {
+		# TODO set the 'status' return value
+		ldb.
+		lda.
+		jmp.
+	}
+	// NOTE: Return instructions here will never be reached.
+}
