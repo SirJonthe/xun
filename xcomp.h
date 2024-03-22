@@ -31,8 +31,6 @@ private:
 	DeviceRelay       m_relay;                     // Connection to other devices. Drive and Clock connect to this automatically.
 	// DiskReader     m_reader;                      // 
 	
-	U16               m_latency_table[XIS::COUNT]; // Determines the latency in cycles for each instruction.
-	int32_t           m_latency_counter;           // The current latency that must tick down to 0 before executing next instruction.
 	uint32_t          m_cycles_per_second;         // The number of cycles that can run per second.
 
 	bool              m_power;                     // The power state of the computer.

@@ -13,7 +13,7 @@
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
 
-Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_latency_counter(0), m_cycles_per_second(10000000), m_power(false)
+Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_cycles_per_second(10000000), m_power(false)
 {
 	Device::Connect(*this, m_relay);
 	Connect(m_clock,            0);
