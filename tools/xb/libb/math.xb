@@ -1,0 +1,30 @@
+swap(a, b)
+{
+	auto t = a;
+	*a = *b;
+	*b = *t;
+}
+
+abs(a)
+{
+	if (a < 0) {
+		return -a;
+	}
+	return a;
+}
+
+min(a, b)
+{
+	if (a < b) {
+		return a;
+	}
+	return b;
+}
+
+max(a, b)
+{
+	if (a < b) {
+		return b;
+	}
+	return a;
+}

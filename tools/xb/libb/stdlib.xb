@@ -1,0 +1,14 @@
+const NULL = 0;
+
+const EXIT_FAILURE = -1;
+const EXIT_SUCCESS =  0;
+
+atof(str);
+atoi(str);
+rand();
+srand(seed);
+calloc(n);
+malloc(n);
+free(mem);
+atexit(fn);
+exit();
