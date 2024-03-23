@@ -30,13 +30,13 @@
 //	}
 
 // TODO
-// [ ] Operators consisting of multiple special characters
 // [ ] Short-circuit comparisons
 // [ ] Compile-time evaluator that is as capable as run-time evaluator
 // [ ] Strings
 // [ ] Push a second scope after parameter scope in functions
 // [ ] Inline assembly
 // [ ] Include files (hard because it requires a virtual file system)
+// [ ] continue, break
 
 #include <cstdlib>
 #include "xb.h"
@@ -71,6 +71,8 @@ struct xbtoken
 		KEYWORD_CONTROL_IF,
 		KEYWORD_CONTROL_ELSE,
 		KEYWORD_CONTROL_WHILE,
+		KEYWORD_CONTROL_BREAK,
+		KEYWORD_CONTROL_CONTINUE,
 		KEYWORD_INTRINSIC_ASM,
 		OPERATOR_ARITHMETIC_ADD,
 		OPERATOR_ARITHMETIC_SUB,
@@ -95,9 +97,11 @@ struct xbtoken
 		OPERATOR_LOGICAL_NOTEQUAL,
 		OPERATOR_LOGICAL_AND,
 		OPERATOR_LOGICAL_OR,
+		OPERATOR_LOGICAL_NOT,
 		OPERATOR_BITWISE_AND,
 		OPERATOR_BITWISE_OR,
 		OPERATOR_BITWISE_XOR,
+		OPERATOR_BITWISE_NOT,
 		OPERATOR_BITWISE_LSHIFT,
 		OPERATOR_BITWISE_RSHIFT,
 		OPERATOR_SEMICOLON,
@@ -108,12 +112,14 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 42;
+const signed XB_TOKEN_COUNT = 46;
 const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
 	new_keyword ("else",                    4, xbtoken::KEYWORD_CONTROL_ELSE),
 	new_keyword ("while",                   5, xbtoken::KEYWORD_CONTROL_WHILE),
+	new_keyword ("break",                   5, xbtoken::KEYWORD_CONTROL_BREAK),
+	new_keyword ("continue",                8, xbtoken::KEYWORD_CONTROL_CONTINUE),
 	new_keyword ("asm",                     3, xbtoken::KEYWORD_INTRINSIC_ASM),
 	new_keyword ("auto",                    4, xbtoken::KEYWORD_TYPE_AUTO),
 	new_keyword ("const",                   5, xbtoken::KEYWORD_TYPE_CONST),
@@ -126,6 +132,7 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_operator("<<",                      2, xbtoken::OPERATOR_BITWISE_LSHIFT),
 	new_operator(">>",                      2, xbtoken::OPERATOR_BITWISE_RSHIFT),
 	new_comment ("//",                      2),
+	new_operator("!",                       1, xbtoken::OPERATOR_LOGICAL_NOT),
 	new_operator("#",                       1, xbtoken::OPERATOR_MACRO),
 	new_operator("\"",                      1, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE),
 	new_operator("\'",                      1, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE),
@@ -149,6 +156,7 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_operator("&",                       1, xbtoken::OPERATOR_BITWISE_AND),
 	new_operator("|",                       1, xbtoken::OPERATOR_BITWISE_OR),
 	new_operator("^",                       1, xbtoken::OPERATOR_BITWISE_XOR),
+	new_operator("~",                       1, xbtoken::OPERATOR_BITWISE_NOT),
 	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,   token::ALIAS),
 	new_literal ("[0-9]+",                  6, xbtoken::LITERAL_INT),
 	new_literal ("0[xX][0-9a-fA-F]+",      17, xbtoken::LITERAL_INT, hex2u)
@@ -865,6 +873,38 @@ static bool try_put_index(parser_state ps)
 	return false;
 }
 
+static bool try_bwnot_val(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match     (ps.p, xbtoken::OPERATOR_BITWISE_AND) &&
+			try_rval  (new_state(ps.p, ps.end))             &&
+			write_word(ps.p->out, XWORD{XIS::NOT})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_lnot_val(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			match     (ps.p, xbtoken::OPERATOR_BITWISE_AND) &&
+			try_rval  (new_state(ps.p, ps.end))             &&
+			write_word(ps.p->out, XWORD{XIS::PUT})          &&
+			write_word(ps.p->out, XWORD{0})                 &&
+			write_word(ps.p->out, XWORD{XIS::EQ})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 // val ::= "*" val | name "(" exprs ")" | val "[" expr "]" | name | num
 static bool try_rval(parser_state ps)
 {
@@ -872,6 +912,8 @@ static bool try_rval(parser_state ps)
 		manage_state(
 			ps,
 			try_redir_val(new_state(ps.p, ps.end)) ||
+			try_bwnot_val(new_state(ps.p, ps.end)) ||
+			try_lnot_val (new_state(ps.p, ps.end)) ||
 			try_call_fn  (new_state(ps.p, ps.end)) ||
 			try_put_lit  (new_state(ps.p, ps.end)) ||
 			try_put_index(new_state(ps.p, ps.end)) ||
@@ -917,10 +959,8 @@ static bool try_uni_neg(parser_state ps)
 		manage_state(
 			ps,
 			match     (ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB) &&
-			write_word(ps.p->out, XWORD{XIS::PUT})             &&
-			write_word(ps.p->out, XWORD{0})                    &&
 			try_rval  (new_state(ps.p, ps.end))                &&
-			write_word(ps.p->out, XWORD{XIS::SUB})
+			write_word(ps.p->out, XWORD{XIS::INEG})
 		)
 	) {
 		return true;
@@ -1770,6 +1810,20 @@ static bool try_reass_var_stmt(parser_state ps)
 	return false;
 }
 
+static bool try_opt_expr(parser_state ps)
+{
+	if (
+		manage_state(
+			ps,
+			(peek(ps.p).user_type == ps.end) ||
+			try_expr(new_state(ps.p, ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_return_stmt(parser_state ps)
 {
 	if (
@@ -1783,7 +1837,7 @@ static bool try_return_stmt(parser_state ps)
 			write_word(ps.p->out, XWORD{XIS::PUT})                   &&
 			write_word(ps.p->out, XWORD{1})                          &&
 			write_word(ps.p->out, XWORD{XIS::SUB})                   &&
-			try_expr  (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			try_expr  (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) && // TODO: Should be try_opt_expr, but requires to mirror default return pattern at end of function.
 			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)            &&
 			write_word(ps.p->out, XWORD{XIS::MOVD})                  && // NOTE: Address of return value is top value. Move expression result to external return memory.
 			write_word(ps.p->out, XWORD{XIS::LDC})                   &&
