@@ -1912,20 +1912,18 @@ static bool try_asm_stmt(parser_state ps)
 
 static bool try_statement(parser_state ps)
 {
-	while (peek(ps.p).user_type == xbtoken::OPERATOR_SEMICOLON) {
-		match(ps.p, xbtoken::OPERATOR_SEMICOLON);
-	}
 	if (
 		manage_state(
 			ps,
-			try_new_vars      (new_state(ps.p, ps.end)) ||
-			try_new_consts    (new_state(ps.p, ps.end)) ||
-			try_if            (new_state(ps.p, ps.end)) ||
-			try_while         (new_state(ps.p, ps.end)) ||
-			try_return_stmt   (new_state(ps.p, ps.end)) ||
-			try_scope         (new_state(ps.p, ps.end)) ||
-			try_reass_var_stmt(new_state(ps.p, ps.end)) ||
-			try_expr_stmt     (new_state(ps.p, ps.end)) ||
+			match             (ps.p, xbtoken::OPERATOR_SEMICOLON) ||
+			try_new_vars      (new_state(ps.p, ps.end))           ||
+			try_new_consts    (new_state(ps.p, ps.end))           ||
+			try_if            (new_state(ps.p, ps.end))           ||
+			try_while         (new_state(ps.p, ps.end))           ||
+			try_return_stmt   (new_state(ps.p, ps.end))           ||
+			try_scope         (new_state(ps.p, ps.end))           ||
+			try_reass_var_stmt(new_state(ps.p, ps.end))           ||
+			try_expr_stmt     (new_state(ps.p, ps.end))           ||
 			try_asm_stmt      (new_state(ps.p, ps.end))
 		)
 	) {
@@ -2102,16 +2100,14 @@ static bool dummy_lit_expr(parser_state ps)
 
 static bool try_global_statement(parser_state ps)
 {
-	while (peek(ps.p).user_type == xbtoken::OPERATOR_SEMICOLON) {
-		match(ps.p, xbtoken::OPERATOR_SEMICOLON);
-	}
 	if (
 		manage_state(
 			ps,
-			dummy_lit_expr(new_state(ps.p, ps.end)) || // TODO Remove me
-			try_fn_def    (new_state(ps.p, ps.end)) ||
-			try_fn_decl   (new_state(ps.p, ps.end)) ||
-			try_new_vars  (new_state(ps.p, ps.end)) ||
+			match         (ps.p, xbtoken::OPERATOR_SEMICOLON) ||
+			dummy_lit_expr(new_state(ps.p, ps.end))           || // TODO Remove me
+			try_fn_def    (new_state(ps.p, ps.end))           ||
+			try_fn_decl   (new_state(ps.p, ps.end))           ||
+			try_new_vars  (new_state(ps.p, ps.end))           ||
 			try_new_consts(new_state(ps.p, ps.end))
 		)
 	) {
@@ -2147,7 +2143,8 @@ static bool emit_call_main(parser *op)
 
 	parser p = *op;
 	// TODO We need to think about how we pass parameters to programs, as well as return values from programs to the calling program. Use function calls as base.
-	// p.in.l = init_lexer(chars::view{"*0x00=main(*0x01,*0x02);", 24}); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
+	// TODO According to B manual "main(); exit();" are implicitly called in that order. Since we have parameters and return values from programs we can do the below:
+	// p.in.l = init_lexer(chars::view{"exit(main(*0x01,*0x02);", 24})); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
 	p.in.l = init_lexer(chars::view{ "main(0,0);", 10 });
 	parser_state ps = new_state(&p, token::STOP_EOF);
 	if (
