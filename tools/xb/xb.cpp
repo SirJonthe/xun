@@ -30,8 +30,6 @@
 //	}
 
 // TODO
-// [-] Short-circuit comparisons
-// [ ] Logical not
 // [ ] Compile-time evaluator that is as capable as run-time evaluator
 // [ ] Strings
 // [ ] Inline assembly
@@ -658,62 +656,71 @@ static bool try_call_fn(parser_state ps)
 }
 
 template < typename type_t >
-static bool try_lit_term(parser_state ps, type_t &result);
-
-template < typename type_t >
-static bool try_lit_opt_term(parser_state ps, type_t &result)
+static bool eval_operation(parser *p, unsigned user_type, type_t &l, type_t r)
 {
-	token t;
-	type_t l;
-	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB, &t)) {
-		if (!manage_state(ps, try_lit_term(new_state(ps.p, ps.end), l))) {
-			return false;
-		}
-		switch (t.user_type) {
-		case xbtoken::OPERATOR_ARITHMETIC_ADD:
-			result += l;
-			break;
-		case xbtoken::OPERATOR_ARITHMETIC_SUB:
-			result -= l;
-			break;
-		default:
-			return false;
-		}
+	switch (user_type) {
+	case xbtoken::OPERATOR_ARITHMETIC_ADD:
+		l += r;
+		return true;
+	case xbtoken::OPERATOR_ARITHMETIC_SUB:
+		l -= r;
+		return true;
+	case xbtoken::OPERATOR_ARITHMETIC_MUL:
+		l *= r;
+		return true;
+	case xbtoken::OPERATOR_ARITHMETIC_DIV:
+		l /= r;
+		return true;
+	case xbtoken::OPERATOR_ARITHMETIC_MOD:
+		l %= r;
+		return true;
+	case xbtoken::OPERATOR_BITWISE_AND:
+	case xbtoken::OPERATOR_LOGICAL_AND:
+		l &= r;
+		return true;
+	case xbtoken::OPERATOR_BITWISE_OR:
+	case xbtoken::OPERATOR_LOGICAL_OR:
+		l |= r;
+		return true;
+	case xbtoken::OPERATOR_BITWISE_XOR:
+		l ^= r;
+		return true;
+	case xbtoken::OPERATOR_BITWISE_NOT:
+		l = ~r;
+		return true;
+	case xbtoken::OPERATOR_BITWISE_LSHIFT:
+		l <<= r;
+		return true;
+	case xbtoken::OPERATOR_BITWISE_RSHIFT:
+		l >>= r;
+		return true;
+	case xbtoken::OPERATOR_LOGICAL_LESS:
+		l = (l < r);
+		return true;
+	case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:
+		l = (l <= r);
+		return true;
+	case xbtoken::OPERATOR_LOGICAL_GREATER:
+		l = (l > r);
+		return true;
+	case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL:
+		l = (l >= r);
+		return true;
+	case xbtoken::OPERATOR_LOGICAL_EQUAL:
+		l = (l == r);
+		return true;
+	case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:
+		l = (l != r);
+		return true;
+	case xbtoken::OPERATOR_LOGICAL_NOT:
+		l = !r;
+		return true;
 	}
-	return true;
+	return false;
 }
 
 template < typename type_t >
-static bool try_lit_factor(parser_state ps, type_t &result);
-
-template < typename type_t >
-static bool try_lit_opt_factor(parser_state ps, type_t &result)
-{
-	token t;
-	type_t l;
-	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MOD, &t)) {
-		if (!manage_state(ps, try_lit_factor(new_state(ps.p, ps.end), l))) {
-			return false;
-		}
-		switch (t.user_type) {
-		case xbtoken::OPERATOR_ARITHMETIC_MUL:
-			result *= l;
-			break;
-		case xbtoken::OPERATOR_ARITHMETIC_DIV:
-			result /= l;
-			break;
-		case xbtoken::OPERATOR_ARITHMETIC_MOD:
-			result %= l;
-			break;
-		default:
-			return false;
-		}
-	}
-	return true;
-}
-
-template < typename type_t >
-static bool try_lit_expr(parser_state ps, type_t &result);
+static bool try_lit_factor(parser_state ps, type_t &l);
 
 template < typename type_t >
 static bool try_read_lit(parser_state ps, type_t &result)
@@ -733,16 +740,77 @@ static bool try_read_lit(parser_state ps, type_t &result)
 }
 
 template < typename type_t >
-static bool try_lit_factor(parser_state ps, type_t &result)
+static bool try_lit_opt_factor(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MOD, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_factor(new_state(ps.p, ps.end), r) &&
+				eval_operation(ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_rval(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_bwnot_val(parser_state ps, type_t &l)
+{
+	token t;
+	if (
+		manage_state(
+			ps,
+			match         (ps.p, xbtoken::OPERATOR_BITWISE_NOT, &t) &&
+			try_lit_rval  (new_state(ps.p, ps.end), l)              &&
+			eval_operation(ps.p, t.user_type, l, l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_lnot_val(parser_state ps, type_t &l)
+{
+	token t;
+	if (
+		manage_state(
+			ps,
+			match         (ps.p, xbtoken::OPERATOR_LOGICAL_NOT, &t) &&
+			try_lit_rval  (new_state(ps.p, ps.end), l)              &&
+			eval_operation(ps.p, t.user_type, l, l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+// val ::= "*" val | name "(" exprs ")" | val "[" expr "]" | name | num
+template < typename type_t >
+static bool try_lit_rval(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
 			ps,
-			try_read_lit(new_state(ps.p, ps.end), result) ||
+			try_lit_bwnot_val(new_state(ps.p, ps.end), l) ||
+			try_lit_lnot_val (new_state(ps.p, ps.end), l) ||
+			try_read_lit     (new_state(ps.p, ps.end), l) ||
 			(
-				match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                    &&
-				try_lit_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), result) &&
-				match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+				(
+					match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)               &&
+					try_lit_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), l) &&
+					match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+				)
 			)
 		)
 	) {
@@ -752,13 +820,13 @@ static bool try_lit_factor(parser_state ps, type_t &result)
 }
 
 template < typename type_t >
-static bool try_lit_term(parser_state ps, type_t &result)
+static bool try_lit_uni_pos(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
 			ps,
-			try_lit_factor    (new_state(ps.p, ps.end), result) &&
-			try_lit_opt_factor(new_state(ps.p, ps.end), result)
+			match       (ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD) &&
+			try_lit_rval(new_state(ps.p, ps.end), l)
 		)
 	) {
 		return true;
@@ -767,13 +835,380 @@ static bool try_lit_term(parser_state ps, type_t &result)
 }
 
 template < typename type_t >
-static bool try_lit_expr(parser_state ps, type_t &result)
+static bool try_lit_uni_neg(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
 			ps,
-			try_lit_term    (new_state(ps.p, ps.end), result) &&
-			try_lit_opt_term(new_state(ps.p, ps.end), result)
+			match       (ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB) &&
+			try_lit_rval(new_state(ps.p, ps.end), l)
+		)
+	) {
+		l = -l;
+		return true;
+	}
+	return false;
+}
+
+// factor ::= "&" val | "+" val | "-" val | "(" expr ")"
+template < typename type_t >
+static bool try_lit_factor(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_uni_pos (new_state(ps.p, ps.end), l) ||
+			try_lit_uni_neg (new_state(ps.p, ps.end), l) ||
+			try_lit_rval    (new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_term(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_term(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_term  (new_state(ps.p, ps.end), r) &&
+				eval_operation(ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_term(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_factor    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_factor(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_bitshift(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_bitshift(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_BITWISE_LSHIFT, &t) || match(ps.p, xbtoken::OPERATOR_BITWISE_RSHIFT, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_bitshift(new_state(ps.p, ps.end), r) &&
+				eval_operation  (ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_bitshift(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_term    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_term(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_less_greater(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_less_greater(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_LESS, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_LESSEQUAL, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_GREATER, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_GREATEREQUAL, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_less_greater(new_state(ps.p, ps.end), r) &&
+				eval_operation      (ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_less_greater(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_bitshift    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_bitshift(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_equality(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_equality(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_EQUAL, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_NOTEQUAL, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_equality(new_state(ps.p, ps.end), r) &&
+				eval_operation  (ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_equality(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_less_greater    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_less_greater(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_and(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_and(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_BITWISE_AND, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_and   (new_state(ps.p, ps.end), r) &&
+				eval_operation(ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_and(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_equality    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_equality(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_xor(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_xor(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_BITWISE_XOR, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_xor   (new_state(ps.p, ps.end), r) &&
+				eval_operation(ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_xor(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_and    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_and(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_or(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_or(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_BITWISE_OR, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_or    (new_state(ps.p, ps.end), r) &&
+				eval_operation(ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_or(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_xor    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_xor(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_logical_and(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_logical_and(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_AND, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_logical_and(new_state(ps.p, ps.end), r) &&
+				eval_operation     (ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_logical_and(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_or    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_or(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_logical_or(parser_state ps, type_t &l);
+
+template < typename type_t >
+static bool try_lit_opt_logical_or(parser_state ps, type_t &l)
+{
+	token t;
+	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_OR, &t)) {
+		type_t r = 0;
+		if (
+			!manage_state(
+				ps,
+				try_lit_logical_or(new_state(ps.p, ps.end), r) &&
+				eval_operation    (ps.p, t.user_type, l, r)
+			)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template < typename type_t >
+static bool try_lit_logical_or(parser_state ps, type_t &l)
+{
+	if (
+		manage_state(
+			ps,
+			try_lit_logical_and    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_logical_and(new_state(ps.p, ps.end), l)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+template < typename type_t >
+static bool try_lit_expr(parser_state ps, type_t &l)
+{
+
+	if (
+		manage_state(
+			ps,
+			try_lit_logical_or    (new_state(ps.p, ps.end), l) &&
+			try_lit_opt_logical_or(new_state(ps.p, ps.end), l)
 		)
 	) {
 		return true;
@@ -938,12 +1373,13 @@ static bool try_put_index(parser_state ps)
 
 static bool try_bwnot_val(parser_state ps)
 {
+	token t;
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, xbtoken::OPERATOR_BITWISE_NOT) &&
-			try_rval  (new_state(ps.p, ps.end))             &&
-			write_word(ps.p->out, XWORD{XIS::NOT})
+			match         (ps.p, xbtoken::OPERATOR_BITWISE_NOT, &t) &&
+			try_rval      (new_state(ps.p, ps.end))                 &&
+			emit_operation(ps.p, t.user_type)
 		)
 	) {
 		return true;
@@ -953,14 +1389,13 @@ static bool try_bwnot_val(parser_state ps)
 
 static bool try_lnot_val(parser_state ps)
 {
+	token t;
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, xbtoken::OPERATOR_BITWISE_NOT) &&
-			try_rval  (new_state(ps.p, ps.end))             &&
-			write_word(ps.p->out, XWORD{XIS::PUT})          &&
-			write_word(ps.p->out, XWORD{0})                 &&
-			write_word(ps.p->out, XWORD{XIS::EQ})
+			match         (ps.p, xbtoken::OPERATOR_LOGICAL_NOT, &t) &&
+			try_rval      (new_state(ps.p, ps.end))                 &&
+			emit_operation(ps.p, t.user_type)
 		)
 	) {
 		return true;
@@ -980,7 +1415,14 @@ static bool try_rval(parser_state ps)
 			try_call_fn  (new_state(ps.p, ps.end)) ||
 			try_put_lit  (new_state(ps.p, ps.end)) ||
 			try_put_index(new_state(ps.p, ps.end)) ||
-			try_put_var  (new_state(ps.p, ps.end))
+			try_put_var  (new_state(ps.p, ps.end)) ||
+			(
+				(
+					match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
+					try_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+					match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+				)
+			)
 		)
 	) {
 		return true;
@@ -1040,12 +1482,7 @@ static bool try_factor(parser_state ps)
 			try_uni_addr(new_state(ps.p, ps.end)) ||
 			try_uni_pos (new_state(ps.p, ps.end)) ||
 			try_uni_neg (new_state(ps.p, ps.end)) ||
-			try_rval    (new_state(ps.p, ps.end)) ||
-			(
-				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-				try_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
-			)
+			try_rval    (new_state(ps.p, ps.end))
 		)
 	) {
 		return true;
