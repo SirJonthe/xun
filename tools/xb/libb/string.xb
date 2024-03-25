@@ -1,0 +1,12 @@
+/// @brief Returns the number of characters in a null-terminated string.
+/// @param str The string to measure the length of.
+/// @return The length of the string.
+/// @note The returned length does not include the null character itself.
+strlen(str)
+{
+	auto n = 0;
+	while (str[n] != 0) {
+		n = n + 1;
+	}
+	return n;
+}

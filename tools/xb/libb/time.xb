@@ -1,0 +1,23 @@
+const CLOCKS_PER_SEC = 1000;
+
+/// @brief Returns the raw clock state of the CPU clock.
+/// @return The raw clock state of the CPU clock.
+__cpu_clock()
+{
+	auto c;
+	asm {
+		put &c.
+		clock.
+		movd.
+	}
+	return c;
+}
+
+auto __clock_appstart = __cpu_clock();
+
+/// @brief Returns the current clock state since the start of the program.
+/// @return The current clock state since the start of the program.
+clock()
+{
+	return __cpu_clock() - __clock_appstart;
+}

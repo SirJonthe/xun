@@ -13,12 +13,12 @@
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
 
-Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_cycles_per_second(10000000), m_power(false)
+Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_clock_ps(0), m_power(false)
 {
+	SetCyclesPerSecond(10000000);
 	Device::Connect(*this, m_relay);
-	Connect(m_clock,            0);
-	Connect(m_power_controller, 1);
-	Connect(m_storage,          2);
+	Connect(m_power_controller, 0);
+	Connect(m_storage,          1);
 }
 
 // Flash memory with a program.
@@ -46,6 +46,7 @@ void Computer::PowerOff( void )
 {
 	if (m_power) {
 		m_power = false;
+		m_clock_ps = 0;
 		A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
 		for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = 0;
@@ -78,6 +79,14 @@ void Computer::PowerCycle( void )
 	if (m_power) {
 		PowerOff();
 		PowerOn();
+	}
+}
+
+void Computer::SetCyclesPerSecond(uint32_t hz)
+{
+	if (uint64_t(hz) < 1000000000000) {
+		m_cycles_per_second = hz;
+		m_ps_per_cycle = 1000000000000 / hz;
 	}
 }
 
@@ -133,6 +142,7 @@ XWORD Computer::PeekTop(U16 addr) const
 
 XWORD Computer::Cycle( void )
 {
+	m_clock_ps += m_ps_per_cycle;
 	const U16 I = READI;
 	switch (I) {
 	case XIS::NOP:
@@ -212,51 +222,51 @@ XWORD Computer::Cycle( void )
 		TOP.u = !TOP.u;
 		break;
 	case XIS::EQ:
-		LST.u = LST.u == TOP.u ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.u == TOP.u ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::NE:
-		LST.u = LST.u != TOP.u ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.u != TOP.u ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::LE:
-		LST.u = LST.u <= TOP.u ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.u <= TOP.u ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::GE:
-		LST.u = LST.u >= TOP.u ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.u >= TOP.u ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::LT:
-		LST.u = LST.u < TOP.u ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.u < TOP.u ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::GT:
-		LST.u = LST.u > TOP.u ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.u > TOP.u ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::IEQ:
-		LST.u = LST.i == TOP.i ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.i == TOP.i ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::INE:
-		LST.u = LST.i != TOP.i ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.i != TOP.i ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::ILE:
-		LST.u = LST.i <= TOP.i ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.i <= TOP.i ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::IGE:
-		LST.u = LST.i >= TOP.i ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.i >= TOP.i ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::ILT:
-		LST.u = LST.i < TOP.i ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.i < TOP.i ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::IGT:
-		LST.u = LST.i > TOP.i ? uint16_t(1) : uint16_t(0);
+		LST.u = LST.i > TOP.i ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
 	case XIS::HALT:
@@ -280,6 +290,10 @@ XWORD Computer::Cycle( void )
 	case XIS::PUTI:
 		PUSH_STACK(1);
 		TOP.u = IP.u - 1;
+		break;
+	case XIS::CLOCK:
+		PUSH_STACK(1);
+		TOP.u = U16(m_clock_ps / 1000000000);
 		break;
 	case XIS::TOSS:
 		POP_STACK(1);
@@ -402,8 +416,8 @@ void Computer::Run( void )
 
 void Computer::Run(uint32_t ms)
 {
-	int64_t cycles = (int64_t(m_cycles_per_second) * 1000) / ms;
-	while (cycles-- > 0 && Cycle().u != XIS::HALT) {}
+	uint64_t cycles = (uint64_t(m_cycles_per_second) * 1000) / ms;
+	while (cycles-- >= 1 && Cycle().u != XIS::HALT) {}
 }
 
 bool Computer::IsAvailablePort(U8 port) const

@@ -1,0 +1,18 @@
+#include <time.xb>
+
+/// @brief Puts execution of the application to sleep for a specified number of milliseconds.
+/// @param ms The time to sleep in milliseconds.
+/// @note  Sleeps at least the specified number of milliseconds, but may sleep more.
+sleep(ms)
+{
+	auto to = clock() + ms;
+	while (clock() < to) {}
+}
+
+/// @brief Runs a binary file as a program. Returns execution here only once the program is done running.
+/// @param  bin The name of the file containing the binary to run.
+run(bin)
+{
+	// TODO IMPL
+	return -1;
+}

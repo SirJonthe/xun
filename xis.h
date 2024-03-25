@@ -20,7 +20,7 @@ struct XIS
 		PUT    = 0b10000000 + ( 1<<8), // put a constant on the stack (use EREL/CREL + AT if you want to transform a constant address to a value)
 		PUTS   = 0b10000010 + ( 2<<8), // put the absolute address of the top stack element on the stack
 		PUTI   = 0b10000010 + ( 3<<8), // put the absolute address of the current instruction on the stack
-		RES4   = 0b00100000 + ( 4<<8), // Reserved #4
+		CLOCK  = 0b10000000 + ( 4<<8), // put the processor clock value on top of the stack.
 		RES5   = 0b00100000 + ( 5<<8), // Reserved #5
 		AT     = 0b00100000 + ( 6<<8), // dereference top value on the stack as an absolute address (use EREL/CREL to transform relative address to absolute)
 		JMP    = 0b01000000 + ( 7<<8), // jump to top value (absolute address) on stack (use EREL/CREL to transform relative address to absolute), collapse stack by 1

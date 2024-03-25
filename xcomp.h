@@ -26,11 +26,12 @@ private:
 		ERR; // Error register.
 	XWORD             RAM[MEM_SIZE_MAX];
 	PersistentStorage m_storage;                   // Built-in, small persistent memory bank.
-	Clock             m_clock;                     // System clock.
 	PowerController   m_power_controller;          // Can physically turn power off.
 	DeviceRelay       m_relay;                     // Connection to other devices. Drive and Clock connect to this automatically.
 	// DiskReader     m_reader;                      // 
 	
+	uint64_t          m_clock_ps;                  // The clock in pico seconds.
+	uint32_t          m_ps_per_cycle;              // The number of pico seconds per cycle.
 	uint32_t          m_cycles_per_second;         // The number of cycles that can run per second.
 
 	bool              m_power;                     // The power state of the computer.
@@ -62,6 +63,10 @@ public:
 	/// @brief Turns the computer off, then on again.
 	/// @note Not in use.
 	void PowerCycle( void );
+
+	/// @brief Sets the number of cycles to perform per second.
+	/// @param hz The number of cycles per second.
+	void SetCyclesPerSecond(uint32_t hz);
 
 	void  Poke(U16 addr, XWORD val);
 	void  PokeA(U16 addr, XWORD val);

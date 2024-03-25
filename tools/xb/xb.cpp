@@ -30,11 +30,11 @@
 //	}
 
 // TODO
-// [ ] Short-circuit comparisons
+// [-] Short-circuit comparisons
 // [ ] Compile-time evaluator that is as capable as run-time evaluator
 // [ ] Strings
-// [ ] Push a second scope after parameter scope in functions
 // [ ] Inline assembly
+// [ ] Push a second scope after parameter scope in functions
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] continue, break
 
@@ -878,7 +878,7 @@ static bool try_bwnot_val(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, xbtoken::OPERATOR_BITWISE_AND) &&
+			match     (ps.p, xbtoken::OPERATOR_BITWISE_NOT) &&
 			try_rval  (new_state(ps.p, ps.end))             &&
 			write_word(ps.p->out, XWORD{XIS::NOT})
 		)
@@ -893,7 +893,7 @@ static bool try_lnot_val(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			match     (ps.p, xbtoken::OPERATOR_BITWISE_AND) &&
+			match     (ps.p, xbtoken::OPERATOR_BITWISE_NOT) &&
 			try_rval  (new_state(ps.p, ps.end))             &&
 			write_word(ps.p->out, XWORD{XIS::PUT})          &&
 			write_word(ps.p->out, XWORD{0})                 &&
@@ -1252,13 +1252,26 @@ static bool try_opt_logical_and(parser_state ps)
 {
 	token t;
 	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_AND, &t)) {
-		if (!manage_state(ps, try_logical_and(new_state(ps.p, ps.end)))) {
+		U16 jmp_addr;
+		if (
+			!manage_state(
+				ps,
+				write_word     (ps.p->out, XWORD{XIS::DUP})         &&
+				write_word     (ps.p->out, XWORD{XIS::PUT})         &&
+				(jmp_addr = ps.p->out.size)                         &&
+				write_word     (ps.p->out, XWORD{0})                && // NOTE: Temp value
+				write_word     (ps.p->out, XWORD{XIS::CNJMP})       &&
+				try_logical_and(new_state(ps.p, ps.end))            &&
+				(ps.p->out.buffer[jmp_addr].u = ps.p->out.size - 1)
+			)
+		) {
 			return false;
 		}
 		switch (t.user_type) {
 		case xbtoken::OPERATOR_LOGICAL_AND:
-			// TODO Short-circuit
-			if (!write_word(ps.p->out, XWORD{XIS::AND})) { return false; }
+			if (!write_word(ps.p->out, XWORD{XIS::AND})) {
+				return false;
+			}
 			break;
 		default:
 			return false;
@@ -1287,12 +1300,23 @@ static bool try_opt_logical_or(parser_state ps)
 {
 	token t;
 	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_OR, &t)) {
-		if (!manage_state(ps, try_logical_or(new_state(ps.p, ps.end)))) {
+		U16 jmp_addr;
+		if (
+			!manage_state(
+				ps,
+				write_word    (ps.p->out, XWORD{XIS::DUP})          &&
+				write_word    (ps.p->out, XWORD{XIS::PUT})          &&
+				(jmp_addr = ps.p->out.size)                         &&
+				write_word    (ps.p->out, XWORD{0})                 && // NOTE: Temp value
+				write_word    (ps.p->out, XWORD{XIS::CJMP})         &&
+				try_logical_or(new_state(ps.p, ps.end))             &&
+				(ps.p->out.buffer[jmp_addr].u = ps.p->out.size - 1)
+			)
+		) {
 			return false;
 		}
 		switch (t.user_type) {
 		case xbtoken::OPERATOR_LOGICAL_OR:
-			// TODO Short-circuit
 			if (!write_word(ps.p->out, XWORD{XIS::OR})) { return false; }
 			break;
 		default:

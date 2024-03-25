@@ -3,14 +3,6 @@ const NULL = 0;
 const EXIT_FAILURE = -1;
 const EXIT_SUCCESS =  0;
 
-str8(str, i)
-{
-	if (i%2) {
-		return str[i/2] & 0x00ff;
-	}
-	return str[i/2] >> 8;
-}
-
 atof(str);
 
 atoi(str);
@@ -18,6 +10,9 @@ atoi(str);
 rand();
 srand(seed);
 
+/// @brief Allocates memory dynamically on the heap.
+/// @param n The number of words to allocate.
+/// @return A pointer to the allocated memory.
 malloc(n)
 {
 	if (n <= 0) {
@@ -26,6 +21,9 @@ malloc(n)
 	// TODO: More here...
 }
 
+/// @brief Allocates memory dynamically on the heap and sets each memory location to zero.
+/// @param n The number of words to allocate.
+/// @return A pointer to the allocated memory.
 calloc(n)
 {
 	auto mem = malloc(n);
@@ -37,10 +35,16 @@ calloc(n)
 	return mem;
 }
 
+/// @brief Frees memory on the heap as pointed to by the input parameter.
+/// @param  mem The pointer to the first memory location of the memory allocated by 'malloc' or 'calloc'.
+/// @sa malloc
+/// @sa calloc
 free(mem);
 
 auto __exitfn = NULL;
 
+/// @brief Sets a function to call before the program finally returns execution to the host program.
+/// @param  fn The function to call before the program finally returns execution to the host program.
 atexit(fn)
 {
 	__exitfn = fn;
@@ -48,6 +52,9 @@ atexit(fn)
 
 auto __exitlock = 0;
 
+/// @brief Exits the current program and returns execution to the host program.
+/// @param status The exit status to return to the host program.
+/// @return Nothing. However the host program will receive a return value from this program corresponding to 'status'.
 exit(status)
 {
 	if (__exitlock > 0) {

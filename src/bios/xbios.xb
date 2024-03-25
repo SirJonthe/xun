@@ -93,6 +93,8 @@ draw_glyph(ch, x, y)
 {
 	if (ch == 32) { return x + 1; }
 	if (ch ==  9) { return x / 4 * 4; }
+	if (ch == 10) { return x; }
+	if (ch == 13) { return 0; }
 
 	auto glyph = FONT_ATLAS;
 	if (ch < FONT_CHAR_ASCII_START || ch > FONT_CHAR_ASCII_END) { glyph = ((FONT_CHAR_ASCII_END + 1) * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD; }
@@ -125,6 +127,16 @@ draw_glyph(ch, x, y)
 	}
 
 	return x + 1;
+}
+
+draw_text(text, len, x, y)
+{
+	auto i = 0;
+	while (i < len) {
+		x = draw_glyph(text[i], x, y);
+		i = i + 1;
+	}
+	return x;
 }
 
 main(a,b)

@@ -1,0 +1,10 @@
+#include <string.xb>
+
+auto __x = 0, __y = 0;
+
+/// @brief Prints the text to standard out.
+/// @param text The text to print.
+print(text)
+{
+	return -1;
+}
