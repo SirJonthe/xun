@@ -125,7 +125,7 @@ draw_glyph(ch, x, y)
 			y = y + 2;
 		}
 	}
-
+	
 	return x + 1;
 }
 
