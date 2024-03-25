@@ -16,7 +16,7 @@ static unsigned hex2u(const char *nums, unsigned len)
 	return h;
 }
 
-const signed X_TOKEN_COUNT = 61;
+const signed X_TOKEN_COUNT = 62;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, xtoken::KEYWORD_INSTRUCTION_NOP),
 	new_keyword ("at",                      2, xtoken::KEYWORD_INSTRUCTION_AT),
@@ -54,6 +54,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("cjmp",                    4, xtoken::KEYWORD_INSTRUCTION_CJMP),
 	new_keyword ("skip",                    4, xtoken::KEYWORD_INSTRUCTION_SKIP),
 	new_keyword ("cskip",                   5, xtoken::KEYWORD_INSTRUCTION_CSKIP),
+	new_keyword ("clock",                   5, xtoken::KEYWORD_INSTRUCTION_CLOCK),
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),
 	new_operator("%",                       1, xtoken::OPERATOR_DIRECTIVE_LABEL),
@@ -365,6 +366,7 @@ static bool manage_state(parser_state &ps, bool success)
 }
 
 static bool try_instruction_nop  (parser_state ps);
+static bool try_instruction_clock(parser_state ps);
 static bool try_decl_var         (parser_state ps);
 static bool try_decl_mem         (parser_state ps);
 static bool try_decl_arr         (parser_state ps);
@@ -389,6 +391,14 @@ static bool try_instruction_nop(parser_state ps)
 {
 	if (match(ps.p, xtoken::KEYWORD_INSTRUCTION_NOP)) {
 		return write_word(ps.p->out, XWORD{XIS::NOP});
+	}
+	return false;
+}
+
+static bool try_instruction_clock(parser_state ps)
+{
+	if (match(ps.p, xtoken::KEYWORD_INSTRUCTION_CLOCK)) {
+		return write_word(ps.p->out, XWORD{XIS::CLOCK});
 	}
 	return false;
 }
@@ -871,6 +881,7 @@ static bool try_instructions(parser_state ps)
 			ps,
 			(
 				try_instruction_nop     (new_state(ps.p, ps.end))                                              ||
+				try_instruction_clock   (new_state(ps.p, ps.end))                                              ||
 				try_instruction_at      (new_state(ps.p, ps.end))                                              ||
 				try_instruction_put     (new_state(ps.p, ps.end))                                              ||
 				try_instruction_with_put(new_state(ps.p, ps.end), xtoken::KEYWORD_INSTRUCTION_ADD,  XIS::ADD)  ||

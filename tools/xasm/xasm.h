@@ -77,6 +77,7 @@ struct xtoken
 			KEYWORD_INSTRUCTION_MOVD,
 			KEYWORD_INSTRUCTION_MOVU,
 			KEYWORD_INSTRUCTION_PEEK,
+			KEYWORD_INSTRUCTION_CLOCK,
 
 		KEYWORD_DIRECTIVE = token::KEYWORD | (2<<8), // Directives are instructions intended for the assembler itself so that it can emit context sensitive code.
 			KEYWORD_DIRECTIVE_EVAL,    // Evaluates an expression of literals into a single literal.

@@ -1,14 +1,31 @@
-const NULL = 0;
+const NULL = 0; // Null value.
 
-const EXIT_FAILURE = -1;
-const EXIT_SUCCESS =  0;
+const EXIT_FAILURE = -1; // Program return value representing failure.
+const EXIT_SUCCESS =  0; // Program return value representing success.
 
-atof(str);
+auto __rand_x = 0;
+auto __rand_y = 0;
+auto __rand_z = 0;
+auto __rand_state = 1;
 
-atoi(str);
+/// @brief Generates a pseudo-random number.
+/// @return The pseudo-random number.
+rand()
+{
+	auto t = __rand_x ^ (__rand_x << 4);
+	__rand_x = __rand_y;
+	__rand_y = __rand_z;
+	__rand_z = __rand_state;
+	__rand_state = __rand_z ^ t ^ (__rand_z >> 1) ^ (t << 1);
+	return __rand_state;
+}
 
-rand();
-srand(seed);
+/// @brief Initializes the state of the pseudo-random number generator.
+/// @param seed The initialization value.
+srand(seed)
+{
+	__rand_state = seed;
+}
 
 /// @brief Allocates memory dynamically on the heap.
 /// @param n The number of words to allocate.
@@ -55,6 +72,7 @@ auto __exitlock = 0;
 /// @brief Exits the current program and returns execution to the host program.
 /// @param status The exit status to return to the host program.
 /// @return Nothing. However the host program will receive a return value from this program corresponding to 'status'.
+/// @note This function is implicitly called after execution of 'main' even if it is not explicitly called.
 exit(status)
 {
 	if (__exitlock > 0) {
@@ -71,4 +89,49 @@ exit(status)
 		jmp.
 	}
 	// NOTE: Return instructions here will never be reached.
+}
+
+/// @brief Swaps values of two pointers.
+/// @param a The first pointer.
+/// @param b The second pointer.
+swap(a, b)
+{
+	auto t = a;
+	*a = *b;
+	*b = *t;
+}
+
+/// @brief Returns the absolute of the input value.
+/// @param a The input value.
+/// @return The absolute of the input value.
+abs(a)
+{
+	if (a < 0) {
+		return -a;
+	}
+	return a;
+}
+
+/// @brief Returns the minimum of two values.
+/// @param a The first value.
+/// @param b The second value.
+/// @return The minimum of the two input values.
+min(a, b)
+{
+	if (a < b) {
+		return a;
+	}
+	return b;
+}
+
+/// @brief Returns the maximum of two values.
+/// @param a The first value.
+/// @param b The second value.
+/// @return The maximum of the two input values.
+max(a, b)
+{
+	if (a < b) {
+		return b;
+	}
+	return a;
 }
