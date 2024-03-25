@@ -15,7 +15,7 @@
 
 Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_clock_ps(0), m_power(false)
 {
-	SetCyclesPerSecond(10000000);
+	SetCyclesPerSecond(10000000U);
 	Device::Connect(*this, m_relay);
 	Connect(m_power_controller, 0);
 	Connect(m_storage,          1);
@@ -84,9 +84,10 @@ void Computer::PowerCycle( void )
 
 void Computer::SetCyclesPerSecond(uint32_t hz)
 {
-	if (uint64_t(hz) < 1000000000000) {
+	// TODO optimally we adjust 'hz' down to become an even multiple of 1000000000000
+	if (uint64_t(hz) < 1000000000000ULL) {
 		m_cycles_per_second = hz;
-		m_ps_per_cycle = 1000000000000 / hz;
+		m_ps_per_cycle = 1000000000000ULL / hz;
 	}
 }
 
@@ -293,7 +294,7 @@ XWORD Computer::Cycle( void )
 		break;
 	case XIS::CLOCK:
 		PUSH_STACK(1);
-		TOP.u = U16(m_clock_ps / 1000000000);
+		TOP.u = U16(m_clock_ps / 1000000000ULL);
 		break;
 	case XIS::TOSS:
 		POP_STACK(1);

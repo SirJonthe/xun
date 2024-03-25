@@ -6,7 +6,6 @@
 #include "xdev.h"
 #include "hw/xdisk.h"
 #include "hw/xrelay.h"
-#include "hw/xclock.h"
 #include "hw/xpwr.h"
 
 class Computer : public Device
@@ -27,7 +26,7 @@ private:
 	XWORD             RAM[MEM_SIZE_MAX];
 	PersistentStorage m_storage;                   // Built-in, small persistent memory bank.
 	PowerController   m_power_controller;          // Can physically turn power off.
-	DeviceRelay       m_relay;                     // Connection to other devices. Drive and Clock connect to this automatically.
+	DeviceRelay       m_relay;                     // Connection to other devices. Drive and Reader connect to this automatically.
 	// DiskReader     m_reader;                      // 
 	
 	uint64_t          m_clock_ps;                  // The clock in pico seconds.
