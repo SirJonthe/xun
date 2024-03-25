@@ -30,7 +30,6 @@
 //	}
 
 // TODO
-// [ ] Compile-time evaluator that is as capable as run-time evaluator
 // [ ] Strings
 // [ ] Inline assembly
 // [ ] Push a second scope after parameter scope in functions
@@ -54,6 +53,15 @@ static unsigned hex2u(const char *nums, unsigned len)
 		} else if (nums[i] >= 'A' && nums[i] <= 'F') {
 			h = h  * 16 + nums[i] - 'A' + 10;
 		}
+	}
+	return h;
+}
+
+static unsigned ch2u(const char *nums, unsigned len)
+{
+	unsigned h = 0;
+	for (unsigned i = 1; i < len - 1; ++i) {
+		h = h * 10 + U16(nums[i]);
 	}
 	return h;
 }
@@ -111,7 +119,7 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 46;
+const signed XB_TOKEN_COUNT = 47;
 const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -158,7 +166,8 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_operator("~",                       1, xbtoken::OPERATOR_BITWISE_NOT),
 	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,   token::ALIAS),
 	new_literal ("[0-9]+",                  6, xbtoken::LITERAL_INT),
-	new_literal ("0[xX][0-9a-fA-F]+",      17, xbtoken::LITERAL_INT, hex2u)
+	new_literal ("0[xX][0-9a-fA-F]+",      17, xbtoken::LITERAL_INT, hex2u),
+	new_literal ("\'*\'",                   3, xbtoken::LITERAL_INT, ch2u)
 };
 
 token xblex(lexer *l)
