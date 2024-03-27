@@ -291,6 +291,13 @@ struct parser
 	xcc_error     error;  // The first fatal error.
 };
 
+static void set_error(parser *p, U16 code)
+{
+	if (p->error.code == xcc_error::NONE) {
+		p->error = xcc_error{ p->in.l.last, code };
+	}
+}
+
 static symbol *find_symbol(const chars &name, parser *p)
 {
 	const unsigned name_char_count = chcount(name.str);
@@ -305,7 +312,7 @@ static symbol *find_symbol(const chars &name, parser *p)
 static symbol *find_var(const chars &name, parser *p)
 {
 	symbol *sym = find_symbol(name, p);
-	if (sym != NULL && sym->category != symbol::VAR && sym->category != symbol::PARAM) {
+	if (sym != NULL && sym->category != symbol::VAR && sym->category != symbol::SVAR && sym->category != symbol::PARAM) {
 		return NULL;
 	}
 	return sym;
@@ -512,31 +519,32 @@ struct parser_state
 	unsigned  end;
 };
 
-static parser_state new_state(parser *p, unsigned end)
+static parser_state _new_state(parser *p, unsigned end)
 {
 	parser_state ps = { p, *p, end };
 	return ps;
 }
 
-static bool manage_state(parser_state &ps, bool success)
+#define new_state(end) _new_state(ps.p, end)
+
+static bool _manage_state(parser_state &ps, bool success)
 {
 	if (!success) {
-		token max = ps.p->max;
+		ps.restore_point.error = ps.p->error;
+		ps.restore_point.max = ps.p->max.index >= ps.restore_point.max.index ? ps.p->max : ps.restore_point.max;
 		*ps.p = ps.restore_point;
-		if (max.index >= ps.p->max.index) {
-			ps.p->max = max;
-		}
 	}
 	return success;
 }
+
+#define manage_state(x) _manage_state(ps, ps.p->error.code == xcc_error::NONE && (x))
 
 static bool until_end(parser_state ps, bool (*try_fn)(parser_state))
 {
 	while (peek(ps.p).user_type != ps.end) {
 		if (
 			!manage_state(
-				ps,
-				try_fn(new_state(ps.p, ps.end))
+				try_fn(new_state(ps.end))
 			)
 		) {
 			return false;
@@ -553,8 +561,7 @@ static bool try_put_lit(parser_state ps)
 	U16 result = 0;
 	if (
 		manage_state(
-			ps,
-			try_read_lit(new_state(ps.p, ps.end), result) &&
+			try_read_lit(new_state(ps.end), result) &&
 			write_word  (ps.p->out, XWORD{XIS::PUT})      &&
 			write_word  (ps.p->out, XWORD{result})
 		)
@@ -570,7 +577,6 @@ static bool try_put_var_addr(parser_state ps)
 	symbol *sym;
 	if (
 		manage_state(
-			ps,
 			match(ps.p, token::ALIAS, &t)          &&
 			(sym = find_var(t.text, ps.p)) != NULL &&
 			write_rel(ps.p, sym)
@@ -585,8 +591,7 @@ static bool try_put_var(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_put_var_addr(new_state(ps.p, ps.end)) &&
+			try_put_var_addr(new_state(ps.end)) &&
 			write_word(ps.p->out, XWORD{XIS::AT})
 		)
 	) {
@@ -601,8 +606,7 @@ static bool try_put_fn_param(parser_state ps, U16 *param_count)
 {
 	if (
 		manage_state(
-			ps,
-			try_expr(new_state(ps.p, ps.end))
+			try_expr(new_state(ps.end))
 		)
 	) {
 		if (param_count != NULL) {
@@ -617,13 +621,12 @@ static bool try_put_fn_params(parser_state ps, U16 *param_count)
 {
 	if (
 		manage_state(
-			ps,
-			try_put_fn_param(new_state(ps.p, ps.end), param_count) &&
+			try_put_fn_param(new_state(ps.end), param_count) &&
 			(
 				peek(ps.p).user_type == ps.end ||
 				(
 					match(ps.p, xbtoken::OPERATOR_COMMA) &&
-					try_put_fn_params(new_state(ps.p, ps.end), param_count)
+					try_put_fn_params(new_state(ps.end), param_count)
 				)
 			)
 		)
@@ -638,9 +641,8 @@ static bool try_put_opt_fn_params(parser_state ps, const symbol *sym)
 	U16 param_count = 0;
 	if (
 		manage_state(
-			ps,
 			peek(ps.p).user_type == ps.end ||
-			try_put_fn_params(new_state(ps.p, ps.end), &param_count)
+			try_put_fn_params(new_state(ps.end), &param_count)
 		)
 	) {
 		if (sym != NULL && sym->category == symbol::FN && sym->param_count != param_count) {
@@ -660,7 +662,6 @@ static bool try_call_fn(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match                (ps.p, token::ALIAS, &t)                                        && // TODO Replace this with any value (can be alias, literal, indirection etc.)
 			(sym = find_symbol(t.text, ps.p)) != NULL                                            && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
 			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                 &&
@@ -671,7 +672,7 @@ static bool try_call_fn(parser_state ps)
 			(off_index = ps.p->out.size)                                                         &&
 			write_word           (ps.p->out, XWORD{0})                                           && // NOTE: Unable to determine return address offset here, so just emit 0.
 			write_word           (ps.p->out, XWORD{XIS::ADD})                                    && // NOTE: Adjust return address to move ahead of call site.
-			try_put_opt_fn_params(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
+			try_put_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
 			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                 &&
 			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)                   && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
 			write_rel            (ps.p, sym)                                                     &&
@@ -777,8 +778,7 @@ static bool try_lit_opt_factor(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_factor(new_state(ps.p, ps.end), r) &&
+				try_lit_factor(new_state(ps.end), r) &&
 				eval_operation(ps.p, t.user_type, l, r)
 			)
 		) {
@@ -797,9 +797,8 @@ static bool try_lit_bwnot_val(parser_state ps, type_t &l)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match         (ps.p, xbtoken::OPERATOR_BITWISE_NOT, &t) &&
-			try_lit_rval  (new_state(ps.p, ps.end), l)              &&
+			try_lit_rval  (new_state(ps.end), l)              &&
 			eval_operation(ps.p, t.user_type, l, l)
 		)
 	) {
@@ -814,9 +813,8 @@ static bool try_lit_lnot_val(parser_state ps, type_t &l)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match         (ps.p, xbtoken::OPERATOR_LOGICAL_NOT, &t) &&
-			try_lit_rval  (new_state(ps.p, ps.end), l)              &&
+			try_lit_rval  (new_state(ps.end), l)              &&
 			eval_operation(ps.p, t.user_type, l, l)
 		)
 	) {
@@ -831,14 +829,13 @@ static bool try_lit_rval(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_bwnot_val(new_state(ps.p, ps.end), l) ||
-			try_lit_lnot_val (new_state(ps.p, ps.end), l) ||
-			try_read_lit     (new_state(ps.p, ps.end), l) ||
+			try_lit_bwnot_val(new_state(ps.end), l) ||
+			try_lit_lnot_val (new_state(ps.end), l) ||
+			try_read_lit     (new_state(ps.end), l) ||
 			(
 				(
 					match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)               &&
-					try_lit_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), l) &&
+					try_lit_expr(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), l) &&
 					match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 				)
 			)
@@ -854,9 +851,8 @@ static bool try_lit_uni_pos(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
 			match       (ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD) &&
-			try_lit_rval(new_state(ps.p, ps.end), l)
+			try_lit_rval(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -869,9 +865,8 @@ static bool try_lit_uni_neg(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
 			match       (ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB) &&
-			try_lit_rval(new_state(ps.p, ps.end), l)
+			try_lit_rval(new_state(ps.end), l)
 		)
 	) {
 		l = -l;
@@ -886,10 +881,9 @@ static bool try_lit_factor(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_uni_pos (new_state(ps.p, ps.end), l) ||
-			try_lit_uni_neg (new_state(ps.p, ps.end), l) ||
-			try_lit_rval    (new_state(ps.p, ps.end), l)
+			try_lit_uni_pos (new_state(ps.end), l) ||
+			try_lit_uni_neg (new_state(ps.end), l) ||
+			try_lit_rval    (new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -908,8 +902,7 @@ static bool try_lit_opt_term(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_term  (new_state(ps.p, ps.end), r) &&
+				try_lit_term  (new_state(ps.end), r) &&
 				eval_operation(ps.p, t.user_type, l, r)
 			)
 		) {
@@ -924,9 +917,8 @@ static bool try_lit_term(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_factor    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_factor(new_state(ps.p, ps.end), l)
+			try_lit_factor    (new_state(ps.end), l) &&
+			try_lit_opt_factor(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -945,8 +937,7 @@ static bool try_lit_opt_bitshift(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_bitshift(new_state(ps.p, ps.end), r) &&
+				try_lit_bitshift(new_state(ps.end), r) &&
 				eval_operation  (ps.p, t.user_type, l, r)
 			)
 		) {
@@ -961,9 +952,8 @@ static bool try_lit_bitshift(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_term    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_term(new_state(ps.p, ps.end), l)
+			try_lit_term    (new_state(ps.end), l) &&
+			try_lit_opt_term(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -982,8 +972,7 @@ static bool try_lit_opt_less_greater(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_less_greater(new_state(ps.p, ps.end), r) &&
+				try_lit_less_greater(new_state(ps.end), r) &&
 				eval_operation      (ps.p, t.user_type, l, r)
 			)
 		) {
@@ -998,9 +987,8 @@ static bool try_lit_less_greater(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_bitshift    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_bitshift(new_state(ps.p, ps.end), l)
+			try_lit_bitshift    (new_state(ps.end), l) &&
+			try_lit_opt_bitshift(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1019,8 +1007,7 @@ static bool try_lit_opt_equality(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_equality(new_state(ps.p, ps.end), r) &&
+				try_lit_equality(new_state(ps.end), r) &&
 				eval_operation  (ps.p, t.user_type, l, r)
 			)
 		) {
@@ -1035,9 +1022,8 @@ static bool try_lit_equality(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_less_greater    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_less_greater(new_state(ps.p, ps.end), l)
+			try_lit_less_greater    (new_state(ps.end), l) &&
+			try_lit_opt_less_greater(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1056,8 +1042,7 @@ static bool try_lit_opt_and(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_and   (new_state(ps.p, ps.end), r) &&
+				try_lit_and   (new_state(ps.end), r) &&
 				eval_operation(ps.p, t.user_type, l, r)
 			)
 		) {
@@ -1072,9 +1057,8 @@ static bool try_lit_and(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_equality    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_equality(new_state(ps.p, ps.end), l)
+			try_lit_equality    (new_state(ps.end), l) &&
+			try_lit_opt_equality(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1093,8 +1077,7 @@ static bool try_lit_opt_xor(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_xor   (new_state(ps.p, ps.end), r) &&
+				try_lit_xor   (new_state(ps.end), r) &&
 				eval_operation(ps.p, t.user_type, l, r)
 			)
 		) {
@@ -1109,9 +1092,8 @@ static bool try_lit_xor(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_and    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_and(new_state(ps.p, ps.end), l)
+			try_lit_and    (new_state(ps.end), l) &&
+			try_lit_opt_and(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1130,8 +1112,7 @@ static bool try_lit_opt_or(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_or    (new_state(ps.p, ps.end), r) &&
+				try_lit_or    (new_state(ps.end), r) &&
 				eval_operation(ps.p, t.user_type, l, r)
 			)
 		) {
@@ -1146,9 +1127,8 @@ static bool try_lit_or(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_xor    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_xor(new_state(ps.p, ps.end), l)
+			try_lit_xor    (new_state(ps.end), l) &&
+			try_lit_opt_xor(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1167,8 +1147,7 @@ static bool try_lit_opt_logical_and(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_logical_and(new_state(ps.p, ps.end), r) &&
+				try_lit_logical_and(new_state(ps.end), r) &&
 				eval_operation     (ps.p, t.user_type, l, r)
 			)
 		) {
@@ -1183,9 +1162,8 @@ static bool try_lit_logical_and(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_or    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_or(new_state(ps.p, ps.end), l)
+			try_lit_or    (new_state(ps.end), l) &&
+			try_lit_opt_or(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1204,8 +1182,7 @@ static bool try_lit_opt_logical_or(parser_state ps, type_t &l)
 		type_t r = 0;
 		if (
 			!manage_state(
-				ps,
-				try_lit_logical_or(new_state(ps.p, ps.end), r) &&
+				try_lit_logical_or(new_state(ps.end), r) &&
 				eval_operation    (ps.p, t.user_type, l, r)
 			)
 		) {
@@ -1220,9 +1197,8 @@ static bool try_lit_logical_or(parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			ps,
-			try_lit_logical_and    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_logical_and(new_state(ps.p, ps.end), l)
+			try_lit_logical_and    (new_state(ps.end), l) &&
+			try_lit_opt_logical_and(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1236,9 +1212,8 @@ static bool try_lit_expr(parser_state ps, type_t &l)
 
 	if (
 		manage_state(
-			ps,
-			try_lit_logical_or    (new_state(ps.p, ps.end), l) &&
-			try_lit_opt_logical_or(new_state(ps.p, ps.end), l)
+			try_lit_logical_or    (new_state(ps.end), l) &&
+			try_lit_opt_logical_or(new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1323,8 +1298,7 @@ static bool try_opt_factor(parser_state ps)
 	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MOD, &t)) {
 		if (
 			!manage_state(
-				ps,
-				try_factor(new_state(ps.p, ps.end)) &&
+				try_factor(new_state(ps.end)) &&
 				emit_operation(ps.p, t.user_type)
 			)
 		) {
@@ -1340,9 +1314,8 @@ static bool try_redir_val(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match     (ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
-			try_rval  (new_state(ps.p, ps.end))                &&
+			try_rval  (new_state(ps.end))                &&
 			write_word(ps.p->out, XWORD{XIS::AT})
 		)
 	) {
@@ -1355,11 +1328,10 @@ static bool try_index_src(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_put_var_addr(new_state(ps.p, ps.end)) ||
+			try_put_var_addr(new_state(ps.end)) ||
 			(
 				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-				try_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+				try_expr(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 			)
 		)
@@ -1373,11 +1345,10 @@ static bool try_put_index_addr(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_index_src(new_state(ps.p, ps.end))                              &&
+			try_index_src(new_state(ps.end))                              &&
 			write_word   (ps.p->out, XWORD{XIS::AT})                            &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)            &&
-			try_expr     (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
+			try_expr     (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)            &&
 			write_word   (ps.p->out, XWORD{XIS::ADD})
 		)
@@ -1391,8 +1362,7 @@ static bool try_put_index(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_put_index_addr(new_state(ps.p, ps.end))   &&
+			try_put_index_addr(new_state(ps.end))   &&
 			write_word        (ps.p->out, XWORD{XIS::AT})
 		)
 	) {
@@ -1406,9 +1376,8 @@ static bool try_bwnot_val(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match         (ps.p, xbtoken::OPERATOR_BITWISE_NOT, &t) &&
-			try_rval      (new_state(ps.p, ps.end))                 &&
+			try_rval      (new_state(ps.end))                 &&
 			emit_operation(ps.p, t.user_type)
 		)
 	) {
@@ -1422,9 +1391,8 @@ static bool try_lnot_val(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match         (ps.p, xbtoken::OPERATOR_LOGICAL_NOT, &t) &&
-			try_rval      (new_state(ps.p, ps.end))                 &&
+			try_rval      (new_state(ps.end))                 &&
 			emit_operation(ps.p, t.user_type)
 		)
 	) {
@@ -1438,18 +1406,17 @@ static bool try_rval(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_redir_val(new_state(ps.p, ps.end)) ||
-			try_bwnot_val(new_state(ps.p, ps.end)) ||
-			try_lnot_val (new_state(ps.p, ps.end)) ||
-			try_call_fn  (new_state(ps.p, ps.end)) ||
-			try_put_lit  (new_state(ps.p, ps.end)) ||
-			try_put_index(new_state(ps.p, ps.end)) ||
-			try_put_var  (new_state(ps.p, ps.end)) ||
+			try_redir_val(new_state(ps.end)) ||
+			try_bwnot_val(new_state(ps.end)) ||
+			try_lnot_val (new_state(ps.end)) ||
+			try_call_fn  (new_state(ps.end)) ||
+			try_put_lit  (new_state(ps.end)) ||
+			try_put_index(new_state(ps.end)) ||
+			try_put_var  (new_state(ps.end)) ||
 			(
 				(
 					match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-					try_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+					try_expr(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 					match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
 				)
 			)
@@ -1464,9 +1431,8 @@ static bool try_uni_addr(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match(ps.p, xbtoken::OPERATOR_BITWISE_AND) &&
-			try_put_var_addr(new_state(ps.p, ps.end))
+			try_put_var_addr(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1478,9 +1444,8 @@ static bool try_uni_pos(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD) &&
-			try_rval(new_state(ps.p, ps.end))
+			try_rval(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1492,9 +1457,8 @@ static bool try_uni_neg(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match     (ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB) &&
-			try_rval  (new_state(ps.p, ps.end))                &&
+			try_rval  (new_state(ps.end))                &&
 			write_word(ps.p->out, XWORD{XIS::INEG})
 		)
 	) {
@@ -1508,11 +1472,10 @@ static bool try_factor(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_uni_addr(new_state(ps.p, ps.end)) ||
-			try_uni_pos (new_state(ps.p, ps.end)) ||
-			try_uni_neg (new_state(ps.p, ps.end)) ||
-			try_rval    (new_state(ps.p, ps.end))
+			try_uni_addr(new_state(ps.end)) ||
+			try_uni_pos (new_state(ps.end)) ||
+			try_uni_neg (new_state(ps.end)) ||
+			try_rval    (new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1528,8 +1491,7 @@ static bool try_opt_term(parser_state ps)
 	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ADD, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB, &t)) {
 		if (
 			!manage_state(
-				ps,
-				try_term(new_state(ps.p, ps.end)) &&
+				try_term(new_state(ps.end)) &&
 				emit_operation(ps.p, t.user_type)
 			)
 		) {
@@ -1543,9 +1505,8 @@ static bool try_term(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_factor    (new_state(ps.p, ps.end)) &&
-			try_opt_factor(new_state(ps.p, ps.end))
+			try_factor    (new_state(ps.end)) &&
+			try_opt_factor(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1561,8 +1522,7 @@ static bool try_opt_bitshift(parser_state ps)
 	while (match(ps.p, xbtoken::OPERATOR_BITWISE_LSHIFT, &t) || match(ps.p, xbtoken::OPERATOR_BITWISE_RSHIFT, &t)) {
 		if (
 			!manage_state(
-				ps,
-				try_bitshift(new_state(ps.p, ps.end)) &&
+				try_bitshift(new_state(ps.end)) &&
 				emit_operation(ps.p, t.user_type)
 			)
 		) {
@@ -1576,9 +1536,8 @@ static bool try_bitshift(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_term    (new_state(ps.p, ps.end)) &&
-			try_opt_term(new_state(ps.p, ps.end))
+			try_term    (new_state(ps.end)) &&
+			try_opt_term(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1594,8 +1553,7 @@ static bool try_opt_less_greater(parser_state ps)
 	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_LESS, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_LESSEQUAL, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_GREATER, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_GREATEREQUAL, &t)) {
 		if (
 			!manage_state(
-				ps,
-				try_less_greater(new_state(ps.p, ps.end)) &&
+				try_less_greater(new_state(ps.end)) &&
 				emit_operation(ps.p, t.user_type)
 			)
 		) {
@@ -1609,9 +1567,8 @@ static bool try_less_greater(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_bitshift    (new_state(ps.p, ps.end)) &&
-			try_opt_bitshift(new_state(ps.p, ps.end))
+			try_bitshift    (new_state(ps.end)) &&
+			try_opt_bitshift(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1627,8 +1584,7 @@ static bool try_opt_equality(parser_state ps)
 	while (match(ps.p, xbtoken::OPERATOR_LOGICAL_EQUAL, &t) || match(ps.p, xbtoken::OPERATOR_LOGICAL_NOTEQUAL, &t)) {
 		if (
 			!manage_state(
-				ps,
-				try_equality(new_state(ps.p, ps.end)) &&
+				try_equality(new_state(ps.end)) &&
 				emit_operation(ps.p, t.user_type)
 			)
 		) {
@@ -1642,9 +1598,8 @@ static bool try_equality(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_less_greater    (new_state(ps.p, ps.end)) &&
-			try_opt_less_greater(new_state(ps.p, ps.end))
+			try_less_greater    (new_state(ps.end)) &&
+			try_opt_less_greater(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1660,8 +1615,7 @@ static bool try_opt_and(parser_state ps)
 	while (match(ps.p, xbtoken::OPERATOR_BITWISE_AND, &t)) {
 		if (
 			!manage_state(
-				ps,
-				try_and(new_state(ps.p, ps.end)) &&
+				try_and(new_state(ps.end)) &&
 				emit_operation(ps.p, t.user_type)
 			)
 		) {
@@ -1675,9 +1629,8 @@ static bool try_and(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_equality    (new_state(ps.p, ps.end)) &&
-			try_opt_equality(new_state(ps.p, ps.end))
+			try_equality    (new_state(ps.end)) &&
+			try_opt_equality(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1693,8 +1646,7 @@ static bool try_opt_xor(parser_state ps)
 	while (match(ps.p, xbtoken::OPERATOR_BITWISE_XOR, &t)) {
 		if (
 			!manage_state(
-				ps,
-				try_xor(new_state(ps.p, ps.end)) &&
+				try_xor(new_state(ps.end)) &&
 				emit_operation(ps.p, t.user_type)
 			)
 		) {
@@ -1708,9 +1660,8 @@ static bool try_xor(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_and    (new_state(ps.p, ps.end)) &&
-			try_opt_and(new_state(ps.p, ps.end))
+			try_and    (new_state(ps.end)) &&
+			try_opt_and(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1726,8 +1677,7 @@ static bool try_opt_or(parser_state ps)
 	while (match(ps.p, xbtoken::OPERATOR_BITWISE_OR, &t)) {
 		if (
 			!manage_state(
-				ps,
-				try_or(new_state(ps.p, ps.end)) &&
+				try_or(new_state(ps.end)) &&
 				emit_operation(ps.p, t.user_type)
 			)
 		) {
@@ -1741,9 +1691,8 @@ static bool try_or(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_xor    (new_state(ps.p, ps.end)) &&
-			try_opt_xor(new_state(ps.p, ps.end))
+			try_xor    (new_state(ps.end)) &&
+			try_opt_xor(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1760,14 +1709,13 @@ static bool try_opt_logical_and(parser_state ps)
 		U16 jmp_addr;
 		if (
 			!manage_state(
-				ps,
-				write_word     (ps.p->out, XWORD{XIS::DUP})         &&
-				write_word     (ps.p->out, XWORD{XIS::PUT})         &&
-				(jmp_addr = ps.p->out.size)                         &&
-				write_word     (ps.p->out, XWORD{0})                && // NOTE: Temp value
-				write_word     (ps.p->out, XWORD{XIS::CNJMP})       &&
-				try_logical_and(new_state(ps.p, ps.end))            &&
-				emit_operation (ps.p, t.user_type)                  &&
+				write_word     (ps.p->out, XWORD{XIS::DUP})     &&
+				write_word     (ps.p->out, XWORD{XIS::PUT})     &&
+				(jmp_addr = ps.p->out.size)                     &&
+				write_word     (ps.p->out, XWORD{0})            && // NOTE: Temp value
+				write_word     (ps.p->out, XWORD{XIS::CNJMP})   &&
+				try_logical_and(new_state(ps.end))        &&
+				emit_operation (ps.p, t.user_type)              &&
 				(ps.p->out.buffer[jmp_addr].u = ps.p->out.size)
 			)
 		) {
@@ -1781,9 +1729,8 @@ static bool try_logical_and(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_or    (new_state(ps.p, ps.end)) &&
-			try_opt_or(new_state(ps.p, ps.end))
+			try_or    (new_state(ps.end)) &&
+			try_opt_or(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1800,14 +1747,13 @@ static bool try_opt_logical_or(parser_state ps)
 		U16 jmp_addr;
 		if (
 			!manage_state(
-				ps,
-				write_word    (ps.p->out, XWORD{XIS::DUP})          &&
-				write_word    (ps.p->out, XWORD{XIS::PUT})          &&
-				(jmp_addr = ps.p->out.size)                         &&
-				write_word    (ps.p->out, XWORD{0})                 && // NOTE: Temp value
-				write_word    (ps.p->out, XWORD{XIS::CJMP})         &&
-				try_logical_or(new_state(ps.p, ps.end))             &&
-				emit_operation(ps.p, t.user_type)                   &&
+				write_word    (ps.p->out, XWORD{XIS::DUP})      &&
+				write_word    (ps.p->out, XWORD{XIS::PUT})      &&
+				(jmp_addr = ps.p->out.size)                     &&
+				write_word    (ps.p->out, XWORD{0})             && // NOTE: Temp value
+				write_word    (ps.p->out, XWORD{XIS::CJMP})     &&
+				try_logical_or(new_state(ps.end))         &&
+				emit_operation(ps.p, t.user_type)               &&
 				(ps.p->out.buffer[jmp_addr].u = ps.p->out.size)
 			)
 		) {
@@ -1821,9 +1767,8 @@ static bool try_logical_or(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_logical_and    (new_state(ps.p, ps.end)) &&
-			try_opt_logical_and(new_state(ps.p, ps.end))
+			try_logical_and    (new_state(ps.end)) &&
+			try_opt_logical_and(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1835,9 +1780,8 @@ static bool try_expr(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_logical_or    (new_state(ps.p, ps.end)) &&
-			try_opt_logical_or(new_state(ps.p, ps.end))
+			try_logical_or    (new_state(ps.end)) &&
+			try_opt_logical_or(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1850,11 +1794,10 @@ static bool try_expr_list(parser_state ps, U16 *count)
 	++(*count);
 	if (
 		manage_state(
-			ps,
-			try_expr(new_state(ps.p, ps.end))
+			try_expr(new_state(ps.end))
 		)
 	) {
-		return match(ps.p, xbtoken::OPERATOR_COMMA) ? try_expr_list(new_state(ps.p, ps.end), count) : true;
+		return match(ps.p, xbtoken::OPERATOR_COMMA) ? try_expr_list(new_state(ps.end), count) : true;
 	}
 	return false;
 }
@@ -1878,10 +1821,9 @@ static bool try_opt_arr_def_expr(parser_state ps, symbol *sym)
 	U16 count = 0;
 	if (
 		manage_state(
-			ps,
 			match        (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)                     &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)                    &&
-			try_expr_list(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R), &count) &&
+			try_expr_list(new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R), &count) &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
 		)
 	) {
@@ -1901,16 +1843,15 @@ static bool try_new_arr_item(parser_state ps)
 	symbol *sym;
 	if (
 		manage_state(
-			ps,
 			match               (ps.p, token::ALIAS, &t)                                          &&
 			(sym = add_var(t.text, ps.p)) != NULL                                                 &&
 			((ps.p->out.size -= 2) || ps.p->out.size == 0)                                        && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                       &&
-			try_lit_expr        (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
+			try_lit_expr        (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                       &&
-			try_opt_arr_def_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON), sym)               &&
+			try_opt_arr_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), sym)               &&
 			(
-				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_var_list(new_state(ps.p, ps.end)) : true
+				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_var_list(new_state(ps.end)) : true
 			)
 		)
 	) {
@@ -1929,9 +1870,8 @@ static bool try_opt_var_def_expr(parser_state ps)
 	}
 	if (
 		manage_state(
-			ps,
 			match   (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)      &&
-			try_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON))
+			try_expr(new_state(xbtoken::OPERATOR_SEMICOLON))
 		)
 	) {
 		return true;
@@ -1944,13 +1884,12 @@ static bool try_new_var_item(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match               (ps.p, token::ALIAS, &t)                       &&
 			add_var             (t.text, ps.p) != NULL                         &&
 			((ps.p->out.size -= 2) || ps.p->out.size == 0)                     && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_symbol?
-			try_opt_var_def_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			try_opt_var_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			(
-				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_var_list(new_state(ps.p, ps.end)) : true
+				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_var_list(new_state(ps.end)) : true
 			)
 		)
 	) {
@@ -1964,9 +1903,8 @@ static bool try_new_var_list(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			ps,
-			try_new_arr_item(new_state(ps.p, ps.end)) ||
-			try_new_var_item(new_state(ps.p, ps.end))
+			try_new_arr_item(new_state(ps.end)) ||
+			try_new_var_item(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1978,9 +1916,8 @@ static bool try_new_vars(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match           (ps.p, xbtoken::KEYWORD_TYPE_AUTO)             &&
-			try_new_var_list(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			try_new_var_list(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			match           (ps.p, xbtoken::OPERATOR_SEMICOLON)
 		)
 	) {
@@ -1995,9 +1932,8 @@ static bool try_const_def_expr(parser_state ps, U16 &result)
 	token p = peek(ps.p);
 	if (
 		manage_state(
-			ps,
 			match       (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)               &&
-			try_lit_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON), result)
+			try_lit_expr(new_state(xbtoken::OPERATOR_SEMICOLON), result)
 		)
 	) {
 		return true;
@@ -2013,12 +1949,11 @@ static bool try_new_const_item(parser_state ps)
 	U16 result = 0;
 	if (
 		manage_state(
-			ps,
 			match             (ps.p, token::ALIAS, &t)                               &&
-			try_const_def_expr(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON), result) &&
+			try_const_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), result) &&
 			add_lit           (t.text, result, ps.p) != NULL                         &&
 			(
-				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_const_list(new_state(ps.p, ps.end)) : true
+				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_const_list(new_state(ps.end)) : true
 			)
 		)
 	) {
@@ -2032,8 +1967,7 @@ static bool try_new_const_list(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			ps,
-			try_new_const_item(new_state(ps.p, ps.end))
+			try_new_const_item(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -2045,9 +1979,8 @@ static bool try_new_consts(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match             (ps.p, xbtoken::KEYWORD_TYPE_CONST)            &&
-			try_new_const_list(new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			try_new_const_list(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			match             (ps.p, xbtoken::OPERATOR_SEMICOLON)
 		)
 	) {
@@ -2061,7 +1994,6 @@ static bool try_fn_param(parser_state ps, symbol *param)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
@@ -2079,13 +2011,12 @@ static bool try_fn_params(parser_state ps, symbol *param)
 {
 	if (
 		manage_state(
-			ps,
-			try_fn_param(new_state(ps.p, ps.end), param) &&
+			try_fn_param(new_state(ps.end), param) &&
 			(
 				peek(ps.p).user_type == ps.end ||
 				(
 					match(ps.p, xbtoken::OPERATOR_COMMA) &&
-					try_fn_params(new_state(ps.p, ps.end), param->param)
+					try_fn_params(new_state(ps.end), param->param)
 				)
 			)
 		)
@@ -2116,9 +2047,8 @@ static bool try_opt_fn_params(parser_state ps, bool verify_params)
 	const symbol fn = *ps.p->fn;
 	if (
 		manage_state(
-			ps,
 			peek(ps.p).user_type == ps.end ||
-			try_fn_params(new_state(ps.p, ps.end), ps.p->fn)
+			try_fn_params(new_state(ps.end), ps.p->fn)
 		)
 	) {
 		ps.p->fn->param_count = 0;
@@ -2147,14 +2077,13 @@ static bool try_else(parser_state ps)
 	U16 jmp_addr_idx = 0;
 	if (
 		manage_state(
-			ps,
 			match        (ps.p, xbtoken::KEYWORD_CONTROL_ELSE) &&
 			write_word   (ps.p->out, XWORD{XIS::PUT})          &&
 			(jmp_addr_idx = ps.p->out.size)                    &&
 			write_word   (ps.p->out, XWORD{0})                 &&
 			write_word   (ps.p->out, XWORD{XIS::JMP})          &&
 			push_scope   (ps.p->scopes)                        &&
-			try_statement(new_state(ps.p, ps.end))             &&
+			try_statement(new_state(ps.end))             &&
 			emit_pop_scope(ps.p)
 		)
 	) {
@@ -2171,25 +2100,23 @@ static bool try_if(parser_state ps)
 	U16 jmp_addr_idx = 0;
 	if (
 		manage_state(
-			ps,
 			match        (ps.p, xbtoken::KEYWORD_CONTROL_IF)                        &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			try_expr     (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			try_expr     (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
 			write_word   (ps.p->out, XWORD{XIS::PUT})                               &&
 			(jmp_addr_idx = ps.p->out.size)                                         &&
 			write_word   (ps.p->out, XWORD{0})                                      &&
 			write_word   (ps.p->out, XWORD{XIS::CNJMP})                             &&
 			push_scope   (ps.p->scopes)                                             &&
-			try_statement(new_state(ps.p, ps.end))                                  &&
+			try_statement(new_state(ps.end))                                  &&
 			emit_pop_scope(ps.p)
 		)
 	) {
 		ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size;
 		return manage_state(
-			ps,
 			(
-				try_else(new_state(ps.p, ps.end)) &&
+				try_else(new_state(ps.end)) &&
 				(ps.p->out.buffer[jmp_addr_idx].u += 3) // NOTE: A successful try_else emits an unconditional jump (PUT ADDR JMP) that we want to skip over to get into the ELSE body.
 			) ||
 			true
@@ -2206,22 +2133,20 @@ static bool try_while(parser_state ps)
 	U16 return_jmp_idx = ps.p->out.size;
 	if (
 		manage_state(
-			ps,
 			match        (ps.p, xbtoken::KEYWORD_CONTROL_WHILE)                     &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			try_expr     (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			try_expr     (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
 			write_word   (ps.p->out, XWORD{XIS::PUT})                               &&
 			(jmp_addr_idx = ps.p->out.size)                                         &&
 			write_word   (ps.p->out, XWORD{0})                                      &&
 			write_word   (ps.p->out, XWORD{XIS::CNJMP})                             &&
 			push_scope   (ps.p->scopes)                                             &&
-			try_statement(new_state(ps.p, ps.end))                                  &&
+			try_statement(new_state(ps.end))                                  &&
 			emit_pop_scope(ps.p)
 		)
 	) {
 		return manage_state(
-			ps,
 			write_word    (ps.p->out, XWORD{XIS::PUT})          &&
 			write_word    (ps.p->out, XWORD{return_jmp_idx})    &&
 			write_word    (ps.p->out, XWORD{XIS::JMP})          &&
@@ -2237,10 +2162,9 @@ static bool try_scope(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)            &&
 			push_scope    (ps.p->scopes)                                       &&
-			try_statements(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+			try_statements(new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
 		)
 	) {
@@ -2253,8 +2177,7 @@ static bool try_expr_stmt(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_expr  (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) &&
+			try_expr  (new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)            &&
 			write_word(ps.p->out, XWORD{XIS::TOSS})
 		)
@@ -2268,9 +2191,8 @@ static bool try_redir_lval(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
-			try_rval(new_state(ps.p, ps.end))
+			try_rval(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -2282,10 +2204,9 @@ static bool try_lval(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_put_index_addr(new_state(ps.p, ps.end)) ||
-			try_put_var_addr  (new_state(ps.p, ps.end)) ||
-			try_redir_lval    (new_state(ps.p, ps.end))
+			try_put_index_addr(new_state(ps.end)) ||
+			try_put_var_addr  (new_state(ps.end)) ||
+			try_redir_lval    (new_state(ps.end))
 		)
 	) {
 		return true;
@@ -2299,8 +2220,7 @@ static bool try_lexpr(parser_state ps)
 	symbol *sym;
 	if (
 		manage_state(
-			ps,
-			try_lval(new_state(ps.p, ps.end))
+			try_lval(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -2312,10 +2232,9 @@ static bool try_reass_var_stmt(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_lexpr (new_state(ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)) &&
+			try_lexpr (new_state(xbtoken::OPERATOR_ASSIGNMENT_SET)) &&
 			match     (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)            &&
-			try_expr  (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON))      &&
+			try_expr  (new_state(xbtoken::OPERATOR_SEMICOLON))      &&
 			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)                 &&
 			write_word(ps.p->out, XWORD{XIS::MOVD})
 		)
@@ -2329,9 +2248,8 @@ static bool try_opt_expr(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			(peek(ps.p).user_type == ps.end) ||
-			try_expr(new_state(ps.p, ps.end))
+			try_expr(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -2343,7 +2261,6 @@ static bool try_return_stmt(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match     (ps.p, xbtoken::KEYWORD_CONTROL_RETURN)        &&
 			write_word(ps.p->out, XWORD{XIS::PUT})                   &&
 			write_word(ps.p->out, XWORD{0})                          &&
@@ -2352,7 +2269,7 @@ static bool try_return_stmt(parser_state ps)
 			write_word(ps.p->out, XWORD{XIS::PUT})                   &&
 			write_word(ps.p->out, XWORD{1})                          &&
 			write_word(ps.p->out, XWORD{XIS::SUB})                   &&
-			try_expr  (new_state(ps.p, xbtoken::OPERATOR_SEMICOLON)) && // TODO: Should be try_opt_expr, but requires to mirror default return pattern at end of function.
+			try_expr  (new_state(xbtoken::OPERATOR_SEMICOLON)) && // TODO: Should be try_opt_expr, but requires to mirror default return pattern at end of function.
 			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)            &&
 			write_word(ps.p->out, XWORD{XIS::MOVD})                  && // NOTE: Address of return value is top value. Move expression result to external return memory.
 			write_word(ps.p->out, XWORD{XIS::LDC})                   &&
@@ -2373,9 +2290,8 @@ static bool try_asm_block(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                           &&
-			until_end(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R), try_asm_instr) &&
+			until_end(new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), try_asm_instr) &&
 			match    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)
 		)
 	) {
@@ -2388,11 +2304,10 @@ static bool try_asm_stmt(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match(ps.p, xbtoken::KEYWORD_INTRINSIC_ASM) &&
 			(
-				try_asm_instr(new_state(ps.p, ps.end)) ||
-				try_asm_block(new_state(ps.p, ps.end))
+				try_asm_instr(new_state(ps.end)) ||
+				try_asm_block(new_state(ps.end))
 			)
 		)
 	) {
@@ -2405,17 +2320,16 @@ static bool try_statement(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match             (ps.p, xbtoken::OPERATOR_SEMICOLON) ||
-			try_new_vars      (new_state(ps.p, ps.end))           ||
-			try_new_consts    (new_state(ps.p, ps.end))           ||
-			try_if            (new_state(ps.p, ps.end))           ||
-			try_while         (new_state(ps.p, ps.end))           ||
-			try_return_stmt   (new_state(ps.p, ps.end))           ||
-			try_scope         (new_state(ps.p, ps.end))           ||
-			try_reass_var_stmt(new_state(ps.p, ps.end))           ||
-			try_expr_stmt     (new_state(ps.p, ps.end))           ||
-			try_asm_stmt      (new_state(ps.p, ps.end))
+			try_new_vars      (new_state(ps.end))           ||
+			try_new_consts    (new_state(ps.end))           ||
+			try_if            (new_state(ps.end))           ||
+			try_while         (new_state(ps.end))           ||
+			try_return_stmt   (new_state(ps.end))           ||
+			try_scope         (new_state(ps.end))           ||
+			try_reass_var_stmt(new_state(ps.end))           ||
+			try_expr_stmt     (new_state(ps.end))           ||
+			try_asm_stmt      (new_state(ps.end))
 		)
 	) {
 		return true;
@@ -2427,8 +2341,7 @@ static bool try_statements(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			until_end(new_state(ps.p, ps.end), try_statement)
+			until_end(new_state(ps.end), try_statement)
 		)
 	) {
 		return true;
@@ -2460,7 +2373,6 @@ static bool try_fn_def(parser_state ps)
 	bool verify_params = false;
 	if (
 		manage_state(
-			ps,
 			match               (ps.p,  token::ALIAS, &t)                                                 &&
 			(
 				(verify_params = ((ps.p->fn = find_fn(t.text, ps.p)) != NULL)) ||
@@ -2480,12 +2392,12 @@ static bool try_fn_def(parser_state ps)
 			write_word          (ps.p->out, XWORD{XIS::SVC})                                              &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                           &&
 			push_scope          (ps.p->scopes)                                                            &&
-			try_opt_fn_params   (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
-			adjust_fn_rel_ptr   (new_state(ps.p, ps.end))                                                 &&
+			try_opt_fn_params   (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
+			adjust_fn_rel_ptr   (new_state(ps.end))                                                 &&
 			// TODO push another scope here (don't forget to pop)
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                           &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)                                 &&
-			try_statements      (new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
+			try_statements      (new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)                                 &&
 			emit_pop_scope      (ps.p)                                                                    &&
 			write_word          (ps.p->out, XWORD{XIS::LDC})                                              && // NOTE: We do not explicitly set a return value since the call site sets it to 0 by default.
@@ -2504,7 +2416,6 @@ static bool try_count_fn_param(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
@@ -2518,13 +2429,12 @@ static bool try_count_fn_params(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
-			try_count_fn_param(new_state(ps.p, ps.end)) &&
+			try_count_fn_param(new_state(ps.end)) &&
 			(
 				peek(ps.p).user_type == ps.end ||
 				(
 					match(ps.p, xbtoken::OPERATOR_COMMA) &&
-					try_count_fn_params(new_state(ps.p, ps.end))
+					try_count_fn_params(new_state(ps.end))
 				)
 			)
 		)
@@ -2539,9 +2449,8 @@ static bool try_count_opt_fn_params(parser_state ps)
 	ps.p->fn->param_count = 0;
 	if (
 		manage_state(
-			ps,
 			peek(ps.p).user_type == ps.end ||
-			try_count_fn_params(new_state(ps.p, ps.end))
+			try_count_fn_params(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -2555,11 +2464,10 @@ static bool try_fn_decl(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			ps,
 			match                  (ps.p, token::ALIAS, &t)                                   &&
 			(ps.p->fn = add_fn(t.text, ps.p)) != NULL                                         &&
 			match                  (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
-			try_count_opt_fn_params(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			try_count_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match                  (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)            &&
 			match                  (ps.p, xbtoken::OPERATOR_SEMICOLON)
 		)
@@ -2569,37 +2477,19 @@ static bool try_fn_decl(parser_state ps)
 	}
 	return false;
 }
-#include <iostream>
-static bool dummy_lit_expr(parser_state ps)
-{
-	// TODO Remove me
-	U16 result = 0;
-	if (
-		manage_state(
-			ps,
-			match(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L) &&
-			try_lit_expr(new_state(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R), result) &&
-			match(ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R) &&
-			match(ps.p, xbtoken::OPERATOR_SEMICOLON)
-		)
-	) {
-		std::cout << "RESULT IS = " << result << std::endl;
-		return true;
-	}
-	return false;
-}
+
+
 
 static bool try_global_statement(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			match         (ps.p, xbtoken::OPERATOR_SEMICOLON) ||
-			dummy_lit_expr(new_state(ps.p, ps.end))           || // TODO Remove me
-			try_fn_def    (new_state(ps.p, ps.end))           ||
-			try_fn_decl   (new_state(ps.p, ps.end))           ||
-			try_new_vars  (new_state(ps.p, ps.end))           ||
-			try_new_consts(new_state(ps.p, ps.end))
+			try_fn_def    (new_state(ps.end))           ||
+			try_fn_decl   (new_state(ps.end))           ||
+			try_new_vars  (new_state(ps.end))           ||
+			try_new_consts(new_state(ps.end))           //||
+			//try_new_svars (new_state(ps.end))
 		)
 	) {
 		return true;
@@ -2619,7 +2509,7 @@ static bool add_main(parser *p)
 
 static bool try_global_statements(parser_state ps)
 {
-	if (manage_state(ps, until_end(new_state(ps.p, ps.end), try_global_statement))) {
+	if (manage_state( until_end(new_state(ps.end), try_global_statement))) {
 		return true;
 	}
 	return false;
@@ -2637,11 +2527,10 @@ static bool emit_call_main(parser *op)
 	// TODO According to B manual "main(); exit();" are implicitly called in that order. Since we have parameters and return values from programs we can do the below:
 	// p.in.l = init_lexer(chars::view{"exit(main(*0x01,*0x02);", 24})); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
 	p.in.l = init_lexer(chars::view{ "main(0,0);", 10 });
-	parser_state ps = new_state(&p, token::STOP_EOF);
+	parser_state ps = _new_state(&p, token::STOP_EOF);
 	if (
 		manage_state(
-			ps,
-			try_statement(new_state(ps.p, ps.end))
+			try_statement(new_state(ps.end))
 		)
 	) {
 		op->out = p.out;
@@ -2654,10 +2543,9 @@ static bool try_program(parser_state ps)
 {
 	if (
 		manage_state(
-			ps,
 			write_word           (ps.p->out, XWORD{XIS::SVB}) &&
 			add_main             (ps.p)                       &&
-			try_global_statements(new_state(ps.p, ps.end))    &&
+			try_global_statements(new_state(ps.end))          &&
 			emit_call_main       (ps.p)
 		)
 	) {
@@ -2697,16 +2585,14 @@ xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
 {
 	symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	parser       p  = init_parser(l, mem, sym_mem, sym_capacity);
-	parser_state ps = new_state(&p, token::STOP_EOF);
+	parser_state ps = _new_state(&p, token::STOP_EOF);
 
 	if (
 		manage_state(
-			ps,
-			try_program(new_state(ps.p, ps.end))
+			try_program(new_state(ps.end))
 		)
 	) {
 		return xcc_out{ p.in.l, p.out, p.max, 0, xcc_error{ p.max, xcc_error::NONE } };
 	}
 	return xcc_out{ p.in.l, p.out, p.max, 1, xcc_error{ p.max, xcc_error::INTERNAL } };
 }
-
