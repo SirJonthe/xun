@@ -17,12 +17,14 @@ struct xcc_error
 	enum {
 		NONE,
 		MEMORY,
+		UNDEF,
 		REDEF,
 		VERIFY,
 		INTERNAL
 	};
-	token tok;  // The token generating the error.
-	U16   code; // The error code.
+	token    tok;  // The token generating the error.
+	U16      code; // The error code.
+	unsigned line; // The location where the error occurred in the compiler.
 };
 
 /// @brief Contains metadata about an output XASM binary.

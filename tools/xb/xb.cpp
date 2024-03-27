@@ -32,8 +32,8 @@
 
 // TODO
 // [ ] Strings
-// [ ] static (variables stored in binary, RLA used to address)
 // [ ] Inline assembly
+// [ ] static (variables stored in binary, RLA used to address)
 // [ ] Push a second scope after parameter scope in functions
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] namespace
@@ -195,8 +195,6 @@ struct input_tokens
 static bool write_word(xcc_binary &buf, XWORD data)
 {
 	if (buf.size >= buf.capacity) {
-		// TODO FATAL ERROR
-		// OUT OF MEMORY
 		return false;
 	}
 	buf.buffer[buf.size++] = data;
@@ -291,11 +289,22 @@ struct parser
 	xcc_error     error;  // The first fatal error.
 };
 
-static void set_error(parser *p, U16 code)
+static void _set_error(parser *p, U16 code, unsigned line)
 {
 	if (p->error.code == xcc_error::NONE) {
-		p->error = xcc_error{ p->in.l.last, code };
+		p->error = xcc_error{ p->in.l.last, code, line };
 	}
+}
+
+#define set_error(p, code) _set_error(p, code, __LINE__)
+
+static bool write_word(parser *p, XWORD data)
+{
+	if (!write_word(p->out, data)) {
+		set_error(p, xcc_error::MEMORY);
+		return false;
+	}
+	return true;
 }
 
 static symbol *find_symbol(const chars &name, parser *p)
@@ -339,15 +348,13 @@ static symbol *find_fn(const chars &name, parser *p)
 static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 value = 0)
 {
 	if (p->scopes.count >= p->scopes.capacity) {
-		// TODO FATAL ERROR
-		// OUT OF MEMORY
+		set_error(p, xcc_error::MEMORY);
 		return NULL;
 	}
 	const unsigned name_char_count = chcount(name.str);
 	for (U16 i = p->scopes.top_index; i < p->scopes.count; ++i) {
 		if (strcmp(p->scopes.symbols[i].name.str, chcount(p->scopes.symbols[i].name.str), name.str, name_char_count)) {
-			// TODO NON-FATAL ERROR
-			// REDEFINITION
+			set_error(p, xcc_error::REDEF);
 			return NULL;
 		}
 	}
@@ -376,21 +383,17 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 		} else if (category == symbol::SVAR) {
 			sym.data.u = p->out.size + 1;
 			if (
-				!write_word(p->out, XWORD{XIS::BIN}) ||
-				!write_word(p->out, XWORD{value})
+				!write_word(p, XWORD{XIS::BIN}) ||
+				!write_word(p, XWORD{value})
 			) {
-				// TODO FATAL ERROR
-				// OUT OF MEMORY
 				return NULL;
 			}
 		} else {
 			sym.data.u = top_scope_stack_size(p->scopes) + 1;
 			if (
-				!write_word(p->out, XWORD{XIS::PUT}) ||
-				!write_word(p->out, XWORD{value})
+				!write_word(p, XWORD{XIS::PUT}) ||
+				!write_word(p, XWORD{value})
 			) {
-				// TODO FATAL ERROR
-				// OUT OF MEMORY
 				return NULL;
 			}
 		}
@@ -431,9 +434,9 @@ static bool emit_pop_scope(parser *p)
 		(
 			lsp == 0 ||
 			(
-				write_word(p->out, XWORD{XIS::PUT}) &&
-				write_word(p->out, XWORD{lsp})      &&
-				write_word(p->out, XWORD{XIS::POP})
+				write_word(p, XWORD{XIS::PUT}) &&
+				write_word(p, XWORD{lsp})      &&
+				write_word(p, XWORD{XIS::POP})
 			)
 		) &&
 		pop_scope(p->scopes);
@@ -495,16 +498,16 @@ static bool write_rel(parser *p, const symbol *sym)
 {
 	if (sym->category == symbol::LIT) {
 		return
-			write_word(p->out, XWORD{XIS::PUT})    &&
-			write_word(p->out, XWORD{sym->data.u});
+			write_word(p, XWORD{XIS::PUT})    &&
+			write_word(p, XWORD{sym->data.u});
 	}
 	return
-		write_word(p->out, XWORD{XIS::PUT})    &&
-		write_word(p->out, XWORD{sym->data.u}) &&
-		sym->category == symbol::SVAR ? write_word(p->out, XWORD{XIS::RLA}) : (
+		write_word(p, XWORD{XIS::PUT})    &&
+		write_word(p, XWORD{sym->data.u}) &&
+		sym->category == symbol::SVAR ? write_word(p, XWORD{XIS::RLA}) : (
 			sym->scope_index > 0 ?
-				write_word(p->out, XWORD{XIS::RLC}) :
-				write_word(p->out, XWORD{XIS::RLB})
+				write_word(p, XWORD{XIS::RLC}) :
+				write_word(p, XWORD{XIS::RLB})
 		);
 }
 
@@ -561,9 +564,9 @@ static bool try_put_lit(parser_state ps)
 	U16 result = 0;
 	if (
 		manage_state(
-			try_read_lit(new_state(ps.end), result)  &&
-			write_word  (ps.p->out, XWORD{XIS::PUT}) &&
-			write_word  (ps.p->out, XWORD{result})
+			try_read_lit(new_state(ps.end), result) &&
+			write_word  (ps.p, XWORD{XIS::PUT})     &&
+			write_word  (ps.p, XWORD{result})
 		)
 	) {
 		return true;
@@ -591,8 +594,8 @@ static bool try_put_var(parser_state ps)
 {
 	if (
 		manage_state(
-			try_put_var_addr(new_state(ps.end))   &&
-			write_word(ps.p->out, XWORD{XIS::AT})
+			try_put_var_addr(new_state(ps.end)) &&
+			write_word(ps.p, XWORD{XIS::AT})
 		)
 	) {
 		return true;
@@ -646,8 +649,7 @@ static bool try_put_opt_fn_params(parser_state ps, const symbol *sym)
 		)
 	) {
 		if (sym != NULL && sym->category == symbol::FN && sym->param_count != param_count) {
-			// TODO FATAL ERROR
-			// PARAMETER COUNT MISMATCH
+			set_error(ps.p, xcc_error::VERIFY);
 			return false;
 		}
 		return true;
@@ -662,22 +664,22 @@ static bool try_call_fn(parser_state ps)
 	token t;
 	if (
 		manage_state(
-			match                (ps.p, token::ALIAS, &t)                                        && // TODO Replace this with any value (can be alias, literal, indirection etc.)
-			(sym = find_symbol(t.text, ps.p)) != NULL                                            && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
-			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                 &&
-			write_word           (ps.p->out, XWORD{XIS::PUT})                                    &&
-			write_word           (ps.p->out, XWORD{0})                                           && // NOTE: Put return value memory on stack.
-			write_word           (ps.p->out, XWORD{XIS::PUTI})                                   && // NOTE: Put return address on stack.
-			write_word           (ps.p->out, XWORD{XIS::PUT})                                    &&
-			(off_index = ps.p->out.size)                                                         &&
-			write_word           (ps.p->out, XWORD{0})                                           && // NOTE: Unable to determine return address offset here, so just emit 0.
-			write_word           (ps.p->out, XWORD{XIS::ADD})                                    && // NOTE: Adjust return address to move ahead of call site.
+			match                (ps.p, token::ALIAS, &t)                                  && // TODO Replace this with any value (can be alias, literal, indirection etc.)
+			(sym = find_symbol(t.text, ps.p)) != NULL                                      && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
+			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)           &&
+			write_word           (ps.p, XWORD{XIS::PUT})                                   &&
+			write_word           (ps.p, XWORD{0})                                          && // NOTE: Put return value memory on stack.
+			write_word           (ps.p, XWORD{XIS::PUTI})                                  && // NOTE: Put return address on stack.
+			write_word           (ps.p, XWORD{XIS::PUT})                                   &&
+			(off_index = ps.p->out.size)                                                   &&
+			write_word           (ps.p, XWORD{0})                                          && // NOTE: Unable to determine return address offset here, so just emit 0.
+			write_word           (ps.p, XWORD{XIS::ADD})                                   && // NOTE: Adjust return address to move ahead of call site.
 			try_put_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
-			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                 &&
-			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)                   && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
-			write_rel            (ps.p, sym)                                                     &&
-			write_word           (ps.p->out, XWORD{XIS::AT})                                     &&
-			write_word           (ps.p->out, XWORD{XIS::JMP})
+			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)           &&
+			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)             && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
+			write_rel            (ps.p, sym)                                               &&
+			write_word           (ps.p, XWORD{XIS::AT})                                    &&
+			write_word           (ps.p, XWORD{XIS::JMP})
 		)
 	) {
 		// TODO Surely we can determine instruction pointer offset without constant 7...
@@ -1225,63 +1227,63 @@ static bool emit_operation(parser *p, unsigned user_type)
 {
 	switch (user_type) {
 	case xbtoken::OPERATOR_ARITHMETIC_ADD:
-		if (write_word(p->out, XWORD{XIS::ADD})) { return true; }
+		if (write_word(p, XWORD{XIS::ADD})) { return true; }
 		break;
 	case xbtoken::OPERATOR_ARITHMETIC_SUB:
-		if (write_word(p->out, XWORD{XIS::SUB})) { return true; }
+		if (write_word(p, XWORD{XIS::SUB})) { return true; }
 		break;
 	case xbtoken::OPERATOR_ARITHMETIC_MUL:
-		if (write_word(p->out, XWORD{XIS::MUL})) { return true; }
+		if (write_word(p, XWORD{XIS::MUL})) { return true; }
 		break;
 	case xbtoken::OPERATOR_ARITHMETIC_DIV:
-		if (write_word(p->out, XWORD{XIS::DIV})) { return true; }
+		if (write_word(p, XWORD{XIS::DIV})) { return true; }
 		break;
 	case xbtoken::OPERATOR_ARITHMETIC_MOD:
-		if (write_word(p->out, XWORD{XIS::MOD})) { return true; }
+		if (write_word(p, XWORD{XIS::MOD})) { return true; }
 		break;
 	case xbtoken::OPERATOR_BITWISE_AND:
 	case xbtoken::OPERATOR_LOGICAL_AND:
-		if (write_word(p->out, XWORD{XIS::AND})) { return true; }
+		if (write_word(p, XWORD{XIS::AND})) { return true; }
 		break;
 	case xbtoken::OPERATOR_BITWISE_OR:
 	case xbtoken::OPERATOR_LOGICAL_OR:
-		if (write_word(p->out, XWORD{XIS::OR})) { return true; }
+		if (write_word(p, XWORD{XIS::OR})) { return true; }
 		break;
 	case xbtoken::OPERATOR_BITWISE_XOR:
-		if (write_word(p->out, XWORD{XIS::XOR})) { return true; }
+		if (write_word(p, XWORD{XIS::XOR})) { return true; }
 		break;
 	case xbtoken::OPERATOR_BITWISE_NOT:
-		if (write_word(p->out, XWORD{XIS::NOT})) { return true; }
+		if (write_word(p, XWORD{XIS::NOT})) { return true; }
 		break;
 	case xbtoken::OPERATOR_BITWISE_LSHIFT:
-		if (write_word(p->out, XWORD{XIS::LSH})) { return true; }
+		if (write_word(p, XWORD{XIS::LSH})) { return true; }
 		break;
 	case xbtoken::OPERATOR_BITWISE_RSHIFT:
-		if (write_word(p->out, XWORD{XIS::RSH})) { return true; }
+		if (write_word(p, XWORD{XIS::RSH})) { return true; }
 		break;
 	case xbtoken::OPERATOR_LOGICAL_LESS:
-		if (write_word(p->out, XWORD{XIS::LT})) { return true; }
+		if (write_word(p, XWORD{XIS::LT})) { return true; }
 		break;
 	case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:
-		if (write_word(p->out, XWORD{XIS::LE})) { return true; }
+		if (write_word(p, XWORD{XIS::LE})) { return true; }
 		break;
 	case xbtoken::OPERATOR_LOGICAL_GREATER:
-		if (write_word(p->out, XWORD{XIS::GT})) { return true; }
+		if (write_word(p, XWORD{XIS::GT})) { return true; }
 		break;
 	case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL:
-		if (write_word(p->out, XWORD{XIS::LE})) { return true; }
+		if (write_word(p, XWORD{XIS::LE})) { return true; }
 		break;
 	case xbtoken::OPERATOR_LOGICAL_EQUAL:
-		if (write_word(p->out, XWORD{XIS::EQ})) { return true; }
+		if (write_word(p, XWORD{XIS::EQ})) { return true; }
 		break;
 	case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:
-		if (write_word(p->out, XWORD{XIS::NE})) { return true; }
+		if (write_word(p, XWORD{XIS::NE})) { return true; }
 		break;
 	case xbtoken::OPERATOR_LOGICAL_NOT:
 		if (
-			write_word(p->out, XWORD{XIS::PUT}) &&
-			write_word(p->out, XWORD{0})        &&
-			write_word(p->out, XWORD{XIS::EQ})
+			write_word(p, XWORD{XIS::PUT}) &&
+			write_word(p, XWORD{0})        &&
+			write_word(p, XWORD{XIS::EQ})
 		) {
 			return true;
 		}
@@ -1316,7 +1318,7 @@ static bool try_redir_val(parser_state ps)
 		manage_state(
 			match     (ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
 			try_rval  (new_state(ps.end))                      &&
-			write_word(ps.p->out, XWORD{XIS::AT})
+			write_word(ps.p, XWORD{XIS::AT})
 		)
 	) {
 		return true;
@@ -1346,11 +1348,11 @@ static bool try_put_index_addr(parser_state ps)
 	if (
 		manage_state(
 			try_index_src(new_state(ps.end))                              &&
-			write_word   (ps.p->out, XWORD{XIS::AT})                      &&
+			write_word   (ps.p, XWORD{XIS::AT})                           &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)      &&
 			try_expr     (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)      &&
-			write_word   (ps.p->out, XWORD{XIS::ADD})
+			write_word   (ps.p, XWORD{XIS::ADD})
 		)
 	) {
 		return true;
@@ -1363,7 +1365,7 @@ static bool try_put_index(parser_state ps)
 	if (
 		manage_state(
 			try_put_index_addr(new_state(ps.end))         &&
-			write_word        (ps.p->out, XWORD{XIS::AT})
+			write_word        (ps.p, XWORD{XIS::AT})
 		)
 	) {
 		return true;
@@ -1459,7 +1461,7 @@ static bool try_uni_neg(parser_state ps)
 		manage_state(
 			match     (ps.p, xbtoken::OPERATOR_ARITHMETIC_SUB) &&
 			try_rval  (new_state(ps.end))                      &&
-			write_word(ps.p->out, XWORD{XIS::INEG})
+			write_word(ps.p, XWORD{XIS::INEG})
 		)
 	) {
 		return true;
@@ -1709,13 +1711,13 @@ static bool try_opt_logical_and(parser_state ps)
 		U16 jmp_addr;
 		if (
 			!manage_state(
-				write_word     (ps.p->out, XWORD{XIS::DUP})   &&
-				write_word     (ps.p->out, XWORD{XIS::PUT})   &&
-				(jmp_addr = ps.p->out.size)                   &&
-				write_word     (ps.p->out, XWORD{0})          && // NOTE: Temp value
-				write_word     (ps.p->out, XWORD{XIS::CNJMP}) &&
-				try_logical_and(new_state(ps.end))            &&
-				emit_operation (ps.p, t.user_type)            &&
+				write_word     (ps.p, XWORD{XIS::DUP})          &&
+				write_word     (ps.p, XWORD{XIS::PUT})          &&
+				(jmp_addr = ps.p->out.size)                     &&
+				write_word     (ps.p, XWORD{0})                 && // NOTE: Temp value
+				write_word     (ps.p, XWORD{XIS::CNJMP})        &&
+				try_logical_and(new_state(ps.end))              &&
+				emit_operation (ps.p, t.user_type)              &&
 				(ps.p->out.buffer[jmp_addr].u = ps.p->out.size)
 			)
 		) {
@@ -1747,13 +1749,13 @@ static bool try_opt_logical_or(parser_state ps)
 		U16 jmp_addr;
 		if (
 			!manage_state(
-				write_word    (ps.p->out, XWORD{XIS::DUP})  &&
-				write_word    (ps.p->out, XWORD{XIS::PUT})  &&
-				(jmp_addr = ps.p->out.size)                 &&
-				write_word    (ps.p->out, XWORD{0})         && // NOTE: Temp value
-				write_word    (ps.p->out, XWORD{XIS::CJMP}) &&
-				try_logical_or(new_state(ps.end))           &&
-				emit_operation(ps.p, t.user_type)           &&
+				write_word    (ps.p, XWORD{XIS::DUP})           &&
+				write_word    (ps.p, XWORD{XIS::PUT})           &&
+				(jmp_addr = ps.p->out.size)                     &&
+				write_word    (ps.p, XWORD{0})                  && // NOTE: Temp value
+				write_word    (ps.p, XWORD{XIS::CJMP})          &&
+				try_logical_or(new_state(ps.end))               &&
+				emit_operation(ps.p, t.user_type)               &&
 				(ps.p->out.buffer[jmp_addr].u = ps.p->out.size)
 			)
 		) {
@@ -1814,9 +1816,9 @@ static bool try_opt_arr_def_expr(parser_state ps, symbol *sym)
 	++ps.p->out.buffer[ps.p->out.size - 2].u; // Make the 'write_rel' point to one address higher than the array pointer (where the array is located).
 	if (p.user_type == ps.end || p.user_type == xbtoken::OPERATOR_COMMA) {
 		return
-			write_word(ps.p->out, XWORD{XIS::PUT})           &&
-			write_word(ps.p->out, XWORD{U16(sym->size - 1)}) &&
-			write_word(ps.p->out, XWORD{XIS::PUSH});
+			write_word(ps.p, XWORD{XIS::PUT})           &&
+			write_word(ps.p, XWORD{U16(sym->size - 1)}) &&
+			write_word(ps.p, XWORD{XIS::PUSH});
 	}
 	U16 count = 0;
 	if (
@@ -1828,8 +1830,7 @@ static bool try_opt_arr_def_expr(parser_state ps, symbol *sym)
 		)
 	) {
 		if (sym->size - 1 != count) {
-			// TODO FATAL ERROR
-			// EXPRESSION COUNT MISMATCH
+			set_error(ps.p, xcc_error::VERIFY);
 			return false;
 		}
 		return true;
@@ -1865,8 +1866,8 @@ static bool try_opt_var_def_expr(parser_state ps)
 	token p = peek(ps.p);
 	if (p.user_type == ps.end || p.user_type == xbtoken::OPERATOR_COMMA) {
 		return
-			write_word(ps.p->out, XWORD{XIS::PUT}) &&
-			write_word(ps.p->out, XWORD{0});
+			write_word(ps.p, XWORD{XIS::PUT}) &&
+			write_word(ps.p, XWORD{0});
 	}
 	if (
 		manage_state(
@@ -1999,7 +2000,6 @@ static bool try_fn_param(parser_state ps, symbol *param)
 	) {
 		param->param = add_param(t.text, ps.p);
 		if (param->param == NULL) {
-			// TODO FATAL ERROR
 			return false;
 		}
 		return true;
@@ -2040,8 +2040,7 @@ static void set_param_addr(symbol *fn)
 static bool try_opt_fn_params(parser_state ps, bool verify_params)
 {
 	if (ps.p->fn == NULL) {
-		// TODO FATAL ERROR
-		// ERROR IN COMPILER
+		set_error(ps.p, xcc_error::INTERNAL);
 		return false;
 	}
 	const symbol fn = *ps.p->fn;
@@ -2058,8 +2057,7 @@ static bool try_opt_fn_params(parser_state ps, bool verify_params)
 			p = p->param;
 		}
 		if (verify_params && ps.p->fn->param_count != fn.param_count) {
-			// TODO FATAL ERROR
-			// PARAMETER COUNT MISMATCH
+			set_error(ps.p, xcc_error::VERIFY);
 			return false;
 		}
 		set_param_addr(ps.p->fn);
@@ -2078,10 +2076,10 @@ static bool try_else(parser_state ps)
 	if (
 		manage_state(
 			match        (ps.p, xbtoken::KEYWORD_CONTROL_ELSE) &&
-			write_word   (ps.p->out, XWORD{XIS::PUT})          &&
+			write_word   (ps.p, XWORD{XIS::PUT})               &&
 			(jmp_addr_idx = ps.p->out.size)                    &&
-			write_word   (ps.p->out, XWORD{0})                 &&
-			write_word   (ps.p->out, XWORD{XIS::JMP})          &&
+			write_word   (ps.p, XWORD{0})                      &&
+			write_word   (ps.p, XWORD{XIS::JMP})               &&
 			push_scope   (ps.p->scopes)                        &&
 			try_statement(new_state(ps.end))                   &&
 			emit_pop_scope(ps.p)
@@ -2104,10 +2102,10 @@ static bool try_if(parser_state ps)
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
 			try_expr     (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)      &&
-			write_word   (ps.p->out, XWORD{XIS::PUT})                         &&
+			write_word   (ps.p, XWORD{XIS::PUT})                              &&
 			(jmp_addr_idx = ps.p->out.size)                                   &&
-			write_word   (ps.p->out, XWORD{0})                                &&
-			write_word   (ps.p->out, XWORD{XIS::CNJMP})                       &&
+			write_word   (ps.p, XWORD{0})                                     &&
+			write_word   (ps.p, XWORD{XIS::CNJMP})                            &&
 			push_scope   (ps.p->scopes)                                       &&
 			try_statement(new_state(ps.end))                                  &&
 			emit_pop_scope(ps.p)
@@ -2137,19 +2135,19 @@ static bool try_while(parser_state ps)
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
 			try_expr     (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)      &&
-			write_word   (ps.p->out, XWORD{XIS::PUT})                         &&
+			write_word   (ps.p, XWORD{XIS::PUT})                              &&
 			(jmp_addr_idx = ps.p->out.size)                                   &&
-			write_word   (ps.p->out, XWORD{0})                                &&
-			write_word   (ps.p->out, XWORD{XIS::CNJMP})                       &&
+			write_word   (ps.p, XWORD{0})                                     &&
+			write_word   (ps.p, XWORD{XIS::CNJMP})                            &&
 			push_scope   (ps.p->scopes)                                       &&
 			try_statement(new_state(ps.end))                                  &&
 			emit_pop_scope(ps.p)
 		)
 	) {
 		return manage_state(
-			write_word    (ps.p->out, XWORD{XIS::PUT})          &&
-			write_word    (ps.p->out, XWORD{return_jmp_idx})    &&
-			write_word    (ps.p->out, XWORD{XIS::JMP})          &&
+			write_word    (ps.p, XWORD{XIS::PUT})          &&
+			write_word    (ps.p, XWORD{return_jmp_idx})    &&
+			write_word    (ps.p, XWORD{XIS::JMP})          &&
 			(ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size)
 		);
 	}
@@ -2179,7 +2177,7 @@ static bool try_expr_stmt(parser_state ps)
 		manage_state(
 			try_expr  (new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)      &&
-			write_word(ps.p->out, XWORD{XIS::TOSS})
+			write_word(ps.p, XWORD{XIS::TOSS})
 		)
 	) {
 		return true;
@@ -2236,7 +2234,7 @@ static bool try_reass_var_stmt(parser_state ps)
 			match     (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)      &&
 			try_expr  (new_state(xbtoken::OPERATOR_SEMICOLON))      &&
 			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)           &&
-			write_word(ps.p->out, XWORD{XIS::MOVD})
+			write_word(ps.p, XWORD{XIS::MOVD})
 		)
 	) {
 		return true;
@@ -2262,18 +2260,18 @@ static bool try_return_stmt(parser_state ps)
 	if (
 		manage_state(
 			match     (ps.p, xbtoken::KEYWORD_CONTROL_RETURN)  &&
-			write_word(ps.p->out, XWORD{XIS::PUT})             &&
-			write_word(ps.p->out, XWORD{0})                    &&
-			write_word(ps.p->out, XWORD{XIS::RLC})             &&
-			write_word(ps.p->out, XWORD{XIS::AT})              &&
-			write_word(ps.p->out, XWORD{XIS::PUT})             &&
-			write_word(ps.p->out, XWORD{1})                    &&
-			write_word(ps.p->out, XWORD{XIS::SUB})             &&
+			write_word(ps.p, XWORD{XIS::PUT})                  &&
+			write_word(ps.p, XWORD{0})                         &&
+			write_word(ps.p, XWORD{XIS::RLC})                  &&
+			write_word(ps.p, XWORD{XIS::AT})                   &&
+			write_word(ps.p, XWORD{XIS::PUT})                  &&
+			write_word(ps.p, XWORD{1})                         &&
+			write_word(ps.p, XWORD{XIS::SUB})                  &&
 			try_expr  (new_state(xbtoken::OPERATOR_SEMICOLON)) && // TODO: Should be try_opt_expr, but requires to mirror default return pattern at end of function.
 			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)      &&
-			write_word(ps.p->out, XWORD{XIS::MOVD})            && // NOTE: Address of return value is top value. Move expression result to external return memory.
-			write_word(ps.p->out, XWORD{XIS::LDC})             &&
-			write_word(ps.p->out, XWORD{XIS::JMP})                // NOTE: Return address is top value. Jump back to call site
+			write_word(ps.p, XWORD{XIS::MOVD})                 && // NOTE: Address of return value is top value. Move expression result to external return memory.
+			write_word(ps.p, XWORD{XIS::LDC})                  &&
+			write_word(ps.p, XWORD{XIS::JMP})                     // NOTE: Return address is top value. Jump back to call site
 		)
 	) {
 		return true;
@@ -2361,9 +2359,9 @@ static bool adjust_fn_rel_ptr(parser_state ps)
 		return true;
 	}
 	return
-		write_word(ps.p->out, XWORD{XIS::PUT}) &&
-		write_word(ps.p->out, XWORD{params})   &&
-		write_word(ps.p->out, XWORD{XIS::SUB});
+		write_word(ps.p, XWORD{XIS::PUT}) &&
+		write_word(ps.p, XWORD{params})   &&
+		write_word(ps.p, XWORD{XIS::SUB});
 }
 
 static bool try_fn_def(parser_state ps)
@@ -2379,17 +2377,17 @@ static bool try_fn_def(parser_state ps)
 				(ps.p->fn = add_fn(t.text, ps.p)) != NULL
 			)                                                                                       &&
 			write_rel           (ps.p, ps.p->fn)                                                    &&
-			write_word          (ps.p->out, XWORD{XIS::PUTI})                                       &&
-			write_word          (ps.p->out, XWORD{XIS::PUT})                                        &&
-			write_word          (ps.p->out, XWORD{9})                                               && // NOTE: 9 is the offset to get to SVC (the first instruction of the function body).
-			write_word          (ps.p->out, XWORD{XIS::ADD})                                        &&
-			write_word          (ps.p->out, XWORD{XIS::RLA})                                        &&
-			write_word          (ps.p->out, XWORD{XIS::MOVD})                                       &&
-			write_word          (ps.p->out, XWORD{XIS::PUT})                                        &&
+			write_word          (ps.p, XWORD{XIS::PUTI})                                            &&
+			write_word          (ps.p, XWORD{XIS::PUT})                                             &&
+			write_word          (ps.p, XWORD{9})                                                    && // NOTE: 9 is the offset to get to SVC (the first instruction of the function body).
+			write_word          (ps.p, XWORD{XIS::ADD})                                             &&
+			write_word          (ps.p, XWORD{XIS::RLA})                                             &&
+			write_word          (ps.p, XWORD{XIS::MOVD})                                            &&
+			write_word          (ps.p, XWORD{XIS::PUT})                                             &&
 			(guard_jmp_idx = ps.p->out.size)                                                        &&
-			write_word          (ps.p->out, XWORD{0})                                               &&
-			write_word          (ps.p->out, XWORD{XIS::JMP})                                        &&
-			write_word          (ps.p->out, XWORD{XIS::SVC})                                        &&
+			write_word          (ps.p, XWORD{0})                                                    &&
+			write_word          (ps.p, XWORD{XIS::JMP})                                             &&
+			write_word          (ps.p, XWORD{XIS::SVC})                                             &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                     &&
 			push_scope          (ps.p->scopes)                                                      &&
 			try_opt_fn_params   (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
@@ -2400,8 +2398,8 @@ static bool try_fn_def(parser_state ps)
 			try_statements      (new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)                           &&
 			emit_pop_scope      (ps.p)                                                              &&
-			write_word          (ps.p->out, XWORD{XIS::LDC})                                        && // NOTE: We do not explicitly set a return value since the call site sets it to 0 by default.
-			write_word          (ps.p->out, XWORD{XIS::JMP})                                           // NOTE: Jump back to call site
+			write_word          (ps.p, XWORD{XIS::LDC})                                             && // NOTE: We do not explicitly set a return value since the call site sets it to 0 by default.
+			write_word          (ps.p, XWORD{XIS::JMP})                                                // NOTE: Jump back to call site
 		)
 	) {
 		ps.p->out.buffer[guard_jmp_idx].u = ps.p->out.size;
@@ -2543,9 +2541,9 @@ static bool try_program(parser_state ps)
 {
 	if (
 		manage_state(
-			write_word           (ps.p->out, XWORD{XIS::SVB}) &&
-			add_main             (ps.p)                       &&
-			try_global_statements(new_state(ps.end))          &&
+			write_word           (ps.p, XWORD{XIS::SVB}) &&
+			add_main             (ps.p)                  &&
+			try_global_statements(new_state(ps.end))     &&
 			emit_call_main       (ps.p)
 		)
 	) {
@@ -2556,13 +2554,13 @@ static bool try_program(parser_state ps)
 				(
 					lsp == 0 ||
 					(
-						write_word(ps.p->out, XWORD{XIS::PUT}) &&
-						write_word(ps.p->out, XWORD{lsp})      &&
-						write_word(ps.p->out, XWORD{XIS::POP})
+						write_word(ps.p, XWORD{XIS::PUT}) &&
+						write_word(ps.p, XWORD{lsp})      &&
+						write_word(ps.p, XWORD{XIS::POP})
 					)
 				) &&
-				write_word(ps.p->out, XWORD{XIS::LDB}) &&
-				write_word(ps.p->out, XWORD{XIS::HALT})
+				write_word(ps.p, XWORD{XIS::LDB}) &&
+				write_word(ps.p, XWORD{XIS::HALT})
 			);
 	}
 	return false;
@@ -2576,7 +2574,7 @@ parser init_parser(lexer l, xcc_binary bin_mem, symbol *sym_mem, U16 sym_capacit
 		l.last,
 		symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 },
 		NULL,
-		xcc_error{ new_eof(), xcc_error::NONE }
+		xcc_error{ new_eof(), xcc_error::NONE, 0 }
 	};
 	return p;
 }
@@ -2592,7 +2590,7 @@ xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
 			try_program(new_state(ps.end))
 		)
 	) {
-		return xcc_out{ p.in.l, p.out, p.max, 0, xcc_error{ p.max, xcc_error::NONE } };
+		return xcc_out{ p.in.l, p.out, p.max, 0, xcc_error{ p.max, xcc_error::NONE, 0 } };
 	}
-	return xcc_out{ p.in.l, p.out, p.max, 1, xcc_error{ p.max, xcc_error::INTERNAL } };
+	return xcc_out{ p.in.l, p.out, p.max, 1, p.error };
 }
