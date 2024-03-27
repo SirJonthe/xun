@@ -16,6 +16,7 @@
 //		auto a = 1;
 //		a = function(1, 1);
 //		auto b[2] = { 1, 1 };
+//      const c = 1;
 //		if (1) {
 //	
 //		} else {
