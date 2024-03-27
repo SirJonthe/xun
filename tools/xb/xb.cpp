@@ -31,9 +31,11 @@
 
 // TODO
 // [ ] Strings
+// [ ] static (variables stored in binary, RLA used to address)
 // [ ] Inline assembly
 // [ ] Push a second scope after parameter scope in functions
 // [ ] Include files (hard because it requires a virtual file system)
+// [ ] namespace
 // [ ] continue, break
 
 #include <cstdlib>
@@ -74,6 +76,7 @@ struct xbtoken
 	{
 		KEYWORD_TYPE_AUTO,
 		KEYWORD_TYPE_CONST,
+		KEYWORD_TYPE_STATIC,
 		KEYWORD_CONTROL_RETURN,
 		KEYWORD_CONTROL_IF,
 		KEYWORD_CONTROL_ELSE,
@@ -81,6 +84,7 @@ struct xbtoken
 		KEYWORD_CONTROL_BREAK,
 		KEYWORD_CONTROL_CONTINUE,
 		KEYWORD_INTRINSIC_ASM,
+		KEYWORD_NAMESPACE,
 		OPERATOR_ARITHMETIC_ADD,
 		OPERATOR_ARITHMETIC_SUB,
 		OPERATOR_ARITHMETIC_MUL,
@@ -119,7 +123,7 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 47;
+const signed XB_TOKEN_COUNT = 49;
 const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -130,6 +134,8 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_keyword ("asm",                     3, xbtoken::KEYWORD_INTRINSIC_ASM),
 	new_keyword ("auto",                    4, xbtoken::KEYWORD_TYPE_AUTO),
 	new_keyword ("const",                   5, xbtoken::KEYWORD_TYPE_CONST),
+	new_keyword ("static",                  6, xbtoken::KEYWORD_TYPE_STATIC),
+	new_keyword ("namespace",               9, xbtoken::KEYWORD_NAMESPACE),
 	new_operator("<=",                      2, xbtoken::OPERATOR_LOGICAL_LESSEQUAL),
 	new_operator(">=",                      2, xbtoken::OPERATOR_LOGICAL_GREATEREQUAL),
 	new_operator("==",                      2, xbtoken::OPERATOR_LOGICAL_EQUAL),
@@ -200,10 +206,11 @@ static bool write_word(xcc_binary &buf, XWORD data)
 struct symbol
 {
 	enum {
-		VAR,   // A modifiable value.
+		VAR,   // A modifiable value with local automatic storage.
+		SVAR,  // A modifiable value with global static storage.
 		PARAM, // A modifiable value, that does not modify the stack.
 		LIT,   // An immediate constant.
-		FN     // An immediate constant for use as a target for jump instructions.
+		FN     // An immediate constant for use as a target for jump instructions. Local automatic storage.
 	};
 	chars   name;        // The name of the symbol.
 	XWORD   data;        // The address of a variable/function, or the value of a literal.
@@ -347,6 +354,7 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 	switch (category) {
 	case symbol::PARAM:
 	case symbol::LIT:
+	case symbol::SVAR:
 		sym.size = 0;
 		break;
 	case symbol::VAR:
@@ -355,7 +363,19 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 		break;
 	}
 	if (category != symbol::PARAM) {
-		if (category != symbol::LIT) {
+		if (category == symbol::LIT) {
+			sym.data.u = value;
+		} else if (category == symbol::SVAR) {
+			sym.data.u = p->out.size + 1;
+			if (
+				!write_word(p->out, XWORD{XIS::BIN}) ||
+				!write_word(p->out, XWORD{value})
+			) {
+				// TODO FATAL ERROR
+				// OUT OF MEMORY
+				return NULL;
+			}
+		} else {
 			sym.data.u = top_scope_stack_size(p->scopes) + 1;
 			if (
 				!write_word(p->out, XWORD{XIS::PUT}) ||
@@ -365,8 +385,6 @@ static symbol *add_symbol(const chars &name, unsigned category, parser *p, U16 v
 				// OUT OF MEMORY
 				return NULL;
 			}
-		} else {
-			sym.data.u = value;
 		}
 	}
 	++p->scopes.count;
@@ -475,9 +493,11 @@ static bool write_rel(parser *p, const symbol *sym)
 	return
 		write_word(p->out, XWORD{XIS::PUT})    &&
 		write_word(p->out, XWORD{sym->data.u}) &&
-		sym->scope_index > 0 ?
-			write_word(p->out, XWORD{XIS::RLC}) :
-			write_word(p->out, XWORD{XIS::RLB});
+		sym->category == symbol::SVAR ? write_word(p->out, XWORD{XIS::RLA}) : (
+			sym->scope_index > 0 ?
+				write_word(p->out, XWORD{XIS::RLC}) :
+				write_word(p->out, XWORD{XIS::RLB})
+		);
 }
 
 /// @brief Manages the parser state so that it can roll back on failure.

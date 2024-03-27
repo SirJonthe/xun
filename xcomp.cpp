@@ -296,6 +296,9 @@ XWORD Computer::Cycle( void )
 		PUSH_STACK(1);
 		TOP.u = U16(m_clock_ps / 1000000000ULL);
 		break;
+	case XIS::BIN:
+		READI;
+		break;
 	case XIS::TOSS:
 		POP_STACK(1);
 		break;
