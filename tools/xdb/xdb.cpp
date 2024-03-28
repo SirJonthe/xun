@@ -1,6 +1,6 @@
 #include <iostream>
 #include "xdb.h"
-#include "../xasm/xasm.h"
+#include "../xcc/xasm/xasm.h"
 
 void print_padded_hex(U16 num)
 {

@@ -1,23 +1,7 @@
 #ifndef XASM_H
 #define XASM_H
 
-#include "../xcc/xcc.h"
-
-// LAYOUT OF BINARY
-//
-// [JUMP TO MAIN] <-- EP needs to point here at the start of the execution (set 6 erel at erel jmp)
-// [DATA]
-//    [MAIN ADDRESS VARIABLE]
-//    [GRAPHICS]                   -|
-//    [FUNCTION ADDRESS VARIABLES]  |---< Can be any order, can be any data. XASM uses a "BIN" or "DATA" keyword to store raw data in the binary (this is not an instruction on the processor).
-//    [GLOBAL VARIABLES]            |
-//    etc...                       -|
-// [INSTRUCTIONS]
-//    [FUNCTIONS BEFORE MAIN]
-//    [MAIN]                  <-- IP needs to point here at the start of execution by using JMP at start of binary
-//    [FUNCTIONS AFTER MAIN]
-// [STACK]                    <-- CP needs to point here (SP is 0)
-//    [ELEMENTS]              <-- SP points to top here as an offset from CP
+#include "../xcc.h"
 
 /// @brief XASM token identifier.
 struct xtoken

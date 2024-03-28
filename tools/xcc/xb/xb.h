@@ -1,7 +1,7 @@
 #ifndef XB_H
 #define XB_H
 
-#include "../xasm/xasm.h"
+#include "../xcc.h"
 
 /// @brief Compiles XUN B source code with the XUN instruction set.
 /// @param l The lexer to use, loaded with the code to lex.

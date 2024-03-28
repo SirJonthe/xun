@@ -1,10 +1,8 @@
 #ifndef XDB_H
 #define XDB_H
 
-#include "../xasm/xasm.h"
+#include "../xcc/xasm/xasm.h"
 #include "../../xcomp.h"
-
-// [ ] Fix stack view
 
 /// @brief A debugger for binary programs.
 class xdebugger
