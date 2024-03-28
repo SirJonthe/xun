@@ -6,6 +6,7 @@
 
 // TODO
 // [ ] Inline assembly
+// [ ] Arrays without explicit size
 // [ ] Push a second scope after parameter scope in functions
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] static (variables stored in binary, RLA used to address)
@@ -170,6 +171,16 @@ token xblex1(lexer *l)
 	return chlex(l);
 }
 
+static bool emit_empty_symbol_storage(xcc_parser *p, const xcc_symbol *sym)
+{
+	if (sym->category != xcc_symbol::PARAM && sym->category != xcc_symbol::LIT) {
+		return 
+			(sym->category == xcc_symbol::SVAR ? xcc_write_word(p, XWORD{XIS::BIN}) : xcc_write_word(p, XWORD{XIS::PUT})) &&
+			xcc_write_word(p, XWORD{0});
+	}
+	return true;
+}
+
 static bool emit_pop_scope(xcc_parser *p)
 {
 	const U16 lsp = xcc_top_scope_stack_size(p);
@@ -239,9 +250,9 @@ static bool try_put_lit(xcc_parser_state ps)
 	U16 result = 0;
 	if (
 		manage_state(
-			try_read_lit(new_state(ps.end), result) &&
-			xcc_write_word  (ps.p, XWORD{XIS::PUT})     &&
-			xcc_write_word  (ps.p, XWORD{result})
+			try_read_lit  (new_state(ps.end), result) &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})     &&
+			xcc_write_word(ps.p, XWORD{result})
 		)
 	) {
 		return true;
@@ -1025,12 +1036,12 @@ static bool try_put_index_addr(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_index_src(new_state(ps.end))                              &&
-			xcc_write_word   (ps.p, XWORD{XIS::AT})                           &&
-			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)      &&
-			try_expr     (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
-			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)      &&
-			xcc_write_word   (ps.p, XWORD{XIS::ADD})
+			try_index_src (new_state(ps.end))                              &&
+			xcc_write_word(ps.p, XWORD{XIS::AT})                           &&
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)      &&
+			try_expr      (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)      &&
+			xcc_write_word(ps.p, XWORD{XIS::ADD})
 		)
 	) {
 		return true;
@@ -1043,7 +1054,7 @@ static bool try_put_index(xcc_parser_state ps)
 	if (
 		manage_state(
 			try_put_index_addr(new_state(ps.end))    &&
-			xcc_write_word        (ps.p, XWORD{XIS::AT})
+			xcc_write_word    (ps.p, XWORD{XIS::AT})
 		)
 	) {
 		return true;
@@ -1556,7 +1567,6 @@ static bool try_new_arr_item(xcc_parser_state ps)
 		manage_state(
 			match               (ps.p, token::ALIAS, &t)                                    &&
 			(sym = xcc_add_var(t.text, ps.p)) != NULL                                       &&
-			((ps.p->out.size -= 2) || ps.p->out.size == 0)                                  && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_xcc_symbol?
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                 &&
 			try_lit_expr        (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
@@ -1597,7 +1607,6 @@ static bool try_new_var_item(xcc_parser_state ps)
 		manage_state(
 			match               (ps.p, token::ALIAS, &t)                 &&
 			xcc_add_var         (t.text, ps.p) != NULL                   &&
-			((ps.p->out.size -= 2) || ps.p->out.size == 0)               && // NOTE: Hacky. We want to undo instructions that were emitted by add_var. Maybe do not emit instructions in add_xcc_symbol?
 			try_opt_var_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ? try_new_var_list(new_state(ps.end)) : true
@@ -1712,7 +1721,7 @@ static bool try_fn_param(xcc_parser_state ps, xcc_symbol *param)
 		if (param->param == NULL) {
 			return false;
 		}
-		return true;
+		return emit_empty_symbol_storage(ps.p, param->param);
 	}
 	return false;
 }
@@ -2084,7 +2093,10 @@ static bool try_fn_def(xcc_parser_state ps)
 			match            (ps.p,  token::ALIAS, &t)                                           &&
 			(
 				(verify_params = ((ps.p->fn = xcc_find_fn(t.text, ps.p)) != NULL)) ||
-				(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL
+				(
+					(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL &&
+					emit_empty_symbol_storage(ps.p, ps.p->fn)
+				)
 			)                                                                                    &&
 			write_rel        (ps.p, ps.p->fn)                                                    &&
 			xcc_write_word   (ps.p, XWORD{XIS::PUTI})                                            &&
@@ -2172,12 +2184,13 @@ static bool try_fn_decl(xcc_parser_state ps)
 	token t;
 	if (
 		manage_state(
-			match                  (ps.p, token::ALIAS, &t)                             &&
-			(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL                               &&
-			match                  (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
-			try_count_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
-			match                  (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)      &&
-			match                  (ps.p, xbtoken::OPERATOR_SEMICOLON)
+			match                    (ps.p, token::ALIAS, &t)                             &&
+			(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL                                 &&
+			emit_empty_symbol_storage(ps.p, ps.p->fn)                                     &&
+			match                    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
+			try_count_opt_fn_params  (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
+			match                    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)      &&
+			match                    (ps.p, xbtoken::OPERATOR_SEMICOLON)
 		)
 	) {
 		ps.p->fn = NULL;
@@ -2212,7 +2225,7 @@ static bool add_main(xcc_parser *p)
 		return false;
 	}
 	sym->param_count = 2; // argc, argv
-	return true;
+	return emit_empty_symbol_storage(p, sym);
 }
 
 static bool try_global_statements(xcc_parser_state ps)

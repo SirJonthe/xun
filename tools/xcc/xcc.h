@@ -166,40 +166,40 @@ xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p);
 /// @param value The initial value of the symbol.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value = 0);
+xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value);
 
-/// @brief Adds a variable symbol to the topmost symbol scope.
+/// @brief Adds a variable (automatic local storage) symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
-/// @param category The category of the symbol.
 /// @param p The parser.
-/// @param value The initial value of the symbol.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p);
 
+/// @brief Adds a variable (static global storage) symbol to the topmost symbol scope.
+/// @param name The name of the symbol.
+/// @param p The parser.
+/// @return The added symbol. Null if there was an error.
+/// @note The parser receives an error if there is an internal error when adding a symbol.
+xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p);
+
 /// @brief Adds a parameter symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
-/// @param category The category of the symbol.
 /// @param p The parser.
-/// @param value The initial value of the symbol.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p);
 
 /// @brief Adds a literal symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
-/// @param category The category of the symbol.
-/// @param p The parser.
 /// @param value The initial value of the symbol.
+/// @param p The parser.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p);
 
 /// @brief Adds a function symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
-/// @param category The category of the symbol.
 /// @param p The parser.
-/// @param value The initial value of the symbol.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p);

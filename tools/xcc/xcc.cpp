@@ -135,6 +135,7 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 	sym.param_count = 0;
 	sym.size        = 1;
 	sym.param       = NULL;
+	sym.data.u      = value;
 	switch (category) {
 	case xcc_symbol::PARAM:
 	case xcc_symbol::LIT:
@@ -146,39 +147,44 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 		sym.size = 1;
 		break;
 	}
-	if (category != xcc_symbol::PARAM) {
-		if (category == xcc_symbol::LIT) {
-			sym.data.u = value;
-		} else if (category == xcc_symbol::SVAR) {
-			sym.data.u = p->out.size + 1;
-			if (
-				!xcc_write_word(p, XWORD{XIS::BIN}) ||
-				!xcc_write_word(p, XWORD{value})
-			) {
-				return NULL;
-			}
-		} else {
-			sym.data.u = xcc_top_scope_stack_size(p->scopes) + 1;
-			if (
-				!xcc_write_word(p, XWORD{XIS::PUT}) ||
-				!xcc_write_word(p, XWORD{value})
-			) {
-				return NULL;
-			}
-		}
-	}
+//	if (category != xcc_symbol::PARAM) {
+//		if (category == xcc_symbol::LIT) {
+//			sym.data.u = value;
+//		} else if (category == xcc_symbol::SVAR) {
+//			sym.data.u = p->out.size + 1;
+//			if (
+//				!xcc_write_word(p, XWORD{XIS::BIN}) ||
+//				!xcc_write_word(p, XWORD{value})
+//			) {
+//				return NULL;
+//			}
+//		} else {
+//			sym.data.u = xcc_top_scope_stack_size(p->scopes) + 1;
+//			if (
+//				!xcc_write_word(p, XWORD{XIS::PUT}) ||
+//				!xcc_write_word(p, XWORD{value})
+//			) {
+//				return NULL;
+//			}
+//		}
+//	}
 	++p->scopes.count;
 	return &sym;
 }
 
 xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::VAR, p);
+	return xcc_add_symbol(name, xcc_symbol::VAR, p, xcc_top_scope_stack_size(p->scopes) + 1);
+}
+
+xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p)
+{
+	return xcc_add_symbol(name, xcc_symbol::SVAR, p, p->out.size + 1);
 }
 
 xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::PARAM, p);
+	return xcc_add_symbol(name, xcc_symbol::PARAM, p, 0);
 }
 
 xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p)
@@ -188,7 +194,7 @@ xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p)
 
 xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::FN, p);
+	return xcc_add_symbol(name, xcc_symbol::FN, p, xcc_top_scope_stack_size(p->scopes) + 1);
 }
 
 U16 xcc_top_scope_stack_size(const xcc_parser *p)
