@@ -955,7 +955,7 @@ static bool try_scoped_statements(parser_state ps, U16 stack_offset)
 	if (manage_state(ps, try_statements(new_state(ps.p, ps.end)))) {
 		return
 			stack_offset > 0 ?
-			xcc_write_word(ps.p->out, XWORD{XIS::PUT}) &&
+			xcc_write_word(ps.p->out, XWORD{XIS::PUT})     &&
 			xcc_write_word(ps.p->out, XWORD{stack_offset}) &&
 			xcc_write_word(ps.p->out, XWORD{XIS::POP}) :
 			true;
@@ -968,10 +968,10 @@ static bool try_program(parser_state ps)
 	if (
 		manage_state(
 			ps,
-			xcc_write_word    (ps.p->out, XWORD{XIS::SVB})  &&
+			xcc_write_word(ps.p->out, XWORD{XIS::SVB})  &&
 			try_statements(new_state(ps.p, ps.end))     &&
-			xcc_write_word    (ps.p->out, XWORD{XIS::LDB})  &&
-			xcc_write_word    (ps.p->out, XWORD{XIS::HALT})
+			xcc_write_word(ps.p->out, XWORD{XIS::LDB})  &&
+			xcc_write_word(ps.p->out, XWORD{XIS::HALT})
 		)
 	) {
 		return true;
@@ -999,6 +999,12 @@ xcc_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *bo
 		return { lexer{{NULL,0},0}, xcc_binary{NULL,0,0}, p.max, 1 };
 	}
 	return { p.in.l, p.out, p.max, 0 };
+}
+
+bool xasm_stmt(xcc_parser_state ps)
+{
+	// return manage_state(ps, try_statements(new_state(ps.p, ps.end)));
+	return false;
 }
 
 xcc_out xasm(lexer l, xcc_binary memory)

@@ -119,14 +119,20 @@ token xasm_lex(lexer *l);
 /// @param max_binary_body The maximum number of output words that is allowed to be generated. Generally corresponds to the number of elements in the body parameter. If the assember exceeds this limit the assembly fails.
 /// @param body The output binary write target.
 /// @return Metadata relating to the output assembly.
-/// @sa xlex
+/// @sa xasm_lex
 xcc_out xasm(U16 max_tokens, const token *tokens, U16 max_binary_body, XWORD *body);
+
+/// @brief Assembles a single statement of extended assembly language in the form of input tokens.
+/// @param ps The parser state.
+/// @return True on success.
+/// @sa xasm_lex
+bool xasm_stmt(xcc_parser_state ps);
 
 /// @brief Assembles extended assembly language in the form of input tokens.
 /// @param l The lexer to be used to read code.
 /// @param memory The memory to write to.
 /// @return Metadata relating to the output assembly.
-/// @sa xlex
+/// @sa xasm_lex
 xcc_out xasm(lexer l, xcc_binary memory);
 
 #endif

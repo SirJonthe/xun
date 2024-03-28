@@ -147,27 +147,6 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 		sym.size = 1;
 		break;
 	}
-//	if (category != xcc_symbol::PARAM) {
-//		if (category == xcc_symbol::LIT) {
-//			sym.data.u = value;
-//		} else if (category == xcc_symbol::SVAR) {
-//			sym.data.u = p->out.size + 1;
-//			if (
-//				!xcc_write_word(p, XWORD{XIS::BIN}) ||
-//				!xcc_write_word(p, XWORD{value})
-//			) {
-//				return NULL;
-//			}
-//		} else {
-//			sym.data.u = xcc_top_scope_stack_size(p->scopes) + 1;
-//			if (
-//				!xcc_write_word(p, XWORD{XIS::PUT}) ||
-//				!xcc_write_word(p, XWORD{value})
-//			) {
-//				return NULL;
-//			}
-//		}
-//	}
 	++p->scopes.count;
 	return &sym;
 }

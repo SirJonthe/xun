@@ -3,6 +3,7 @@
 #include "../../../xis.h"
 #include "../../../xarch.h"
 #include "../../../lib/parsec/lex.h"
+#include "../xasm/xasm.h"
 
 // TODO
 // [ ] Inline assembly
@@ -2000,6 +2001,9 @@ static bool try_return_stmt(xcc_parser_state ps)
 
 static bool try_asm_instr(xcc_parser_state ps)
 {
+	if (manage_state(xasm_stmt(xcc_new_state(ps.p, ps.end)))) {
+		return true;
+	}
 	return false;
 }
 
