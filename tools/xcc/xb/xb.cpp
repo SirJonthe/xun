@@ -11,9 +11,11 @@
 // [ ] Push a second scope after parameter scope in functions
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] static (variables stored in binary, RLA used to address)
-// [ ] ++ +=
+// [ ] ++ --
+// [ ] += -=
 // [ ] namespace
 // [ ] continue, break
+// [ ] a = b = c;
 
 /// @brief Constructs a new parser state from an end token.
 /// @param end A token user type representing the end of the token stream.
@@ -30,6 +32,12 @@
 /// @param code The error code.
 #define set_error(p, code) xcc_set_error(p, code, __LINE__)
 
+/// @brief Converts a series of characters representing a human-readable hexadecimal string into a binary number.
+/// @param nums The characters representing the human-readable hexadecimal string.
+/// @param len The length of the input string.
+/// @return The binary number.
+/// @warning This function does not verify the correctness of the input characters. The output of an incorrect input is undefined.
+/// @note The input string must be prepended with an "0x".
 static unsigned hex2u(const char *nums, unsigned len)
 {
 	unsigned h = 0;
@@ -41,15 +49,6 @@ static unsigned hex2u(const char *nums, unsigned len)
 		} else if (nums[i] >= 'A' && nums[i] <= 'F') {
 			h = h  * 16 + nums[i] - 'A' + 10;
 		}
-	}
-	return h;
-}
-
-static unsigned ch2u(const char *nums, unsigned len)
-{
-	unsigned h = 0;
-	for (unsigned i = 1; i < len - 1; ++i) {
-		h = h * 10 + U16(nums[i]);
 	}
 	return h;
 }
@@ -109,8 +108,8 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 49;
-const token XB_TOKENS[XB_TOKEN_COUNT] = {
+const signed XB_TOKEN_COUNT = 48; // The number of tokens defined for the programming language.
+const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
 	new_keyword ("else",                    4, xbtoken::KEYWORD_CONTROL_ELSE),
@@ -158,20 +157,30 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = {
 	new_operator("~",                       1, xbtoken::OPERATOR_BITWISE_NOT),
 	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,   token::ALIAS),
 	new_literal ("[0-9]+",                  6, xbtoken::LITERAL_INT),
-	new_literal ("0[xX][0-9a-fA-F]+",      17, xbtoken::LITERAL_INT, hex2u),
-	new_literal ("\'*\'",                   3, xbtoken::LITERAL_INT, ch2u)
+	new_literal ("0[xX][0-9a-fA-F]+",      17, xbtoken::LITERAL_INT, hex2u)
 };
 
+/// @brief Reads a token from the lexer and tries to match it against known token types defined for the current programming language.
+/// @param l The lexer.
+/// @return The token.
 token xblex(lexer *l)
 {
 	return lex(l, XB_TOKENS, XB_TOKEN_COUNT);
 }
 
+/// @brief Reads a single character and outputs it as a token.
+/// @param l The lexer.
+/// @return The token.
+/// @note May also output white spaces as tokens.
 token xblex1(lexer *l)
 {
 	return chlex(l);
 }
 
+/// @brief Creates space in the binary for the creation of a new variable.
+/// @param p The parser.
+/// @param sym The symbol.
+/// @return False if the output binary buffer is full. True otherwise.
 static bool emit_empty_symbol_storage(xcc_parser *p, const xcc_symbol *sym)
 {
 	if (sym->category != xcc_symbol::PARAM && sym->category != xcc_symbol::LIT) {
@@ -182,6 +191,9 @@ static bool emit_empty_symbol_storage(xcc_parser *p, const xcc_symbol *sym)
 	return true;
 }
 
+/// @brief Pops the scope stack, and emits instructions to restore the stack to its previous state.
+/// @param p The parser.
+/// @return False if the output binary buffer is full or the scope stack is empty. True otherwise.
 static bool emit_pop_scope(xcc_parser *p)
 {
 	const U16 lsp = xcc_top_scope_stack_size(p);
@@ -197,21 +209,42 @@ static bool emit_pop_scope(xcc_parser *p)
 		xcc_pop_scope(p->scopes);
 }
 
+/// @brief Peeks the next token without advancing the parser.
+/// @param p The parser.
+/// @return The token.
 static token peek(xcc_parser *p)
 {
 	return xcc_peek(p, xblex);
 }
 
+/// @brief Tries to match the next token in the token sequence against an expected user type.
+/// @param p The parser.
+/// @param type The user type of the expected token.
+/// @param out Stores the token that was read by the parser. Put null here if you do not want to have the output token (or do not supply the parameter at all).
+/// @return True if there was a match.
+/// @note Does not advance the parser if no match was detected.
 static bool match(xcc_parser *p, unsigned type, token *out = NULL)
 {
 	return xcc_match(p, type, out, xblex);
 }
 
+/// @brief Tries to match the next token in the token seqence against an expected user type. This version only reads a single character in the input token sequence and converts it to a token.
+/// @param p The parser.
+/// @param type The user type of the expected token.
+/// @param out Stores the token that was read by the parser. Put null here if you do not want to have the output token (or do not supply the parameter at all).
+/// @return True if there was a match.
+/// @note Does not advance the parser if no match was detected.
 static bool match1(xcc_parser *p, unsigned type, token *out = NULL)
 {
 	return xcc_match(p, type, out, xblex1);
 }
 
+/// @brief Tries to match against a pattern function until the end token is reached.
+/// @param ps The parser state.
+/// @param try_fn The pattern function to call.
+/// @return True if the pattern was successfully matched.
+/// @note This function allows no instance of the pattern function to be called, i.e. if the first token after calling this function is the end token, then the function still returns true.
+/// @note The function does not consume the end token, so care must be taken to consume that token outside of calling this function.
 static bool until_end(xcc_parser_state ps, bool (*try_fn)(xcc_parser_state))
 {
 	while (peek(ps.p).user_type != ps.end) {
@@ -2217,7 +2250,11 @@ static bool add_main(xcc_parser *p)
 
 static bool try_global_statements(xcc_parser_state ps)
 {
-	if (manage_state( until_end(new_state(ps.end), try_global_statement))) {
+	if (
+		manage_state(
+			until_end(new_state(ps.end), try_global_statement)
+		)
+	) {
 		return true;
 	}
 	return false;
@@ -2289,6 +2326,7 @@ xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
 	) {
 		return xcc_out{ p.in.l, p.out, p.max, 0, xcc_error{ p.max, xcc_error::NONE, 0 } };
 	}
+	set_error(ps.p, xcc_error::UNEXPECTED);
 	return xcc_out{ p.in.l, p.out, p.max, 1, p.error };
 }
 

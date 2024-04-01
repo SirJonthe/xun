@@ -1,5 +1,5 @@
-XUN Compiler BackEnd
+# XUN Compiler Collection
 
-Refactor xasm and xcc in such a way that the common elements of xasm and xcc are spun off into a backend. That way the backend object can be passed from one compiler to the next, compiling parts of a program in one language and other parts in another.
+## Intro
 
-This will allow for inline assembly in C without the need for re-implementing the entire XASM language inside the C compiler.
+This is the back end that is used for both the XASM and the XB programming languages to ensure interoperability in the form of inline assembly in XB. The back end mainly consists of breaking out common functionality between both languages.

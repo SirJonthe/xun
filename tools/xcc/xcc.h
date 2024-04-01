@@ -35,7 +35,8 @@ struct xcc_error
 		UNDEF,
 		REDEF,
 		VERIFY,
-		INTERNAL
+		INTERNAL,
+		UNEXPECTED
 	};
 	token    tok;  // The token generating the error.
 	U16      code; // The error code.

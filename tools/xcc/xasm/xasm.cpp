@@ -770,6 +770,7 @@ xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity)
 	if (!manage_state(try_program(new_state(ps.end)))) {
 		return { p.in.l, p.out, p.max, 1 };
 	}
+	set_error(ps.p, xcc_error::UNEXPECTED);
 	return { p.in.l, p.out, p.max, 0 };
 }
 
@@ -782,6 +783,7 @@ bool xasm_inline(xcc_parser_state ps)
 	) {
 		return true;
 	}
+	set_error(ps.p, xcc_error::UNEXPECTED);
 	return false;
 }
 
