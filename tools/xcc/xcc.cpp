@@ -1,8 +1,6 @@
 #include <cstddef>
 #include "xcc.h"
 
-// [ ] Must remove codegen from xcc
-
 bool xcc_strcmp(const char *a, unsigned a_count, const char *b, unsigned b_count)
 {
 	if (a_count != b_count) { return false; }
@@ -60,6 +58,19 @@ bool xcc_pop_scope(xcc_symbol_stack &ss)
 	return true;
 }
 
+xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity)
+{
+	xcc_parser p = {
+		xcc_input_tokens{ l, NULL, 0, 0 },
+		bin_mem,
+		l.last,
+		xcc_symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 },
+		NULL,
+		xcc_error{ new_eof(), xcc_error::NONE, 0 }
+	};
+	return p;
+}
+
 void xcc_set_error(xcc_parser *p, U16 code, unsigned line)
 {
 	if (p->error.code == xcc_error::NONE) {
@@ -74,6 +85,23 @@ bool xcc_write_word(xcc_parser *p, XWORD data)
 		return false;
 	}
 	return true;
+}
+
+bool xcc_write_rel(xcc_parser *p, const xcc_symbol *sym, U16 offset)
+{
+	if (sym->category == xcc_symbol::LIT) {
+		return
+			xcc_write_word(p, XWORD{XIS::PUT})                  &&
+			xcc_write_word(p, XWORD{U16(sym->data.u + offset)});
+	}
+	return
+		xcc_write_word(p, XWORD{XIS::PUT})                  &&
+		xcc_write_word(p, XWORD{U16(sym->data.u + offset)}) &&
+		sym->category == xcc_symbol::SVAR ? xcc_write_word(p, XWORD{XIS::RLA}) : (
+			sym->scope_index > 0 ?
+				xcc_write_word(p, XWORD{XIS::RLC}) :
+				xcc_write_word(p, XWORD{XIS::RLB})
+		);
 }
 
 xcc_symbol *xcc_find_symbol(const chars &name, xcc_parser *p)
@@ -121,10 +149,12 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 		return NULL;
 	}
 	const unsigned name_char_count = xcc_chcount(name.str);
-	for (U16 i = p->scopes.top_index; i < p->scopes.count; ++i) {
-		if (xcc_strcmp(p->scopes.symbols[i].name.str, xcc_chcount(p->scopes.symbols[i].name.str), name.str, name_char_count)) {
-			xcc_set_error(p, xcc_error::REDEF, __LINE__);
-			return NULL;
+	if (name_char_count > 0) {
+		for (U16 i = p->scopes.top_index; i < p->scopes.count; ++i) {
+			if (xcc_strcmp(p->scopes.symbols[i].name.str, xcc_chcount(p->scopes.symbols[i].name.str), name.str, name_char_count)) {
+				xcc_set_error(p, xcc_error::REDEF, __LINE__);
+				return NULL;
+			}
 		}
 	}
 
@@ -149,6 +179,17 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 	}
 	++p->scopes.count;
 	return &sym;
+}
+
+bool xcc_add_memory(xcc_parser *p, U16 size)
+{
+	chars empty_name;
+	for (unsigned i = 0; i < sizeof(empty_name.str); ++i) {
+		empty_name.str[i] = 0;
+	}
+	xcc_symbol *sym = xcc_add_symbol(empty_name, xcc_symbol::VAR, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	sym->size = size;
+	return sym != NULL;
 }
 
 xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p)

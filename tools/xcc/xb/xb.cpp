@@ -6,7 +6,7 @@
 #include "../xasm/xasm.h"
 
 // TODO
-// [ ] Inline assembly
+// [ ] Fix comments
 // [ ] Arrays without explicit size
 // [ ] Push a second scope after parameter scope in functions
 // [ ] Include files (hard because it requires a virtual file system)
@@ -212,23 +212,6 @@ static bool match1(xcc_parser *p, unsigned type, token *out = NULL)
 	return xcc_match(p, type, out, xblex1);
 }
 
-static bool write_rel(xcc_parser *p, const xcc_symbol *sym)
-{
-	if (sym->category == xcc_symbol::LIT) {
-		return
-			xcc_write_word(p, XWORD{XIS::PUT})    &&
-			xcc_write_word(p, XWORD{sym->data.u});
-	}
-	return
-		xcc_write_word(p, XWORD{XIS::PUT})    &&
-		xcc_write_word(p, XWORD{sym->data.u}) &&
-		sym->category == xcc_symbol::SVAR ? xcc_write_word(p, XWORD{XIS::RLA}) : (
-			sym->scope_index > 0 ?
-				xcc_write_word(p, XWORD{XIS::RLC}) :
-				xcc_write_word(p, XWORD{XIS::RLB})
-		);
-}
-
 static bool until_end(xcc_parser_state ps, bool (*try_fn)(xcc_parser_state))
 {
 	while (peek(ps.p).user_type != ps.end) {
@@ -269,7 +252,7 @@ static bool try_put_var_addr(xcc_parser_state ps)
 		manage_state(
 			match(ps.p, token::ALIAS, &t)              &&
 			(sym = xcc_find_var(t.text, ps.p)) != NULL &&
-			write_rel(ps.p, sym)
+			xcc_write_rel(ps.p, sym)
 		)
 	) {
 		return true;
@@ -364,7 +347,7 @@ static bool try_call_fn(xcc_parser_state ps)
 			try_put_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
 			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)           &&
 			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)             && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
-			write_rel            (ps.p, sym)                                               &&
+			xcc_write_rel        (ps.p, sym)                                               &&
 			xcc_write_word       (ps.p, XWORD{XIS::AT})                                    &&
 			xcc_write_word       (ps.p, XWORD{XIS::JMP})
 		)
@@ -1519,10 +1502,10 @@ static bool try_opt_arr_def_expr(xcc_parser_state ps, xcc_symbol *sym)
 {
 	++sym->size;
 	token p = peek(ps.p);
-	if (!write_rel(ps.p, sym)) {
+	if (!xcc_write_rel(ps.p, sym)) {
 		return false;
 	}
-	++ps.p->out.buffer[ps.p->out.size - 2].u; // Make the 'write_rel' point to one address higher than the array pointer (where the array is located).
+	++ps.p->out.buffer[ps.p->out.size - 2].u; // Make the 'xcc_write_rel' point to one address higher than the array pointer (where the array is located).
 	if (p.user_type == ps.end || p.user_type == xbtoken::OPERATOR_COMMA) {
 		return
 			xcc_write_word(ps.p, XWORD{XIS::PUT})           &&
@@ -2001,7 +1984,7 @@ static bool try_return_stmt(xcc_parser_state ps)
 
 static bool try_asm_instr(xcc_parser_state ps)
 {
-	if (manage_state(xasm_stmt(xcc_new_state(ps.p, ps.end)))) {
+	if (manage_state(xasm_inline(new_state(ps.end)))) {
 		return true;
 	}
 	return false;
@@ -2011,9 +1994,9 @@ static bool try_asm_block(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			match    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                     &&
-			until_end(new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), try_asm_instr) &&
-			match    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)
+			match    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)                     &&
+			until_end(new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R), try_asm_instr) &&
+			match    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
 		)
 	) {
 		return true;
@@ -2027,8 +2010,8 @@ static bool try_asm_stmt(xcc_parser_state ps)
 		manage_state(
 			match(ps.p, xbtoken::KEYWORD_INTRINSIC_ASM) &&
 			(
-				try_asm_instr(new_state(ps.end)) ||
-				try_asm_block(new_state(ps.end))
+				try_asm_block(new_state(ps.end)) ||
+				try_asm_instr(new_state(ps.end))
 			)
 		)
 	) {
@@ -2102,7 +2085,7 @@ static bool try_fn_def(xcc_parser_state ps)
 					emit_empty_symbol_storage(ps.p, ps.p->fn)
 				)
 			)                                                                                    &&
-			write_rel        (ps.p, ps.p->fn)                                                    &&
+			xcc_write_rel    (ps.p, ps.p->fn)                                                    &&
 			xcc_write_word   (ps.p, XWORD{XIS::PUTI})                                            &&
 			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             &&
 			xcc_write_word   (ps.p, XWORD{9})                                                    && // NOTE: 9 is the offset to get to SVC (the first instruction of the function body).
@@ -2293,23 +2276,10 @@ static bool try_program(xcc_parser_state ps)
 	return false;
 }
 
-xcc_parser init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity)
-{
-	xcc_parser p = {
-		xcc_input_tokens{ l, NULL, 0, 0 },
-		bin_mem,
-		l.last,
-		xcc_symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 },
-		NULL,
-		xcc_error{ new_eof(), xcc_error::NONE, 0 }
-	};
-	return p;
-}
-
 xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
 {
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
-	xcc_parser       p  = init_parser(l, mem, sym_mem, sym_capacity);
+	xcc_parser       p  = xcc_init_parser(l, mem, sym_mem, sym_capacity);
 	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF);
 
 	if (
@@ -2321,3 +2291,8 @@ xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
 	}
 	return xcc_out{ p.in.l, p.out, p.max, 1, p.error };
 }
+
+
+#undef new_state
+#undef manage_state
+#undef set_error

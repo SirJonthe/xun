@@ -123,6 +123,14 @@ struct xcc_parser
 	xcc_error         error;  // The first fatal error.
 };
 
+/// @brief Initializes a new parser.
+/// @param l The lexer.
+/// @param bin_mem The memory used for generated code (binary).
+/// @param sym_mem The memory used by the compiler to store symbol information.
+/// @param sym_capacity The capacity of the symbol memory.
+/// @return The constructed parser.
+xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity);
+
 /// @brief Sets an error in the parser.
 /// @param p The parser.
 /// @param code The error code.
@@ -134,6 +142,13 @@ void xcc_set_error(xcc_parser *p, U16 code, unsigned line);
 /// @param data The data to write to the buffer.
 /// @return False if the buffer is full. True otherwise.
 bool xcc_write_word(xcc_parser *p, XWORD data);
+
+/// @brief Writes instructions to reference a symbol properly.
+/// @param p The parser.
+/// @param sym The symbol.
+/// @param offset An offset on the value/address (default 0).
+/// @return False if the buffer is full. True otherwise.
+bool xcc_write_rel(xcc_parser *p, const xcc_symbol *sym, U16 offset = 0);
 
 /// @brief Does a search for a given symbol.
 /// @param name The name of the symbol.
@@ -167,6 +182,13 @@ xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p);
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value);
+
+/// @brief Adds a specified amount of memory on the stack. The result is the same as adding an anonymous symbol of a given size to the symbol stack.
+/// @param p The parser.
+/// @param size The number of memory locations to add.
+/// @return True if the memory was successfully added to the stack.
+/// @note The parser receives an error if there is an internal error when adding a symbol.
+bool xcc_add_memory(xcc_parser *p, U16 size);
 
 /// @brief Adds a variable (automatic local storage) symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
