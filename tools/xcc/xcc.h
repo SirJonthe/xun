@@ -94,7 +94,7 @@ struct xcc_symbol_stack
 	xcc_symbol *symbols;
 	U16         capacity;  // The maximum number of symbols that can be on the stack.
 	U16         count;     // The number of symbols on the stack.
-	U16         top_index; // The index of the top scope.
+	U16         top_index; // The index of the first element in the top scope.
 	U16         scope;     // The number of the topmost scope.
 };
 

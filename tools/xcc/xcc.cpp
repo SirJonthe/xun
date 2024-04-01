@@ -36,9 +36,10 @@ U16 xcc_top_scope_stack_size(const xcc_symbol_stack &s)
 	}
 	return size;
 }
-
+#include <iostream>
 bool xcc_push_scope(xcc_symbol_stack &ss)
 {
+	std::cout << "+ scope " << ss.scope << " -> " << ss.scope + 1 << std::endl;
 	++ss.scope;
 	ss.top_index = ss.count;
 	return true;
@@ -46,11 +47,20 @@ bool xcc_push_scope(xcc_symbol_stack &ss)
 
 bool xcc_pop_scope(xcc_symbol_stack &ss)
 {
+	// BUG This does not pop off all affected symbols in the removed scope.
+	
+	std::cout << "- scope " << ss.scope << " -> " << ss.scope - 1 << std::endl;
 	--ss.scope;
 	ss.count = ss.top_index;
 	if (ss.scope > 0) {
 		while (ss.top_index > 0 && ss.symbols[ss.top_index].scope_index > ss.scope) {
 			--ss.top_index;
+		}
+		if (ss.top_index > 0 || ss.symbols[ss.top_index].scope_index <= ss.scope) {
+			++ss.top_index; // NOTE: top index must point to the next free index to write a symbol to, and we just went past it by one.
+		}
+		for (unsigned i = ss.top_index; i < ss.count; ++i) {
+			std::cout << "  - " << ss.symbols[i].scope_index << " " << ss.symbols[i].name.str << std::endl;
 		}
 	} else {
 		ss.top_index = 0;
@@ -178,6 +188,9 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 		break;
 	}
 	++p->scopes.count;
+
+	std::cout << "  + " << sym.scope_index << " " << sym.name.str << std::endl;
+
 	return &sym;
 }
 

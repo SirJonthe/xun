@@ -5,8 +5,16 @@
 #include "../../../lib/parsec/lex.h"
 #include "../xasm/xasm.h"
 
+
+#include <iostream>
+static void print_token(token t)
+{
+	std::cout << std::endl << "tok=" << t.index+1 << ",txt=\'" << t.text.str << "\' @ row=" << t.row+1 << ",col=" << t.col+1 << " " << std::flush;
+}
+
 // TODO
-// [ ] Fix comments
+// [ ] Fix broken scope popping in xcc
+// [ ] Instructions and library functions to detect hardware and send and receive data from ports
 // [ ] Arrays without explicit size
 // [ ] Push a second scope after parameter scope in functions
 // [ ] Include files (hard because it requires a virtual file system)
@@ -395,62 +403,26 @@ template < typename type_t >
 static bool eval_operation(xcc_parser *p, unsigned user_type, type_t &l, type_t r)
 {
 	switch (user_type) {
-	case xbtoken::OPERATOR_ARITHMETIC_ADD:
-		l += r;
-		return true;
-	case xbtoken::OPERATOR_ARITHMETIC_SUB:
-		l -= r;
-		return true;
-	case xbtoken::OPERATOR_ARITHMETIC_MUL:
-		l *= r;
-		return true;
-	case xbtoken::OPERATOR_ARITHMETIC_DIV:
-		l /= r;
-		return true;
-	case xbtoken::OPERATOR_ARITHMETIC_MOD:
-		l %= r;
-		return true;
+	case xbtoken::OPERATOR_ARITHMETIC_ADD:       l += r;       return true;
+	case xbtoken::OPERATOR_ARITHMETIC_SUB:       l -= r;       return true;
+	case xbtoken::OPERATOR_ARITHMETIC_MUL:       l *= r;       return true;
+	case xbtoken::OPERATOR_ARITHMETIC_DIV:       l /= r;       return true;
+	case xbtoken::OPERATOR_ARITHMETIC_MOD:       l %= r;       return true;
 	case xbtoken::OPERATOR_BITWISE_AND:
-	case xbtoken::OPERATOR_LOGICAL_AND:
-		l &= r;
-		return true;
+	case xbtoken::OPERATOR_LOGICAL_AND:          l &= r;       return true;
 	case xbtoken::OPERATOR_BITWISE_OR:
-	case xbtoken::OPERATOR_LOGICAL_OR:
-		l |= r;
-		return true;
-	case xbtoken::OPERATOR_BITWISE_XOR:
-		l ^= r;
-		return true;
-	case xbtoken::OPERATOR_BITWISE_NOT:
-		l = ~r;
-		return true;
-	case xbtoken::OPERATOR_BITWISE_LSHIFT:
-		l <<= r;
-		return true;
-	case xbtoken::OPERATOR_BITWISE_RSHIFT:
-		l >>= r;
-		return true;
-	case xbtoken::OPERATOR_LOGICAL_LESS:
-		l = (l < r);
-		return true;
-	case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:
-		l = (l <= r);
-		return true;
-	case xbtoken::OPERATOR_LOGICAL_GREATER:
-		l = (l > r);
-		return true;
-	case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL:
-		l = (l >= r);
-		return true;
-	case xbtoken::OPERATOR_LOGICAL_EQUAL:
-		l = (l == r);
-		return true;
-	case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:
-		l = (l != r);
-		return true;
-	case xbtoken::OPERATOR_LOGICAL_NOT:
-		l = !r;
-		return true;
+	case xbtoken::OPERATOR_LOGICAL_OR:           l |= r;       return true;
+	case xbtoken::OPERATOR_BITWISE_XOR:          l ^= r;       return true;
+	case xbtoken::OPERATOR_BITWISE_NOT:          l = ~r;       return true;
+	case xbtoken::OPERATOR_BITWISE_LSHIFT:       l <<= r;      return true;
+	case xbtoken::OPERATOR_BITWISE_RSHIFT:       l >>= r;      return true;
+	case xbtoken::OPERATOR_LOGICAL_LESS:         l = (l < r);  return true;
+	case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:    l = (l <= r); return true;
+	case xbtoken::OPERATOR_LOGICAL_GREATER:      l = (l > r);  return true;
+	case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL: l = (l >= r); return true;
+	case xbtoken::OPERATOR_LOGICAL_EQUAL:        l = (l == r); return true;
+	case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:     l = (l != r); return true;
+	case xbtoken::OPERATOR_LOGICAL_NOT:          l = !r;       return true;
 	}
 	return false;
 }
@@ -1881,9 +1853,9 @@ static bool try_while(xcc_parser_state ps)
 		)
 	) {
 		return manage_state(
-			xcc_write_word    (ps.p, XWORD{XIS::PUT})          &&
-			xcc_write_word    (ps.p, XWORD{return_jmp_idx})    &&
-			xcc_write_word    (ps.p, XWORD{XIS::JMP})          &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})       &&
+			xcc_write_word(ps.p, XWORD{return_jmp_idx}) &&
+			xcc_write_word(ps.p, XWORD{XIS::JMP})       &&
 			(ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size)
 		);
 	}
@@ -1899,10 +1871,11 @@ static bool try_scope(xcc_parser_state ps)
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)      &&
 			xcc_push_scope(ps.p->scopes)                                 &&
 			try_statements(new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)      &&
+			emit_pop_scope(ps.p)
 		)
 	) {
-		return emit_pop_scope(ps.p);
+		return true;
 	}
 	return false;
 }
@@ -1911,8 +1884,8 @@ static bool try_expr_stmt(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_expr  (new_state(xbtoken::OPERATOR_SEMICOLON)) &&
-			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)      &&
+			try_expr      (new_state(xbtoken::OPERATOR_SEMICOLON)) &&
+			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)      &&
 			xcc_write_word(ps.p, XWORD{XIS::TOSS})
 		)
 	) {
@@ -1925,7 +1898,7 @@ static bool try_redir_lval(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
+			match   (ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
 			try_rval(new_state(ps.end))
 		)
 	) {
@@ -1966,10 +1939,10 @@ static bool try_reass_var_stmt(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_lexpr (new_state(xbtoken::OPERATOR_ASSIGNMENT_SET)) &&
-			match     (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)      &&
-			try_expr  (new_state(xbtoken::OPERATOR_SEMICOLON))      &&
-			match     (ps.p, xbtoken::OPERATOR_SEMICOLON)           &&
+			try_lexpr     (new_state(xbtoken::OPERATOR_ASSIGNMENT_SET)) &&
+			match         (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)      &&
+			try_expr      (new_state(xbtoken::OPERATOR_SEMICOLON))      &&
+			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)           &&
 			xcc_write_word(ps.p, XWORD{XIS::MOVD})
 		)
 	) {
