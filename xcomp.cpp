@@ -177,6 +177,12 @@ XWORD Computer::Cycle( void )
 		else                 { LST.u = 0; }
 		POP_STACK(1);
 		break;
+	case XIS::MOD:
+		if (TOP.u != 0)      { LST.u %= TOP.u; }
+		else if (LST.u != 0) { LST.u = U_MAX; ERR.u |= ERR_DIV0; }
+		else                 { LST.u = 0; }
+		POP_STACK(1);
+		break;
 	case XIS::IADD:
 		LST.i += TOP.i;
 		POP_STACK(1);

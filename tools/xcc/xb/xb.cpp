@@ -6,19 +6,19 @@
 #include "../xasm/xasm.h"
 
 
-#include <iostream>
-static void print_token(token t)
-{
-	std::cout << std::endl << "tok=" << t.index+1 << ",txt=\'" << t.text.str << "\' @ row=" << t.row+1 << ",col=" << t.col+1 << " " << std::flush;
-}
+//#include <iostream>
+//static void print_token(token t)
+//{
+//	std::cout << std::endl << "tok=" << t.index+1 << ",txt=\'" << t.text.str << "\' @ row=" << t.row+1 << ",col=" << t.col+1 << " " << std::flush;
+//}
 
 // TODO
 // [ ] XASM to use write_rel
+// [ ] ++*ptr
 // [ ] Instructions and library functions to detect hardware and send and receive data from ports
 // [ ] Arrays without explicit size
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] static (variables stored in binary, RLA used to address)
-// [ ] += -=
 // [ ] namespace
 // [ ] continue, break
 // [ ] a = b = c;
@@ -84,6 +84,18 @@ struct xbtoken
 		OPERATOR_ARITHMETIC_INC,
 		OPERATOR_ARITHMETIC_DEC,
 		OPERATOR_ASSIGNMENT_SET,
+
+		OPERATOR_ARITHMETIC_ASSIGNMENT_ADD,
+		OPERATOR_ARITHMETIC_ASSIGNMENT_SUB,
+		OPERATOR_ARITHMETIC_ASSIGNMENT_MUL,
+		OPERATOR_ARITHMETIC_ASSIGNMENT_DIV,
+		OPERATOR_ARITHMETIC_ASSIGNMENT_MOD,
+		OPERATOR_BITWISE_ASSIGNMENT_AND,
+		OPERATOR_BITWISE_ASSIGNMENT_OR,
+		OPERATOR_BITWISE_ASSIGNMENT_XOR,
+		OPERATOR_BITWISE_ASSIGNMENT_LSHIFT,
+		OPERATOR_BITWISE_ASSIGNMENT_RSHIFT,
+
 		OPERATOR_ENCLOSE_PARENTHESIS_L,
 		OPERATOR_ENCLOSE_PARENTHESIS_R,
 		OPERATOR_ENCLOSE_BRACKET_L,
@@ -116,7 +128,7 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 50; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 60; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -129,6 +141,16 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_keyword ("const",                   5, xbtoken::KEYWORD_TYPE_CONST),
 	new_keyword ("static",                  6, xbtoken::KEYWORD_TYPE_STATIC),
 	new_keyword ("namespace",               9, xbtoken::KEYWORD_NAMESPACE),
+	new_operator("+=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_ADD),
+	new_operator("-=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_SUB),
+	new_operator("*=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_MUL),
+	new_operator("/=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_DIV),
+	new_operator("%=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_MOD),
+	new_operator("&=",                      2, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_AND),
+	new_operator("|=",                      2, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_OR),
+	new_operator("^=",                      2, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_XOR),
+	new_operator("<<=",                     3, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_LSHIFT),
+	new_operator(">>=",                     3, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_RSHIFT),
 	new_operator("<=",                      2, xbtoken::OPERATOR_LOGICAL_LESSEQUAL),
 	new_operator(">=",                      2, xbtoken::OPERATOR_LOGICAL_GREATEREQUAL),
 	new_operator("==",                      2, xbtoken::OPERATOR_LOGICAL_EQUAL),
@@ -303,12 +325,31 @@ static bool try_put_var_addr(xcc_parser_state ps)
 	return false;
 }
 
+static bool try_rval(xcc_parser_state ps);
+
+static bool try_redir_val(xcc_parser_state ps)
+{
+	if (
+		manage_state(
+			match         (ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
+			try_rval      (new_state(ps.end))                      &&
+			xcc_write_word(ps.p, XWORD{XIS::AT})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_put_var(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_put_var_addr(new_state(ps.end)) &&
-			xcc_write_word(ps.p, XWORD{XIS::AT})
+			try_redir_val(new_state(ps.end)) ||
+			(
+				try_put_var_addr(new_state(ps.end)) &&
+				xcc_write_word(ps.p, XWORD{XIS::AT})
+			)
 		)
 	) {
 		return true;
@@ -1006,22 +1047,6 @@ static bool try_opt_factor(xcc_parser_state ps)
 	return true;
 }
 
-static bool try_rval(xcc_parser_state ps);
-
-static bool try_redir_val(xcc_parser_state ps)
-{
-	if (
-		manage_state(
-			match     (ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
-			try_rval  (new_state(ps.end))                      &&
-			xcc_write_word(ps.p, XWORD{XIS::AT})
-		)
-	) {
-		return true;
-	}
-	return false;
-}
-
 static bool try_index_src(xcc_parser_state ps)
 {
 	if (
@@ -1104,7 +1129,6 @@ static bool try_rval(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_redir_val(new_state(ps.end))  ||
 			try_bwnot_val(new_state(ps.end))  ||
 			try_lnot_val (new_state(ps.end))  ||
 			try_call_fn  (new_state(ps.end))  ||
@@ -1959,7 +1983,65 @@ static bool try_lexpr(xcc_parser_state ps)
 	return false;
 }
 
-static bool try_reass_var_stmt(xcc_parser_state ps)
+static bool try_comp_ass(xcc_parser_state ps, token &op)
+{
+	if (
+		manage_state(
+			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_ADD, &op) ||
+			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_SUB, &op) ||
+			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_MUL, &op) ||
+			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_DIV, &op) ||
+			match(ps.p, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_MOD, &op) ||
+			match(ps.p, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_AND,    &op) ||
+			match(ps.p, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_OR,     &op) ||
+			match(ps.p, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_XOR,    &op) ||
+			match(ps.p, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_LSHIFT, &op) ||
+			match(ps.p, xbtoken::OPERATOR_BITWISE_ASSIGNMENT_RSHIFT, &op)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool emit_comp_ass(xcc_parser_state ps, const token &op)
+{
+	switch (op.user_type) {
+	case xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_ADD: return xcc_write_word(ps.p, XWORD{XIS::ADD});
+	case xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_SUB: return xcc_write_word(ps.p, XWORD{XIS::SUB});
+	case xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_MUL: return xcc_write_word(ps.p, XWORD{XIS::MUL});
+	case xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_DIV: return xcc_write_word(ps.p, XWORD{XIS::DIV});
+	case xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_MOD: return xcc_write_word(ps.p, XWORD{XIS::MOD});
+	case xbtoken::OPERATOR_BITWISE_ASSIGNMENT_AND:    return xcc_write_word(ps.p, XWORD{XIS::AND});
+	case xbtoken::OPERATOR_BITWISE_ASSIGNMENT_OR:     return xcc_write_word(ps.p, XWORD{XIS::OR});
+	case xbtoken::OPERATOR_BITWISE_ASSIGNMENT_XOR:    return xcc_write_word(ps.p, XWORD{XIS::XOR});
+	case xbtoken::OPERATOR_BITWISE_ASSIGNMENT_LSHIFT: return xcc_write_word(ps.p, XWORD{XIS::LSH});
+	case xbtoken::OPERATOR_BITWISE_ASSIGNMENT_RSHIFT: return xcc_write_word(ps.p, XWORD{XIS::RSH});
+	}
+	return false;
+}
+
+static bool try_comp_ass_var_stmt(xcc_parser_state ps)
+{
+	token op;
+	if (
+		manage_state(
+			try_lexpr     (new_state(ps.end))                      && // BUG: We need to determine the compound assignment before we have read it. Unsure if just using the previous end token will work here...
+			xcc_write_word(ps.p, XWORD{XIS::DUP})                  &&
+			xcc_write_word(ps.p, XWORD{XIS::AT})                   &&
+			try_comp_ass  (new_state(ps.end), op)                  &&
+			try_expr      (new_state(xbtoken::OPERATOR_SEMICOLON)) &&
+			emit_comp_ass (new_state(ps.end), op)                  &&
+			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)      &&
+			xcc_write_word(ps.p, XWORD{XIS::MOVD})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_set_var_stmt(xcc_parser_state ps)
 {
 	if (
 		manage_state(
@@ -1968,6 +2050,19 @@ static bool try_reass_var_stmt(xcc_parser_state ps)
 			try_expr      (new_state(xbtoken::OPERATOR_SEMICOLON))      &&
 			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)           &&
 			xcc_write_word(ps.p, XWORD{XIS::MOVD})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_reass_var_stmt(xcc_parser_state ps)
+{
+	if (
+		manage_state(
+			try_set_var_stmt     (new_state(ps.end)) ||
+			try_comp_ass_var_stmt(new_state(ps.end))
 		)
 	) {
 		return true;

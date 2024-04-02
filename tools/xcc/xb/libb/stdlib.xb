@@ -3,10 +3,10 @@ const NULL = 0; // Null value.
 const EXIT_FAILURE = -1; // Program return value representing failure.
 const EXIT_SUCCESS =  0; // Program return value representing success.
 
-auto __rand_x = 0;
-auto __rand_y = 0;
-auto __rand_z = 0;
-auto __rand_state = 1;
+auto __rand_x = 0;     // Random state variable.
+auto __rand_y = 0;     // Random state variable.
+auto __rand_z = 0;     // Random state variable.
+auto __rand_state = 1; // Random state variable.
 
 /// @brief Generates a pseudo-random number.
 /// @return The pseudo-random number.
@@ -58,7 +58,7 @@ calloc(n)
 /// @sa calloc
 free(mem);
 
-auto __exitfn = NULL;
+auto __exitfn = NULL; // A custom function called when the program exits.
 
 /// @brief Sets a function to call before the program finally returns execution to the host program.
 /// @param  fn The function to call before the program finally returns execution to the host program.
@@ -67,7 +67,7 @@ atexit(fn)
 	__exitfn = fn;
 }
 
-auto __exitlock = 0;
+auto __exitlock = 0; // A lock preventing the exit function from being called recursively.
 
 /// @brief Exits the current program and returns execution to the host program.
 /// @param status The exit status to return to the host program.
@@ -83,7 +83,7 @@ exit(status)
 		__exitfn();
 	}
 	asm {
-		# TODO set the 'status' return value
+		// TODO set the 'status' return value
 		ldb.
 		lda.
 		jmp.
