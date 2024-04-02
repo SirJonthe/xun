@@ -91,16 +91,6 @@ exit(status)
 	// NOTE: Return instructions here will never be reached.
 }
 
-/// @brief Swaps values of two pointers.
-/// @param a The first pointer.
-/// @param b The second pointer.
-swap(a, b)
-{
-	auto t = a;
-	*a = *b;
-	*b = *t;
-}
-
 /// @brief Returns the absolute of the input value.
 /// @param a The input value.
 /// @return The absolute of the input value.
@@ -108,30 +98,6 @@ abs(a)
 {
 	if (a < 0) {
 		return -a;
-	}
-	return a;
-}
-
-/// @brief Returns the minimum of two values.
-/// @param a The first value.
-/// @param b The second value.
-/// @return The minimum of the two input values.
-min(a, b)
-{
-	if (a < b) {
-		return a;
-	}
-	return b;
-}
-
-/// @brief Returns the maximum of two values.
-/// @param a The first value.
-/// @param b The second value.
-/// @return The maximum of the two input values.
-max(a, b)
-{
-	if (a < b) {
-		return b;
 	}
 	return a;
 }

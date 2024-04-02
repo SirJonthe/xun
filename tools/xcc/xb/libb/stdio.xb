@@ -1,4 +1,5 @@
 #include <string.xb>
+#include <sys.xb>
 
 auto __console_x = 0, __console_y = 0;
 
@@ -8,6 +9,8 @@ print(text)
 {
 	return -1;
 }
+
+auto __hw_disk = hwscan(0x0002); // Look for the disk to do disk I/O on.
 
 /// @brief Opens a file.
 /// @param file The name of the file to open.

@@ -16,7 +16,7 @@ struct XIS
 		// #5 Tests
 		// #6 Signed
 		// #7 Register access
-		// #8 UNUSED
+		// #8 I/O
 		NOP    = 0,  // nothing
 		PUT    = 0b10000000 + ( 1<<8), // put a constant on the stack (use EREL/CREL + AT if you want to transform a constant address to a value)
 		PUTS   = 0b10000010 + ( 2<<8), // put the absolute address of the top stack element on the stack
@@ -55,10 +55,12 @@ struct XIS
 		IGE    = 0b10001100 + (35<<8), // test top-1 >= top, collapse stack by 1 (signed)
 		ILT    = 0b10001100 + (36<<8), // test top-1 < top, collapse stack by 1 (signed)
 		IGT    = 0b10001100 + (37<<8), // test top-1 > top, collapse stack by 1 (signed)
-		RES38  = 0b11001000 + (38<<8), // Reserved #38
-		RES39  = 0b10000010 + (39<<8), // Reserved #39
-		RES40  = 0b11000010 + (40<<8), // Reserved #40
-		RES41  = 0b10000010 + (41<<8), // Reserved #41
+
+		PORT   = 0b10001001 + (38<<8), // Select a port to perform I/O on.
+		POLL   = 0b10000001 + (39<<8), // Receive data from device on selected port.
+		PASS   = 0b10000001 + (40<<8), // Send top word on stack to selected port.
+		HWID   = 0b10000001 + (41<<8), // Puts the hardware ID of the device on a selected port on the stack.
+
 		RES42  = 0b11000010 + (42<<8), // Reserved #42
 		PUSH   = 0b10000000 + (43<<8), // increases the SP by the top value - 1
 		POP    = 0b10000000 + (44<<8), // decreases the SP by the top value

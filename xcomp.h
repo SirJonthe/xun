@@ -5,11 +5,17 @@
 #include "xis.h"
 #include "xdev.h"
 #include "hw/xdisk.h"
-#include "hw/xrelay.h"
 #include "hw/xpwr.h"
 
 class Computer : public Device
 {
+private:
+	class Port : public Device
+	{
+	public:
+		Port( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff) {}
+	};
+
 private:
 	XWORD
 		// Offset pointers.
@@ -20,20 +26,23 @@ private:
 		// Main pointers
 		SP,  // Stack Pointer. Absolute.
 		IP,  // Instruction Pointer. Absolute. Stored addresses are relative however, so need to be adjusted IP = addr + A for global binary labels, IP = addr + B for global stack labels, IP = addr + C for local stack labels.
+
+		// I/O registers
+		P, // Port selector. I/O instructions target this port number.
 		
-		// Error pointers
+		// Error registers
 		ERR; // Error register.
 	XWORD             RAM[MEM_SIZE_MAX];
 	PersistentStorage m_storage;                   // Built-in, small persistent memory bank.
 	PowerController   m_power_controller;          // Can physically turn power off.
-	DeviceRelay       m_relay;                     // Connection to other devices. Drive and Reader connect to this automatically.
+	
 	// DiskReader     m_reader;                      // 
 	
 	uint64_t          m_clock_ps;                  // The clock in pico seconds.
 	uint32_t          m_ps_per_cycle;              // The number of pico seconds per cycle.
 	uint32_t          m_cycles_per_second;         // The number of cycles that can run per second.
 
-	bool              m_power;                     // The power state of the computer.
+	Port              m_ports[16];
 
 public:
 	Computer( void );

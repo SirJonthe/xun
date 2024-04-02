@@ -125,6 +125,10 @@ chars decode_instruction(U16 i)
 		case XIS::RLC:    render(c, "RLC   "); break;
 		case XIS::CLOCK:  render(c, "CLOCK "); break;
 		case XIS::BIN:    render(c, "BIN   "); break;
+		case XIS::PORT:   render(c, "PORT  "); break;
+		case XIS::POLL:   render(c, "POLL  "); break;
+		case XIS::PASS:   render(c, "PASS  "); break;
+		case XIS::HWID:   render(c, "HWID  "); break;
 		default:          render(c, "???   "); break;
 	}
 	return c;

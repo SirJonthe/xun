@@ -1,23 +1,51 @@
 #include <time.xb>
 #include <stdlib.xb>
 
+const __num_hwports = 16; // The number of ports available on this hardware.
+
 /// @brief Sends data to a device at a given port.
-/// @param port The port to send the data to.
+/// @param port_index The port to send the data to.
 /// @param data The data to send to the port.
 /// @param len The number of data points to send to the port in words.
 /// @note If the amount of data is greater than the bus bandwidth, then the program will stall until the device consumes enough data to resume execution.
-send(port, data, len)
+hwsend(port_index, data, len)
 {
 	// TODO IMPL
 }
 
 /// @brief Does a scan of the given port to retrieve the hardware ID of the connected device.
-/// @param port The port to scan.
+/// @param port_index The port to scan.
 /// @return The hardware ID of the device connected at the port. 0 if there is no device connected.
-hwid(port)
+hwid(port_index)
 {
-	// TODO IMPL
+	auto id;
+	asm {
+		put port_index.
+		port.
+		put &id.
+		hwid.
+		mov.
+	}
+	return id;
 }
+
+/// @brief Scans all available ports to look for a connected device with the requested hardware ID.
+/// @param id The hardware ID of the requested device.
+/// @return The port in which a device of the given hardware ID is plugged in. Returns -1 if the device was not found.
+hwscan(id)
+{
+	auto i = 0;
+	while (i < __num_hwports) {
+		if (hwid(i) == id) {
+			return i;
+		}
+		++i;
+	}
+	return -1;
+}
+
+auto __hw_power      = hwscan(0x0004); // The port index of the power controller circuit.
+//auto __hw_diskreader = hwscan(); // The port index of the disk reader.
 
 auto __irq_table[256]; // A table with function pointers to be called upon an interrupt request.
 

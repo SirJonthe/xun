@@ -13,12 +13,12 @@
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
 
-Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_relay(16), m_clock_ps(0), m_power(false)
+Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_clock_ps(0)
 {
 	SetCyclesPerSecond(10000000U);
-	Device::Connect(*this, m_relay);
-	Connect(m_power_controller, 0);
-	Connect(m_storage,          1);
+
+	Device::Connect(m_ports[0], m_power_controller);
+	Device::Connect(m_ports[1], m_storage);
 }
 
 // Flash memory with a program.
@@ -44,20 +44,26 @@ void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 
 void Computer::PowerOff( void )
 {
-	if (m_power) {
-		m_power = false;
+	if (IsPoweredOn()) {
 		m_clock_ps = 0;
 		A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
 		for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = 0;
 		}
+		for (uint32_t i = 0; i < 16; ++i) {
+			m_ports[i].Shutdown();
+		}
+		Device::Shutdown();
 	}
 }
 
 void Computer::PowerOn( void )
 {
-	if (!m_power) {
-		m_power = true;
+	if (IsPoweredOff()) {
+		Device::Boot();
+		for (uint32_t i = 0; i < 16; ++i) {
+			m_ports[i].Boot();
+		}
 		A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
 		for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = U16(rand());
@@ -67,7 +73,7 @@ void Computer::PowerOn( void )
 
 void Computer::PowerToggle( void )
 {
-	if (!m_power) {
+	if (IsPoweredOff()) {
 		PowerOn();
 	} else {
 		PowerOff();
@@ -76,7 +82,7 @@ void Computer::PowerToggle( void )
 
 void Computer::PowerCycle( void )
 {
-	if (m_power) {
+	if (IsPoweredOn()) {
 		PowerOff();
 		PowerOn();
 	}
@@ -283,6 +289,21 @@ XWORD Computer::Cycle( void )
 		LST.u = LST.i > TOP.i ? U16(1) : U16(0);
 		POP_STACK(1);
 		break;
+	case XIS::PORT:
+		P.u = TOP.u % 16;
+		POP_STACK(1);
+		break;
+//	case XIS::POLL: break; // Receive data from device on selected port.
+//	case XIS::PASS:
+//		if (m_ports[P.u].IsValid()) {
+//			(*m_ports[P.u].GetOther())->Respond(TOP);
+//		}
+//		POP_STACK(1);
+//		break; // Send top word on stack to selected port.
+	case XIS::HWID:
+		PUSH_STACK(1);
+		TOP.u = (m_ports[P.u].GetConnectedDevice() != nullptr) ? (m_ports[P.u].GetConnectedDevice()->GetHWID()) : 0;
+		break;
 	case XIS::HALT:
 		--IP.u;
 		Shutdown();
@@ -439,17 +460,18 @@ void Computer::Run(uint32_t ms)
 
 bool Computer::IsAvailablePort(U8 port) const
 {
-	return m_relay[port] == nullptr;
+	return m_ports[port % 16].GetConnectedDevice() == nullptr;
 }
 
 void Computer::Connect(Device &device, U8 port)
 {
-	m_relay.RelayConnect(device, port);
+	Disconnect(port);
+	Device::Connect(m_ports[port % 16], device);
 }
 
 void Computer::Disconnect(U8 port)
 {
-	m_relay.RelayDisconnect(port);
+	m_ports[port % 16].Disconnect();
 }
 
 U16 Computer::InstructionPointer( void ) const
