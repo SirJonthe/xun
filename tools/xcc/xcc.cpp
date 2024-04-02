@@ -286,9 +286,9 @@ bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 	return false;
 }
 
-xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end, unsigned loop_ip, unsigned loop_scope)
+xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
 {
-	xcc_parser_state ps = { p, *p, end, loop_ip, loop_scope };
+	xcc_parser_state ps = { p, *p, end, break_ip, continue_ip, loop_scope };
 	return ps;
 }
 

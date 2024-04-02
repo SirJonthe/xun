@@ -13,7 +13,6 @@
 //}
 
 // TODO
-// [ ] TEST: continue, break
 // [ ] XASM to use write_rel
 // [ ] ++*ptr
 // [ ] Instructions and library functions to detect hardware and send and receive data from ports
@@ -26,7 +25,7 @@
 /// @brief Constructs a new parser state from an end token.
 /// @param end A token user type representing the end of the token stream.
 /// @return A new parser state.
-#define new_state(end) xcc_new_state(ps.p, end, ps.loop_ip, ps.loop_scope)
+#define new_state(end) xcc_new_state(ps.p, end, ps.break_ip, ps.continue_ip, ps.loop_scope)
 
 /// @brief Manages the parser state so it properly rewinds if the parsing fails.
 /// @param success The success of the parsing.
@@ -1896,13 +1895,14 @@ static bool try_while(xcc_parser_state ps)
 		manage_state(
 			match         (ps.p, xbtoken::KEYWORD_CONTROL_WHILE)               &&
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
+			(ps.continue_ip = ps.p->out.size)                                  &&
 			try_expr      (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)      &&
+			(ps.break_ip = ps.p->out.size)                                     &&
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                              &&
 			(jmp_addr_idx = ps.p->out.size)                                    &&
 			xcc_write_word(ps.p, XWORD{0})                                     &&
 			xcc_write_word(ps.p, XWORD{XIS::RLA})                              &&
-			(ps.loop_ip = ps.p->out.size)                                      &&
 			xcc_write_word(ps.p, XWORD{XIS::CNJMP})                            &&
 			xcc_push_scope(ps.p->scopes)                                       &&
 			try_statement (new_state(ps.end))                                  &&
@@ -2099,17 +2099,22 @@ static bool try_opt_expr(xcc_parser_state ps)
 static bool try_break_stmt(xcc_parser_state ps)
 {
 	// TODO Also note that break gets a different meaning when used in switch-case.
+	U16 lsp = xcc_loop_stack_size(ps.p, ps.loop_scope);
 	if (
 		manage_state(
 			match         (ps.p, xbtoken::KEYWORD_CONTROL_BREAK)                  &&
 			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)                     &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{xcc_loop_stack_size(ps.p, ps.loop_scope)}) &&
-			xcc_write_word(ps.p, XWORD{XIS::POP})                                 &&
+			(
+				lsp > 0 ?
+					xcc_write_word(ps.p, XWORD{XIS::PUT})                         &&
+					xcc_write_word(ps.p, XWORD{lsp})                              &&
+					xcc_write_word(ps.p, XWORD{XIS::POP}) :
+					true
+			)                                                                     &&
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
 			xcc_write_word(ps.p, XWORD{0})                                        &&
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{U16(ps.loop_ip)})                          &&
+			xcc_write_word(ps.p, XWORD{U16(ps.break_ip)})                          &&
 			xcc_write_word(ps.p, XWORD{XIS::RLA})                                 &&
 			xcc_write_word(ps.p, XWORD{XIS::JMP})
 		)
@@ -2125,17 +2130,13 @@ static bool try_break_stmt(xcc_parser_state ps)
 
 static bool try_continue_stmt(xcc_parser_state ps)
 {
+	U16 lsp = xcc_loop_stack_size(ps.p, ps.loop_scope);
 	if (
 		manage_state(
 			match         (ps.p, xbtoken::KEYWORD_CONTROL_CONTINUE)               &&
 			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)                     &&
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{xcc_loop_stack_size(ps.p, ps.loop_scope)}) &&
-			xcc_write_word(ps.p, XWORD{XIS::POP})                                 &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{1})                                        &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{U16(ps.loop_ip)})                          &&
+			xcc_write_word(ps.p, XWORD{U16(ps.continue_ip)})                      &&
 			xcc_write_word(ps.p, XWORD{XIS::RLA})                                 &&
 			xcc_write_word(ps.p, XWORD{XIS::JMP})
 		)
@@ -2434,7 +2435,7 @@ static bool emit_call_main(xcc_parser *op)
 	// TODO According to B manual "main(); exit();" are implicitly called in that order. Since we have parameters and return values from programs we can do the below:
 	// p.in.l = init_lexer(chars::view{"exit(main(*0x01,*0x02);", 23})); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
 	p.in.l = init_lexer(chars::view{ "main(0,0);", 10 });
-	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF, 0, 0);
+	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF, 0, 0, 0);
 	if (
 		manage_state(
 			try_statement(new_state(ps.end))
@@ -2479,7 +2480,7 @@ xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
 {
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	xcc_parser       p  = xcc_init_parser(l, mem, sym_mem, sym_capacity);
-	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF, 0, 0);
+	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF, 0, 0, 0);
 
 	if (
 		manage_state(

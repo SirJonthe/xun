@@ -266,17 +266,19 @@ struct xcc_parser_state
 	xcc_parser *p;             // The main parser.
 	xcc_parser  restore_point; // The restore point if the current parsing fails.
 	unsigned    end;           // The end token to know if the parser has reached an end.
-	unsigned    loop_ip;       // The relative instruction address of the last entered loop.
+	unsigned    break_ip;      // The relative instruction address of the CNJMP instruction of last entered loop.
+	unsigned    continue_ip;   // The relative instruction address to the first instruction of the test of the last loop.
 	unsigned    loop_scope;    // The index of the scope right outside the loop.
 };
 
 /// @brief Constructs a new parser state from a current parser and an end token.
 /// @param p The parser.
 /// @param end A token user type representing the end of the token stream.
-/// @param loop_ip The relative instruction pointer address of the last loop pointing to the first instruction of its condition.
+/// @param break_ip The relative instruction address of the CNJMP instruction of last entered loop.
+/// @param continue_ip The relative instruction address to the first instruction of the test of the last loop.
 /// @param loop_scope The scope index of the scope outside the last loop.
 /// @return A new parser state.
-xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end, unsigned loop_ip, unsigned loop_scope);
+xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope);
 
 /// @brief Manages the parser state so it properly rewinds if the parsing fails.
 /// @param ps The current parser state.

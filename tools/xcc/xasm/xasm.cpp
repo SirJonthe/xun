@@ -4,7 +4,7 @@
 /// @brief Constructs a new xcc_parser state from an end token.
 /// @param end A token user type representing the end of the token stream.
 /// @return A new xcc_parser state.
-#define new_state(end) xcc_new_state(ps.p, end, ps.loop_ip, ps.loop_scope)
+#define new_state(end) xcc_new_state(ps.p, end, ps.break_ip, ps.continue_ip, ps.loop_scope)
 
 /// @brief Manages the xcc_parser state so it properly rewinds if the parsing fails.
 /// @param success The success of the parsing.
@@ -775,7 +775,7 @@ xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity)
 {
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	xcc_parser       p  = xcc_init_parser(l, memory, sym_mem, sym_capacity);
-	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF, 0, 0);
+	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF, 0, 0, 0);
 	if (!manage_state(try_program(new_state(ps.end)))) {
 		return { p.in.l, p.out, p.max, 1 };
 	}
