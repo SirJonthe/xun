@@ -102,6 +102,12 @@ struct xcc_symbol_stack
 /// @return The stack size (in words) of the topmost scope.
 U16 xcc_top_scope_stack_size(const xcc_symbol_stack &s);
 
+/// @brief Gets the stack size (in words) of the scopes from top to specified index.
+/// @param s The symbol stack.
+/// @param scope_index The scope index to measure size down to.
+/// @return The stack size (in words) of the scopes from top to specified index.
+U16 xcc_loop_stack_size(const xcc_symbol_stack &s, U16 scope_index);
+
 /// @brief Adds a new topmost scope to the symbol stack.
 /// @param ss The symbol stack.
 /// @return False if the symbol stack is full. True otherwise.
@@ -231,6 +237,12 @@ xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p);
 /// @return The size (in words) of the topmost symbol scope.
 U16 xcc_top_scope_stack_size(const xcc_parser *p);
 
+/// @brief Gets the stack size (in words) of the scopes from top to specified index.
+/// @param p The parser containing the symbol stack.
+/// @param scope_index The scope index to measure size down to.
+/// @return The stack size (in words) of the scopes from top to specified index.
+U16 xcc_loop_stack_size(const xcc_parser *p, U16 loop_scope);
+
 /// @brief Returns the first unread token in the parser without moving the state forward.
 /// @param p The parser.
 /// @param lexfn The lexing function to use.
@@ -254,13 +266,17 @@ struct xcc_parser_state
 	xcc_parser *p;             // The main parser.
 	xcc_parser  restore_point; // The restore point if the current parsing fails.
 	unsigned    end;           // The end token to know if the parser has reached an end.
+	unsigned    loop_ip;       // The relative instruction address of the last entered loop.
+	unsigned    loop_scope;    // The index of the scope right outside the loop.
 };
 
 /// @brief Constructs a new parser state from a current parser and an end token.
 /// @param p The parser.
 /// @param end A token user type representing the end of the token stream.
+/// @param loop_ip The relative instruction pointer address of the last loop pointing to the first instruction of its condition.
+/// @param loop_scope The scope index of the scope outside the last loop.
 /// @return A new parser state.
-xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end);
+xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end, unsigned loop_ip, unsigned loop_scope);
 
 /// @brief Manages the parser state so it properly rewinds if the parsing fails.
 /// @param ps The current parser state.

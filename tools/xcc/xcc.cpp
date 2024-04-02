@@ -37,6 +37,15 @@ U16 xcc_top_scope_stack_size(const xcc_symbol_stack &s)
 	return size;
 }
 
+U16 xcc_loop_stack_size(const xcc_symbol_stack &s, U16 scope_index)
+{
+	U16 size = 0;
+	for (signed i = s.count - 1; i >= 0 && s.symbols[i].scope_index > scope_index; --i) {
+		size += s.symbols[i].size;
+	}
+	return size;
+}
+
 bool xcc_push_scope(xcc_symbol_stack &ss)
 {
 	++ss.scope;
@@ -220,6 +229,11 @@ U16 xcc_top_scope_stack_size(const xcc_parser *p)
 	return xcc_top_scope_stack_size(p->scopes);
 }
 
+U16 xcc_loop_stack_size(const xcc_parser *p, U16 loop_scope)
+{
+	return xcc_loop_stack_size(p->scopes, loop_scope);
+}
+
 token xcc_peek(xcc_parser *p, token (*lexfn)(lexer*))
 {
 	token t;
@@ -272,9 +286,9 @@ bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 	return false;
 }
 
-xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end)
+xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end, unsigned loop_ip, unsigned loop_scope)
 {
-	xcc_parser_state ps = { p, *p, end };
+	xcc_parser_state ps = { p, *p, end, loop_ip, loop_scope };
 	return ps;
 }
 
