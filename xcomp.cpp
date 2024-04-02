@@ -202,6 +202,13 @@ XWORD Computer::Cycle( void )
 		else                { LST.i = 0; }
 		POP_STACK(1);
 		break;
+	case XIS::IMOD:
+		if (TOP.i != 0)     { LST.i %= TOP.i; }
+		else if (LST.i < 0) { LST.i = I_MIN; ERR.u |= ERR_DIV0; }
+		else if (LST.i > 0) { LST.i = I_MAX; ERR.u |= ERR_DIV0; }
+		else                { LST.i = 0; }
+		POP_STACK(1);
+		break;
 	case XIS::INEG:
 		TOP.i = -TOP.i;
 		break;
