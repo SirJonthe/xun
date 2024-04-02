@@ -20,7 +20,7 @@
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] static (variables stored in binary, RLA used to address)
 // [ ] namespace
-// [ ] a = b = c;
+// [ ] Re-assignments as expression statements: a = b = c;
 
 /// @brief Constructs a new parser state from an end token.
 /// @param end A token user type representing the end of the token stream.
