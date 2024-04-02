@@ -123,6 +123,8 @@ chars decode_instruction(U16 i)
 		case XIS::RLA:    render(c, "RLA   "); break;
 		case XIS::RLB:    render(c, "RLB   "); break;
 		case XIS::RLC:    render(c, "RLC   "); break;
+		case XIS::CLOCK:  render(c, "CLOCK "); break;
+		case XIS::BIN:    render(c, "BIN   "); break;
 		default:          render(c, "???   "); break;
 	}
 	return c;

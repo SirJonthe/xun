@@ -13,6 +13,7 @@ static void print_token(token t)
 }
 
 // TODO
+// [ ] Output RLA for any absolute JMP address emitted
 // [ ] XASM to use write_rel
 // [ ] Instructions and library functions to detect hardware and send and receive data from ports
 // [ ] Arrays without explicit size
@@ -1392,6 +1393,7 @@ static bool try_opt_logical_and(xcc_parser_state ps)
 				xcc_write_word (ps.p, XWORD{XIS::PUT})          &&
 				(jmp_addr = ps.p->out.size)                     &&
 				xcc_write_word (ps.p, XWORD{0})                 && // NOTE: Temp value
+				xcc_write_word (ps.p, XWORD{XIS::RLA})          &&
 				xcc_write_word (ps.p, XWORD{XIS::CNJMP})        &&
 				try_logical_and(new_state(ps.end))              &&
 				emit_operation (ps.p, t.user_type)              &&
@@ -1786,6 +1788,7 @@ static bool try_else(xcc_parser_state ps)
 			xcc_write_word(ps.p, XWORD{XIS::PUT})               &&
 			(jmp_addr_idx = ps.p->out.size)                     &&
 			xcc_write_word(ps.p, XWORD{0})                      &&
+			xcc_write_word(ps.p, XWORD{XIS::RLA})               &&
 			xcc_write_word(ps.p, XWORD{XIS::JMP})               &&
 			xcc_push_scope(ps.p->scopes)                        &&
 			try_statement (new_state(ps.end))                   &&
@@ -1812,6 +1815,7 @@ static bool try_if(xcc_parser_state ps)
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                              &&
 			(jmp_addr_idx = ps.p->out.size)                                    &&
 			xcc_write_word(ps.p, XWORD{0})                                     &&
+			xcc_write_word(ps.p, XWORD{XIS::RLA})                              &&
 			xcc_write_word(ps.p, XWORD{XIS::CNJMP})                            &&
 			xcc_push_scope(ps.p->scopes)                                       &&
 			try_statement (new_state(ps.end))                                  &&
@@ -1822,7 +1826,7 @@ static bool try_if(xcc_parser_state ps)
 		return manage_state(
 			(
 				try_else(new_state(ps.end)) &&
-				(ps.p->out.buffer[jmp_addr_idx].u += 3) // NOTE: A successful try_else emits an unconditional jump (PUT ADDR JMP) that we want to skip over to get into the ELSE body.
+				(ps.p->out.buffer[jmp_addr_idx].u += 4) // NOTE: A successful try_else emits an unconditional jump (PUT ADDR RLA JMP) that we want to skip over to get into the ELSE body.
 			) ||
 			true
 		);
@@ -1845,6 +1849,7 @@ static bool try_while(xcc_parser_state ps)
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                              &&
 			(jmp_addr_idx = ps.p->out.size)                                    &&
 			xcc_write_word(ps.p, XWORD{0})                                     &&
+			xcc_write_word(ps.p, XWORD{XIS::RLA})                              &&
 			xcc_write_word(ps.p, XWORD{XIS::CNJMP})                            &&
 			xcc_push_scope(ps.p->scopes)                                       &&
 			try_statement (new_state(ps.end))                                  &&
@@ -1854,6 +1859,7 @@ static bool try_while(xcc_parser_state ps)
 		return manage_state(
 			xcc_write_word(ps.p, XWORD{XIS::PUT})       &&
 			xcc_write_word(ps.p, XWORD{return_jmp_idx}) &&
+			xcc_write_word(ps.p, XWORD{XIS::RLA})       &&
 			xcc_write_word(ps.p, XWORD{XIS::JMP})       &&
 			(ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size)
 		);
@@ -2097,13 +2103,14 @@ static bool try_fn_def(xcc_parser_state ps)
 			xcc_write_rel    (ps.p, ps.p->fn)                                                    &&
 			xcc_write_word   (ps.p, XWORD{XIS::PUTI})                                            &&
 			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             &&
-			xcc_write_word   (ps.p, XWORD{9})                                                    && // NOTE: 9 is the offset to get to SVC (the first instruction of the function body).
+			xcc_write_word   (ps.p, XWORD{10})                                                   && // NOTE: 10 is the offset to get to SVC (the first instruction of the function body).
 			xcc_write_word   (ps.p, XWORD{XIS::ADD})                                             &&
 			xcc_write_word   (ps.p, XWORD{XIS::RLA})                                             &&
 			xcc_write_word   (ps.p, XWORD{XIS::MOVD})                                            &&
 			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             &&
 			(guard_jmp_idx = ps.p->out.size)                                                     &&
 			xcc_write_word   (ps.p, XWORD{0})                                                    &&
+			xcc_write_word   (ps.p, XWORD{XIS::RLA})                                             &&
 			xcc_write_word   (ps.p, XWORD{XIS::JMP})                                             &&
 			xcc_write_word   (ps.p, XWORD{XIS::SVC})                                             &&
 			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                     &&
