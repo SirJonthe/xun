@@ -6,8 +6,8 @@
 class Monitor : public Device
 {
 public:
-	static constexpr uint32_t WIDTH = 80;
-	static constexpr uint32_t HEIGHT = 24;
+	static constexpr uint32_t WIDTH  = 320;
+	static constexpr uint32_t HEIGHT = 240;
 
 private:
 	U8 pixels[WIDTH*HEIGHT];

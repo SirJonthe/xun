@@ -55,7 +55,7 @@ XWORD Device::Cycle( void )
 
 XWORD Device::Shutdown( void )
 {
-	Send(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically be connected.
+	Send(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically connected.
 	return XWORD{ 0 };
 }
 

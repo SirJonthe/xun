@@ -13,10 +13,9 @@ static void print_token(token t)
 }
 
 // TODO
-// [ ] Fix broken scope popping in xcc
+// [ ] XASM to use write_rel
 // [ ] Instructions and library functions to detect hardware and send and receive data from ports
 // [ ] Arrays without explicit size
-// [ ] Push a second scope after parameter scope in functions
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] static (variables stored in binary, RLA used to address)
 // [ ] ++ --
@@ -1955,8 +1954,12 @@ static bool try_opt_expr(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			(peek(ps.p).user_type == ps.end) ||
-			try_expr(new_state(ps.end))
+			(peek(ps.p).user_type == ps.end) ?
+				(
+					xcc_write_word(ps.p, XWORD{XIS::PUT}) &&
+					xcc_write_word(ps.p, XWORD{0})
+				) :
+				try_expr(new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1976,7 +1979,7 @@ static bool try_return_stmt(xcc_parser_state ps)
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                  &&
 			xcc_write_word(ps.p, XWORD{1})                         &&
 			xcc_write_word(ps.p, XWORD{XIS::SUB})                  &&
-			try_expr      (new_state(xbtoken::OPERATOR_SEMICOLON)) && // TODO: Should be try_opt_expr, but requires to mirror default return pattern at end of function.
+			try_opt_expr  (new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)      &&
 			xcc_write_word(ps.p, XWORD{XIS::MOVD})                 && // NOTE: Address of return value is top value. Move expression result to external return memory.
 			xcc_write_word(ps.p, XWORD{XIS::LDC})                  &&
@@ -2104,14 +2107,15 @@ static bool try_fn_def(xcc_parser_state ps)
 			xcc_write_word   (ps.p, XWORD{XIS::JMP})                                             &&
 			xcc_write_word   (ps.p, XWORD{XIS::SVC})                                             &&
 			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                     &&
-			xcc_push_scope   (ps.p->scopes)                                                      &&
+			xcc_push_scope   (ps.p->scopes)                                                      && // NOTE: Push the parameter scope.
 			try_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
 			adjust_fn_rel_ptr(new_state(ps.end))                                                 &&
-			// TODO push anot scope here (don't forget to pop)
+			xcc_push_scope   (ps.p->scopes)                                                      && // NOTE: Push the local variable scope.
 			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                     &&
 			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)                           &&
 			try_statements   (new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
-			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)                           &&
+			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)                           && // NOTE: Pop the local variable scope.
+			emit_pop_scope   (ps.p)                                                              && // NOTE: Pop the parameter scope.
 			emit_pop_scope   (ps.p)                                                              &&
 			xcc_write_word   (ps.p, XWORD{XIS::LDC})                                             && // NOTE: We do not explicitly set a return value since the call site sets it to 0 by default.
 			xcc_write_word   (ps.p, XWORD{XIS::JMP})                                                // NOTE: Jump back to call site

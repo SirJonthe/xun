@@ -1,16 +1,50 @@
 #include <time.xb>
+#include <stdlib.xb>
+
+/// @brief Sends data to a device at a given port.
+/// @param port The port to send the data to.
+/// @param data The data to send to the port.
+/// @param len The number of data points to send to the port in words.
+/// @note If the amount of data is greater than the bus bandwidth, then the program will stall until the device consumes enough data to resume execution.
+send(port, data, len)
+{
+	// TODO IMPL
+}
+
+/// @brief Does a scan of the given port to retrieve the hardware ID of the connected device.
+/// @param port The port to scan.
+/// @return The hardware ID of the device connected at the port. 0 if there is no device connected.
+hwid(port)
+{
+	// TODO IMPL
+}
+
+auto __irq_table[256]; // A table with function pointers to be called upon an interrupt request.
+
+/// @brief Sets an interrupt request function pointer. Whenever hardware sends an interrupt request, program execution is halted and the function at the request code is executed.
+/// @param code The code of the interrupt request.
+/// @param fn A function pointer to a function taking no arguments.
+irq(code, fn)
+{
+	// TODO IMPL (no way of triggering this from applications, may need hardware interrupt support)
+	if (code < 256 && __irq_table[code] != NULL) {
+		__irq_table[code]();
+	}
+	return -1;
+}
 
 /// @brief Puts execution of the application to sleep for a specified number of milliseconds.
 /// @param ms The time to sleep in milliseconds.
-/// @note  Sleeps at least the specified number of milliseconds, but may sleep more.
+/// @note Sleeps at least the specified number of milliseconds, but may sleep more.
 sleep(ms)
 {
+	// BUG If 'to' wraps (which it very often will) then the program will not sleep at all.
 	auto to = clock() + ms;
 	while (clock() < to) {}
 }
 
 /// @brief Runs a binary file as a program. Returns execution here only once the program is done running.
-/// @param  bin The name of the file containing the binary to run.
+/// @param bin The name of the file containing the binary to run.
 run(bin)
 {
 	// TODO IMPL

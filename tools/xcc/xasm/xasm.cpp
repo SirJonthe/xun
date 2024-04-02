@@ -16,6 +16,12 @@
 /// @param code The error code.
 #define set_error(p, code) xcc_set_error(p, code, __LINE__)
 
+/// @brief Converts a human-readable hexadecimal string to a number.
+/// @param nums The characters representing the human-readable hexadecimal number. The input is assumed to be prepended with "0x".
+/// @param len The number of characters in the input string.
+/// @return The resulting number.
+/// @warning The function does not verify inputs. Invalid input gives invalid output.
+/// @note The input string is assumed to be prepended with "0x".
 static unsigned hex2u(const char *nums, unsigned len)
 {
 	unsigned h = 0;
@@ -354,13 +360,10 @@ static bool try_reg(xcc_parser_state ps)
 
 static bool try_var_addr(xcc_parser_state ps)
 {
-	// TODO Unify how this works with XB (xcc_write_rel) so that XASM can address variables declared in XB.
 	token t = peek(ps.p);
 	if (match(ps.p, token::ALIAS)) {
 		U16 index = parse_lit_index(ps);
 		xcc_symbol *sym = xcc_find_symbol(t.text, ps.p);
-//		if (sym == NULL) { return false; }
-//		return xcc_write_rel(ps.p, sym, index);
 		if (sym == NULL || sym->category != xcc_symbol::VAR) { return false; }
 		return
 			xcc_write_word(ps.p->out, XWORD{(U16)(sym->data.u + index)}) &&
@@ -381,10 +384,11 @@ static bool try_var(xcc_parser_state ps)
 	}
 	if (
 		manage_state(
-			try_var_addr(new_state(ps.end))
+			try_var_addr(new_state(ps.end)) &&
+			xcc_write_word(ps.p->out, XWORD{XIS::AT})
 		)
 	) {
-		return xcc_write_word(ps.p->out, XWORD{XIS::AT});
+		return true;
 	}
 	return false;
 }
@@ -485,7 +489,12 @@ static bool try_param(xcc_parser_state ps)
 
 static bool try_putparam(xcc_parser_state ps)
 {
-	if (xcc_write_word(ps.p->out, XWORD{XIS::PUT}) && try_param(new_state(ps.end))) {
+	if (
+		manage_state(
+			xcc_write_word(ps.p->out, XWORD{XIS::PUT}) &&
+			try_param     (new_state(ps.end))
+		)
+	) {
 		return true;
 	}
 	return false;
