@@ -97,8 +97,11 @@ draw_glyph(ch, x, y)
 	if (ch == 13) { return 0; }
 
 	auto glyph = FONT_ATLAS;
-	if (ch < FONT_CHAR_ASCII_START || ch > FONT_CHAR_ASCII_END) { glyph = ((FONT_CHAR_ASCII_END + 1) * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD; }
-	else                                                        { glyph = (ch * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD; }
+	if (ch < FONT_CHAR_ASCII_START || ch > FONT_CHAR_ASCII_END) {
+		glyph = ((FONT_CHAR_ASCII_END + 1) * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD;
+	} else {
+		glyph = (ch * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD;
+	}
 
 	auto video = VIDEO + VIDEO_WORDS_PER_SCANLINE * y * FONT_CHAR_PX_HEIGHT + (x / FONT_CHAR_SCANLINES_PER_WORD);
 	y = 0;

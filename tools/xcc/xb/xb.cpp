@@ -13,6 +13,7 @@
 //}
 
 // TODO
+// [ ] TEST: continue, break
 // [ ] XASM to use write_rel
 // [ ] ++*ptr
 // [ ] Instructions and library functions to detect hardware and send and receive data from ports
@@ -20,7 +21,6 @@
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] static (variables stored in binary, RLA used to address)
 // [ ] namespace
-// [ ] continue, break
 // [ ] a = b = c;
 
 /// @brief Constructs a new parser state from an end token.
