@@ -13,13 +13,11 @@ static void print_token(token t)
 }
 
 // TODO
-// [ ] Output RLA for any absolute JMP address emitted
 // [ ] XASM to use write_rel
 // [ ] Instructions and library functions to detect hardware and send and receive data from ports
 // [ ] Arrays without explicit size
 // [ ] Include files (hard because it requires a virtual file system)
 // [ ] static (variables stored in binary, RLA used to address)
-// [ ] ++ --
 // [ ] += -=
 // [ ] namespace
 // [ ] continue, break
@@ -83,6 +81,8 @@ struct xbtoken
 		OPERATOR_ARITHMETIC_MUL,
 		OPERATOR_ARITHMETIC_DIV,
 		OPERATOR_ARITHMETIC_MOD,
+		OPERATOR_ARITHMETIC_INC,
+		OPERATOR_ARITHMETIC_DEC,
 		OPERATOR_ASSIGNMENT_SET,
 		OPERATOR_ENCLOSE_PARENTHESIS_L,
 		OPERATOR_ENCLOSE_PARENTHESIS_R,
@@ -116,7 +116,7 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 48; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 50; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -137,6 +137,8 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_operator("||",                      2, xbtoken::OPERATOR_LOGICAL_OR),
 	new_operator("<<",                      2, xbtoken::OPERATOR_BITWISE_LSHIFT),
 	new_operator(">>",                      2, xbtoken::OPERATOR_BITWISE_RSHIFT),
+	new_operator("++",                      2, xbtoken::OPERATOR_ARITHMETIC_INC),
+	new_operator("--",                      2, xbtoken::OPERATOR_ARITHMETIC_DEC),
 	new_comment ("//",                      2),
 	new_operator("!",                       1, xbtoken::OPERATOR_LOGICAL_NOT),
 	new_operator("#",                       1, xbtoken::OPERATOR_MACRO),
@@ -307,6 +309,60 @@ static bool try_put_var(xcc_parser_state ps)
 		manage_state(
 			try_put_var_addr(new_state(ps.end)) &&
 			xcc_write_word(ps.p, XWORD{XIS::AT})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_incdec_var(xcc_parser_state ps)
+{
+	token t, op;
+	xcc_symbol *sym;
+	if ( // NOTE: var++ var--
+		manage_state(
+			match(ps.p, token::ALIAS, &t)              &&
+			(sym = xcc_find_var(t.text, ps.p)) != NULL &&
+			(
+				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_INC, &op) ||
+				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DEC, &op)
+			)                                          &&
+			xcc_write_rel (ps.p, sym)                  &&
+			xcc_write_word(ps.p, XWORD{XIS::AT})       &&
+			xcc_write_word(ps.p, XWORD{XIS::DUP})      &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})      &&
+			xcc_write_word(ps.p, XWORD{1})             &&
+			(
+				op.user_type == xbtoken::OPERATOR_ARITHMETIC_INC ?
+					xcc_write_word(ps.p, XWORD{XIS::ADD}) :
+					xcc_write_word(ps.p, XWORD{XIS::SUB})
+			)                                          &&
+			xcc_write_rel (ps.p, sym)                  &&
+			xcc_write_word(ps.p, XWORD{XIS::MOVU})
+		)
+	) {
+		return true;
+	} else if ( // NOTE: ++var --var
+		manage_state(
+			(
+				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_INC, &op) ||
+				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DEC, &op)
+			)                                          &&
+			match(ps.p, token::ALIAS, &t)              &&
+			(sym = xcc_find_var(t.text, ps.p)) != NULL &&
+			xcc_write_rel (ps.p, sym)                  &&
+			xcc_write_word(ps.p, XWORD{XIS::AT})       &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})      &&
+			xcc_write_word(ps.p, XWORD{1})             &&
+			(
+				op.user_type == xbtoken::OPERATOR_ARITHMETIC_INC ?
+					xcc_write_word(ps.p, XWORD{XIS::ADD}) :
+					xcc_write_word(ps.p, XWORD{XIS::SUB})
+			)                                          &&
+			xcc_write_word(ps.p, XWORD{XIS::DUP})      &&
+			xcc_write_rel (ps.p, sym)                  &&
+			xcc_write_word(ps.p, XWORD{XIS::MOVU})
 		)
 	) {
 		return true;
@@ -904,68 +960,30 @@ static bool try_lit_expr(xcc_parser_state ps, type_t &l)
 static bool emit_operation(xcc_parser *p, unsigned user_type)
 {
 	switch (user_type) {
-	case xbtoken::OPERATOR_ARITHMETIC_ADD:
-		if (xcc_write_word(p, XWORD{XIS::ADD})) { return true; }
-		break;
-	case xbtoken::OPERATOR_ARITHMETIC_SUB:
-		if (xcc_write_word(p, XWORD{XIS::SUB})) { return true; }
-		break;
-	case xbtoken::OPERATOR_ARITHMETIC_MUL:
-		if (xcc_write_word(p, XWORD{XIS::MUL})) { return true; }
-		break;
-	case xbtoken::OPERATOR_ARITHMETIC_DIV:
-		if (xcc_write_word(p, XWORD{XIS::DIV})) { return true; }
-		break;
-	case xbtoken::OPERATOR_ARITHMETIC_MOD:
-		if (xcc_write_word(p, XWORD{XIS::MOD})) { return true; }
-		break;
+	case xbtoken::OPERATOR_ARITHMETIC_ADD:       return xcc_write_word(p, XWORD{XIS::ADD});
+	case xbtoken::OPERATOR_ARITHMETIC_SUB:       return xcc_write_word(p, XWORD{XIS::SUB});
+	case xbtoken::OPERATOR_ARITHMETIC_MUL:       return xcc_write_word(p, XWORD{XIS::MUL});
+	case xbtoken::OPERATOR_ARITHMETIC_DIV:       return xcc_write_word(p, XWORD{XIS::DIV});
+	case xbtoken::OPERATOR_ARITHMETIC_MOD:       return xcc_write_word(p, XWORD{XIS::MOD});
 	case xbtoken::OPERATOR_BITWISE_AND:
-	case xbtoken::OPERATOR_LOGICAL_AND:
-		if (xcc_write_word(p, XWORD{XIS::AND})) { return true; }
-		break;
+	case xbtoken::OPERATOR_LOGICAL_AND:          return xcc_write_word(p, XWORD{XIS::AND});
 	case xbtoken::OPERATOR_BITWISE_OR:
-	case xbtoken::OPERATOR_LOGICAL_OR:
-		if (xcc_write_word(p, XWORD{XIS::OR})) { return true; }
-		break;
-	case xbtoken::OPERATOR_BITWISE_XOR:
-		if (xcc_write_word(p, XWORD{XIS::XOR})) { return true; }
-		break;
-	case xbtoken::OPERATOR_BITWISE_NOT:
-		if (xcc_write_word(p, XWORD{XIS::NOT})) { return true; }
-		break;
-	case xbtoken::OPERATOR_BITWISE_LSHIFT:
-		if (xcc_write_word(p, XWORD{XIS::LSH})) { return true; }
-		break;
-	case xbtoken::OPERATOR_BITWISE_RSHIFT:
-		if (xcc_write_word(p, XWORD{XIS::RSH})) { return true; }
-		break;
-	case xbtoken::OPERATOR_LOGICAL_LESS:
-		if (xcc_write_word(p, XWORD{XIS::LT})) { return true; }
-		break;
-	case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:
-		if (xcc_write_word(p, XWORD{XIS::LE})) { return true; }
-		break;
-	case xbtoken::OPERATOR_LOGICAL_GREATER:
-		if (xcc_write_word(p, XWORD{XIS::GT})) { return true; }
-		break;
-	case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL:
-		if (xcc_write_word(p, XWORD{XIS::LE})) { return true; }
-		break;
-	case xbtoken::OPERATOR_LOGICAL_EQUAL:
-		if (xcc_write_word(p, XWORD{XIS::EQ})) { return true; }
-		break;
-	case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:
-		if (xcc_write_word(p, XWORD{XIS::NE})) { return true; }
-		break;
-	case xbtoken::OPERATOR_LOGICAL_NOT:
-		if (
+	case xbtoken::OPERATOR_LOGICAL_OR:           return xcc_write_word(p, XWORD{XIS::OR});
+	case xbtoken::OPERATOR_BITWISE_XOR:          return xcc_write_word(p, XWORD{XIS::XOR});
+	case xbtoken::OPERATOR_BITWISE_NOT:          return xcc_write_word(p, XWORD{XIS::NOT});
+	case xbtoken::OPERATOR_BITWISE_LSHIFT:       return xcc_write_word(p, XWORD{XIS::LSH});
+	case xbtoken::OPERATOR_BITWISE_RSHIFT:       return xcc_write_word(p, XWORD{XIS::RSH});
+	case xbtoken::OPERATOR_LOGICAL_LESS:         return xcc_write_word(p, XWORD{XIS::LT});
+	case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:    return xcc_write_word(p, XWORD{XIS::LE});
+	case xbtoken::OPERATOR_LOGICAL_GREATER:      return xcc_write_word(p, XWORD{XIS::GT});
+	case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL: return xcc_write_word(p, XWORD{XIS::LE});
+	case xbtoken::OPERATOR_LOGICAL_EQUAL:        return xcc_write_word(p, XWORD{XIS::EQ});
+	case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:     return xcc_write_word(p, XWORD{XIS::NE});
+	case xbtoken::OPERATOR_LOGICAL_NOT:          return 
 			xcc_write_word(p, XWORD{XIS::PUT}) &&
 			xcc_write_word(p, XWORD{0})        &&
 			xcc_write_word(p, XWORD{XIS::EQ})
-		) {
-			return true;
-		}
-		break;
+		;
 	}
 	return false;
 }
@@ -1086,13 +1104,14 @@ static bool try_rval(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_redir_val(new_state(ps.end)) ||
-			try_bwnot_val(new_state(ps.end)) ||
-			try_lnot_val (new_state(ps.end)) ||
-			try_call_fn  (new_state(ps.end)) ||
-			try_put_lit  (new_state(ps.end)) ||
-			try_put_index(new_state(ps.end)) ||
-			try_put_var  (new_state(ps.end)) ||
+			try_redir_val(new_state(ps.end))  ||
+			try_bwnot_val(new_state(ps.end))  ||
+			try_lnot_val (new_state(ps.end))  ||
+			try_call_fn  (new_state(ps.end))  ||
+			try_put_lit  (new_state(ps.end))  ||
+			try_put_index(new_state(ps.end))  ||
+			try_incdec_var(new_state(ps.end)) ||
+			try_put_var  (new_state(ps.end))  ||
 			(
 				(
 					match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
