@@ -31,40 +31,28 @@ bool xcc_write_word(xcc_binary &buf, XWORD data)
 U16 xcc_top_scope_stack_size(const xcc_symbol_stack &s)
 {
 	U16 size = 0;
-	for (U16 i = s.top_index; i < s.count; ++i) {
+	for (signed i = s.count - 1; i >= 0 && s.symbols[i].scope_index == s.scope; --i) {
 		size += s.symbols[i].size;
 	}
 	return size;
 }
-#include <iostream>
+
 bool xcc_push_scope(xcc_symbol_stack &ss)
 {
-	std::cout << "+ scope " << ss.scope << " -> " << ss.scope + 1 << std::endl;
 	++ss.scope;
-	ss.top_index = ss.count;
 	return true;
 }
 
 bool xcc_pop_scope(xcc_symbol_stack &ss)
 {
-	// BUG This does not pop off all affected symbols in the removed scope.
-	
-	std::cout << "- scope " << ss.scope << " -> " << ss.scope - 1 << std::endl;
-	--ss.scope;
-	ss.count = ss.top_index;
-	if (ss.scope > 0) {
-		while (ss.top_index > 0 && ss.symbols[ss.top_index].scope_index > ss.scope) {
-			--ss.top_index;
-		}
-		if (ss.top_index > 0 || ss.symbols[ss.top_index].scope_index <= ss.scope) {
-			++ss.top_index; // NOTE: top index must point to the next free index to write a symbol to, and we just went past it by one.
-		}
-		for (unsigned i = ss.top_index; i < ss.count; ++i) {
-			std::cout << "  - " << ss.symbols[i].scope_index << " " << ss.symbols[i].name.str << std::endl;
+	if (ss.scope >= 1) {
+		while (ss.count > 0 && ss.symbols[ss.count - 1].scope_index == ss.scope) {
+			--ss.count;
 		}
 	} else {
-		ss.top_index = 0;
+		ss.count = 0;
 	}
+	--ss.scope;
 	return true;
 }
 
@@ -74,7 +62,7 @@ xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16
 		xcc_input_tokens{ l, NULL, 0, 0 },
 		bin_mem,
 		l.last,
-		xcc_symbol_stack{ sym_mem, sym_capacity, 0, 0, 0 },
+		xcc_symbol_stack{ sym_mem, sym_capacity, 0, 0 },
 		NULL,
 		xcc_error{ new_eof(), xcc_error::NONE, 0 }
 	};
@@ -160,7 +148,7 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 	}
 	const unsigned name_char_count = xcc_chcount(name.str);
 	if (name_char_count > 0) {
-		for (U16 i = p->scopes.top_index; i < p->scopes.count; ++i) {
+		for (signed i = p->scopes.count - 1; i >= 0 && p->scopes.symbols[i].scope_index == p->scopes.scope; --i) {
 			if (xcc_strcmp(p->scopes.symbols[i].name.str, xcc_chcount(p->scopes.symbols[i].name.str), name.str, name_char_count)) {
 				xcc_set_error(p, xcc_error::REDEF, __LINE__);
 				return NULL;
@@ -188,9 +176,6 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 		break;
 	}
 	++p->scopes.count;
-
-	std::cout << "  + " << sym.scope_index << " " << sym.name.str << std::endl;
-
 	return &sym;
 }
 
