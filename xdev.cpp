@@ -144,7 +144,7 @@ void Device::Cycle( void )
 
 void Device::Run(uint32_t ms)
 {
-	uint64_t cycles = (uint64_t(m_cycles_per_second) * 1000) / ms;
+	uint64_t cycles = ms > 0 ? (uint64_t(m_cycles_per_second) * 1000) / ms : 0;
 	while (cycles-- >= 1 && IsPoweredOn()) {
 		Cycle();
 	}
@@ -213,6 +213,11 @@ const Device *Device::GetConnectedDevice( void ) const
 U16 Device::GetHWID( void ) const
 {
 	return m_HWID;
+}
+
+std::string Device::GetName( void ) const
+{
+	return m_name;
 }
 
 bool Device::IsConnected(const Device &device) const

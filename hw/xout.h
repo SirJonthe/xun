@@ -17,6 +17,8 @@ private:
 	void Refresh( void ) const;
 
 public:
+	Monitor( void );
+
 	void Plot(U8 x, U8 y, U8 color);
 	void PowerOn( void );
 	void Cycle( void );

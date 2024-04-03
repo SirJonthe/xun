@@ -171,6 +171,10 @@ public:
 	/// @return The hardware ID.
 	U16 GetHWID( void ) const;
 
+	/// @brief Returns the hardware name of the device.
+	/// @return The hardware name of the device.
+	std::string GetName( void ) const;
+
 	/// @brief Checks if a given device is connected to this device.
 	/// @param device The device to check connectivity to.
 	/// @return True if connected.
@@ -195,6 +199,24 @@ public:
 	/// @param a A device.
 	/// @param b Another device.
 	static void Connect(Device &a, Device &b);
+};
+
+struct Packet
+{
+	enum {
+		TYPE_ERR,
+		TYPE_ACK,
+		TYPE_NACK,
+		TYPE_CONNECT,
+		TYPE_DISCONNECT,
+		TYPE_HWNAME,
+		TYPE_HWID,
+		TYPE_INTERRUPT,
+		TYPE_SET_INTERRUPT
+	};
+
+	U16 id, type, sequence, size;
+	U16 payload[12];
 };
 
 #endif // XDEV_H
