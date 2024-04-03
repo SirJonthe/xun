@@ -7,13 +7,19 @@
 #include "hw/xdisk.h"
 #include "hw/xpwr.h"
 
+/// @brief A programmable computer.
+/// @note Use XASM or XB to generate binaries of custom software.
+/// @sa xb
+/// @sa xasm
 class Computer : public Device
 {
 private:
-	class Port : public Device
+	/// @brief An I/O port with its own input buffer.
+	class IOPort : public Device
 	{
 	public:
-		Port( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff) {}
+		/// @brief Constructs an IOPort object.
+		IOPort( void );
 	};
 
 private:
@@ -27,34 +33,44 @@ private:
 		SP,  // Stack Pointer. Absolute.
 		IP,  // Instruction Pointer. Absolute. Stored addresses are relative however, so need to be adjusted IP = addr + A for global binary labels, IP = addr + B for global stack labels, IP = addr + C for local stack labels.
 
+		// Instruction registers
+		I, // The currently executing instruction.
+
 		// I/O registers
 		P, // Port selector. I/O instructions target this port number.
 		
 		// Error registers
 		ERR; // Error register.
-	XWORD             RAM[MEM_SIZE_MAX];
-	PersistentStorage m_storage;                   // Built-in, small persistent memory bank.
-	PowerController   m_power_controller;          // Can physically turn power off.
+	XWORD                     RAM[MEM_SIZE_MAX];   // The internal working memory of the computer. Non-persistent.
+	PersistentStorage         m_storage;           // Built-in, small persistent memory bank.
+	PowerController           m_power_controller;  // Can physically turn power off.
 	
 	// DiskReader     m_reader;                      // 
-	
-	uint64_t          m_clock_ps;                  // The clock in pico seconds.
-	uint32_t          m_ps_per_cycle;              // The number of pico seconds per cycle.
-	uint32_t          m_cycles_per_second;         // The number of cycles that can run per second.
 
-	Port              m_ports[16];
+	static constexpr uint32_t NUM_PORTS = 16;      // The number of I/O ports on the computer.
+	IOPort                    m_ports[NUM_PORTS];  // The I/O ports of the computer.
+	bool                      m_debug;
 
 public:
-	Computer( void );
+	/// @brief Constructs a new Computer object.
+	/// @param debug Sets debug mode where memory is not cleared on power off, and HALT instructions are emitted when loading a binary from disk.
+	explicit Computer(bool debug = false);
+
+	/// @brief Copies a Computer object.
+	/// @param NA The object to copy.
 	Computer(const Computer&) = default;
+
+	/// @brief Copies a Computer object.
+	/// @param NA The object to copy.
+	/// @return Self.
 	Computer &operator=(const Computer&) = default;
 
 	/// @brief Flashes the memory with a specified binary, enabling that program to run on the machine. The function also resets the registers so previous execution will be wiped out.
 	/// @param bin The binary.
 	/// @param bin_count The number of words in the binary.
-	/// @param debug If true, writes HALT instruction to all memory locations not occupied by the given program.
+	/// @note If debug mode is true, writes HALT instruction to all memory locations not occupied by the given program.
 	/// @deprecated This function will be replaced by a more proper boot sequence when powering on.
-	void  BootDisk(const XWORD *bin, U16 bin_count, bool debug = false);
+	void BootDisk(const XWORD *bin, U16 bin_count);
 
 	/// @brief Turns the power off.
 	/// @note Not in use.
@@ -72,10 +88,6 @@ public:
 	/// @note Not in use.
 	void PowerCycle( void );
 
-	/// @brief Sets the number of cycles to perform per second.
-	/// @param hz The number of cycles per second.
-	void SetCyclesPerSecond(uint32_t hz);
-
 	void  Poke(U16 addr, XWORD val);
 	void  PokeA(U16 addr, XWORD val);
 	void  PokeB(U16 addr, XWORD val);
@@ -89,15 +101,7 @@ public:
 	
 	/// @brief Executes a single cycle on the machine.
 	/// @return The last executed instruction.
-	XWORD Cycle( void );
-	
-	/// @brief Runs the machine until the program halts or until the power is shut off.
-	/// @warning May indefinitely lock up the thread as the machine runs until a halting condition is fulfulled.
-	void Run( void );
-
-	/// @brief Runs the machine for a specified amount of time.
-	/// @param ms The number of miliseconds to run the machine. Time is specified in machine-local time, i.e. not real-time, meaning the actual run time may be more or less than the specified time as the actual run time depends on the machine's clocks per second.
-	void Run(uint32_t ms);
+	void Cycle( void );
 
 	/// @brief Checks if a given port is available to be connected.
 	/// @param port The port number.
@@ -115,6 +119,7 @@ public:
 	void Disconnect(U8 port);
 
 	U16 InstructionPointer( void ) const;
+	U16 Instruction( void ) const;
 	U16 StackPointer( void ) const;
 	U16 StackOffsetA( void ) const;
 	U16 StackOffsetB( void ) const;

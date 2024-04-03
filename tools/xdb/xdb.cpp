@@ -134,15 +134,16 @@ chars decode_instruction(U16 i)
 	return c;
 }
 
-xdebugger::xdebugger(const xcc_binary &program) : m_computer()
+xdebugger::xdebugger(const xcc_binary &program) : m_computer(true)
 {
-	m_computer.Boot();
-	m_computer.BootDisk(program.buffer, program.size, true);
+	m_computer.PowerOn();
+	m_computer.BootDisk(program.buffer, program.size);
 }
 
 bool xdebugger::step( void )
 {
-	return m_computer.Cycle().u != XIS::HALT;
+	m_computer.Cycle();
+	return m_computer.IsPoweredOn();
 }
 
 void xdebugger::ui(unsigned rows) const

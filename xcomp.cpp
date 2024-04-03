@@ -13,7 +13,13 @@
 #define POP_STACK(n)  SP.u -= (n)
 #define PUSH_STACK(n) SP.u += (n)
 
-Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]", 0xffff), m_storage(1<<21), m_clock_ps(0)
+#define XUN_NAME "XERXES(tm) Unified Nanocontroller [XUN(tm)]"
+#define XUN_HWID 0xffff
+
+Computer::IOPort::IOPort( void ) : Device(XUN_NAME, XUN_HWID)
+{}
+
+Computer::Computer(bool debug) : Device(XUN_NAME, XUN_HWID), m_storage(1<<21), m_debug(debug)
 {
 	SetCyclesPerSecond(10000000U);
 
@@ -24,13 +30,13 @@ Computer::Computer( void ) : Device("XERXES(tm) Unified Nanocontroller [XUN(tm)]
 // Flash memory with a program.
 // Ideally should be an OS that can load other programs,
 // but can be any program.
-void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
+void Computer::BootDisk(const XWORD *bin, U16 bin_count)
 {
-	IP.u = A.u = B.u = C.u = SP.u = 0;
+	IP.u = A.u = B.u = C.u = SP.u = I.u = 0;
 	for (U16 i = 0; i < bin_count; ++SP.u, ++i) {
 		AT(SP) = bin[i];
 	}
-	if (debug) {
+	if (m_debug) {
 		for (unsigned i = SP.u; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = XIS::HALT;
 		}
@@ -45,55 +51,31 @@ void Computer::BootDisk(const XWORD *bin, U16 bin_count, bool debug)
 void Computer::PowerOff( void )
 {
 	if (IsPoweredOn()) {
-		m_clock_ps = 0;
 		A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
-		for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
-			AT(XWORD{U16(i)}).u = 0;
+		if (!m_debug) {
+			I.u = 0;
+			for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
+				AT(XWORD{U16(i)}).u = 0;
+			}
 		}
 		for (uint32_t i = 0; i < 16; ++i) {
-			m_ports[i].Shutdown();
+			m_ports[i].PowerOff();
 		}
-		Device::Shutdown();
+		Device::PowerOff();
 	}
 }
 
 void Computer::PowerOn( void )
 {
 	if (IsPoweredOff()) {
-		Device::Boot();
+		Device::PowerOn();
 		for (uint32_t i = 0; i < 16; ++i) {
-			m_ports[i].Boot();
+			m_ports[i].PowerOn();
 		}
-		A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
+		A.u = B.u = C.u = SP.u = IP.u = I.u = ERR.u = 0;
 		for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
 			AT(XWORD{U16(i)}).u = U16(rand());
 		}
-	}
-}
-
-void Computer::PowerToggle( void )
-{
-	if (IsPoweredOff()) {
-		PowerOn();
-	} else {
-		PowerOff();
-	}
-}
-
-void Computer::PowerCycle( void )
-{
-	if (IsPoweredOn()) {
-		PowerOff();
-		PowerOn();
-	}
-}
-
-void Computer::SetCyclesPerSecond(uint32_t hz)
-{
-	// TODO optimally we adjust 'hz' down to become an even multiple of 1000000000000
-	if (uint64_t(hz) < 1000000000000ULL) {
-		m_cycles_per_second = hz;
-		m_ps_per_cycle = 1000000000000ULL / hz;
 	}
 }
 
@@ -147,11 +129,10 @@ XWORD Computer::PeekTop(U16 addr) const
 	return RAM[U16(addr + SP.u)];
 }
 
-XWORD Computer::Cycle( void )
+void Computer::Cycle( void )
 {
-	m_clock_ps += m_ps_per_cycle;
-	const U16 I = READI;
-	switch (I) {
+	I.u = READI;
+	switch (I.u) {
 	case XIS::NOP:
 		break;
 	case XIS::JMP:
@@ -290,7 +271,7 @@ XWORD Computer::Cycle( void )
 		POP_STACK(1);
 		break;
 	case XIS::PORT:
-		P.u = TOP.u % 16;
+		P.u = TOP.u % NUM_PORTS;
 		POP_STACK(1);
 		break;
 //	case XIS::POLL: break; // Receive data from device on selected port.
@@ -306,7 +287,7 @@ XWORD Computer::Cycle( void )
 		break;
 	case XIS::HALT:
 		--IP.u;
-		Shutdown();
+		PowerOff();
 		break;
 	case XIS::PUSH:
 		PUSH_STACK(TOP.u - 1);
@@ -328,7 +309,7 @@ XWORD Computer::Cycle( void )
 		break;
 	case XIS::CLOCK:
 		PUSH_STACK(1);
-		TOP.u = U16(m_clock_ps / 1000000000ULL);
+		TOP.u = U16(GetLocalClock() / 1000000000ULL);
 		break;
 	case XIS::BIN:
 		READI;
@@ -444,39 +425,33 @@ XWORD Computer::Cycle( void )
 		ERR.u |= ERR_UNDEF;
 		break;
 	}
-	return XWORD{I};
-}
-
-void Computer::Run( void )
-{
-	while (Cycle().u != XIS::HALT) {}
-}
-
-void Computer::Run(uint32_t ms)
-{
-	uint64_t cycles = (uint64_t(m_cycles_per_second) * 1000) / ms;
-	while (cycles-- >= 1 && Cycle().u != XIS::HALT) {}
+	Device::Cycle();
 }
 
 bool Computer::IsAvailablePort(U8 port) const
 {
-	return m_ports[port % 16].GetConnectedDevice() == nullptr;
+	return m_ports[port % NUM_PORTS].GetConnectedDevice() == nullptr;
 }
 
 void Computer::Connect(Device &device, U8 port)
 {
 	Disconnect(port);
-	Device::Connect(m_ports[port % 16], device);
+	Device::Connect(m_ports[port % NUM_PORTS], device);
 }
 
 void Computer::Disconnect(U8 port)
 {
-	m_ports[port % 16].Disconnect();
+	m_ports[port % NUM_PORTS].Disconnect();
 }
 
 U16 Computer::InstructionPointer( void ) const
 {
 	return IP.u;
+}
+
+U16 Computer::Instruction( void ) const
+{
+	return I.u;
 }
 
 U16 Computer::StackPointer( void ) const

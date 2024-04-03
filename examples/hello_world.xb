@@ -1,0 +1,7 @@
+#include <stdio.xb>
+
+main(argc,argv)
+{
+	auto text[13] = "Hello, World!"
+	print(text);
+}

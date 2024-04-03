@@ -49,17 +49,17 @@ XWORD Device::Respond(XWORD message)
 		return HandleHandshake();
 
 	case GET_NAME:
-		m_out_queue.Pass(XWORD{ DATA });
-		m_out_queue.Pass(XWORD{ U16(m_name.size()) });
+		Output(XWORD{ DATA });
+		Output(XWORD{ U16(m_name.size()) });
 		for (size_t i = 0; i < m_name.size(); ++i) {
-			m_out_queue.Pass(XWORD{ U16(m_name[i]) });
+			Output(XWORD{ U16(m_name[i]) });
 		}
 		return XWORD{ U16(FINISHED) };
 
 	case GET_HWID:
-		m_out_queue.Pass(XWORD{ DATA });
-		m_out_queue.Pass(XWORD{ 1 });
-		m_out_queue.Pass(XWORD{ m_HWID });
+		Output(XWORD{ DATA });
+		Output(XWORD{ 1 });
+		Output(XWORD{ m_HWID });
 		return XWORD{ U16(FINISHED) };
 
 	case DISCONNECT:
@@ -72,35 +72,108 @@ XWORD Device::Respond(XWORD message)
 	return XWORD{ U16(ERROR) };
 }
 
-Device::Device(const std::string &name, U16 HWID) : m_name(name), m_HWID(HWID), m_power(false), m_connection(nullptr)
-{}
+XWORD Device::Poll( void )
+{
+	return m_in_queue.Poll();
+}
+
+XWORD Device::Peek( void ) const
+{
+	return m_in_queue.Peek();
+}
+
+bool Device::Pending( void ) const
+{
+	return m_in_queue.GetSize() > 0;
+}
+
+void Device::Output(XWORD msg)
+{
+	Device *dev = m_connection;
+	if (dev != nullptr) {
+		dev->Input(msg);
+	}
+}
+
+Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ps(0), m_power(false)
+{
+	SetCyclesPerSecond(60);
+}
 
 Device::~Device( void )
 {
 	Disconnect();
 }
 
-XWORD Device::Boot( void )
+//XWORD Device::Boot( void )
+//{
+//	if (!m_power) {
+//		m_power = true;
+//		Output(XWORD{ HANDSHAKE });
+//	}
+//	return XWORD{0};
+//}
+//
+//XWORD Device::Cycle( void )
+//{
+//	return XWORD{0};
+//}
+//
+//XWORD Device::Shutdown( void )
+//{
+//	if (m_power) {
+//		Output(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically connected.
+//		m_power = false;
+//	}
+//	return XWORD{0};
+//}
+
+void Device::PowerOn( void )
 {
-	if (!m_power) {
+	if (IsPoweredOff()) {
 		m_power = true;
-		m_out_queue.Pass(XWORD{ HANDSHAKE });
+		m_clock_ps = 0;
+		Output(XWORD{ HANDSHAKE });
 	}
-	return XWORD{0};
 }
 
-XWORD Device::Cycle( void )
+void Device::Cycle( void )
 {
-	return XWORD{0};
+	m_clock_ps += m_ps_per_cycle;
 }
 
-XWORD Device::Shutdown( void )
+void Device::Run(uint32_t ms)
 {
-	if (m_power) {
-		m_out_queue.Pass(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically connected.
+	uint64_t cycles = (uint64_t(m_cycles_per_second) * 1000) / ms;
+	while (cycles-- >= 1 && IsPoweredOn()) {
+		Cycle();
+	}
+}
+
+void Device::PowerOff( void )
+{
+	if (IsPoweredOn()) {
+		Output(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically connected.
+		m_clock_ps = 0;
 		m_power = false;
 	}
-	return XWORD{0};
+}
+
+void Device::PowerToggle( void )
+{
+	if (IsPoweredOff()) {
+		PowerOn();
+	} else {
+		PowerOff();
+	}
+}
+
+void Device::PowerCycle( void )
+{
+	if (IsPoweredOn()) {
+		PowerOff();
+		PowerOn();
+	}
 }
 
 bool Device::IsPoweredOn( void ) const
@@ -111,6 +184,20 @@ bool Device::IsPoweredOn( void ) const
 bool Device::IsPoweredOff( void ) const
 {
 	return !m_power;
+}
+
+void Device::SetCyclesPerSecond(uint32_t hz)
+{
+	// TODO optimally we adjust 'hz' down to become an even multiple of 1000000000000
+	if (uint64_t(hz) < 1000000000000ULL) {
+		m_cycles_per_second = hz;
+		m_ps_per_cycle = 1000000000000ULL / hz;
+	}
+}
+
+uint64_t Device::GetLocalClock( void ) const
+{
+	return m_clock_ps;
 }
 
 Device *Device::GetConnectedDevice( void )
@@ -133,24 +220,31 @@ bool Device::IsConnected(const Device &device) const
 	return m_connection != &device;
 }
 
+bool Device::IsConnected( void ) const
+{
+	return m_connection != nullptr;
+}
+
 void Device::Disconnect( void )
 {
-	m_out_queue.Pass(XWORD{DISCONNECT});
+	Output(XWORD{ DISCONNECT });
+	Device *dev = m_connection;
+	m_connection = nullptr;
+	if (dev != nullptr) {
+		dev->Disconnect();
+	}
 }
 
-XWORD Device::Poll( void )
+void Device::Input(XWORD msg)
 {
-	return m_out_queue.Poll();
+	if (IsPoweredOn()) {
+		m_in_queue.Pass(msg);
+	}
 }
 
-XWORD Device::Peek( void ) const
+bool Device::IsFull( void ) const
 {
-	return m_out_queue.Peek();
-}
-
-bool Device::Pending( void ) const
-{
-	return m_out_queue.GetSize() > 0;
+	return m_in_queue.IsFull();
 }
 
 void Device::Connect(Device &a, Device &b)
@@ -159,6 +253,6 @@ void Device::Connect(Device &a, Device &b)
 	b.Disconnect();
 	a.m_connection = &b;
 	b.m_connection = &a;
-	a.m_out_queue.Pass(XWORD{ HANDSHAKE });
-	b.m_out_queue.Pass(XWORD{ HANDSHAKE });
+	a.Output(XWORD{ HANDSHAKE });
+	b.Output(XWORD{ HANDSHAKE });
 }
