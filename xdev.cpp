@@ -95,7 +95,7 @@ void Device::Output(XWORD msg)
 	}
 }
 
-Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ps(0), m_power(false)
+Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ps(0), m_exec_ps(0), m_power(false)
 {
 	SetCyclesPerSecond(60);
 }
@@ -105,34 +105,12 @@ Device::~Device( void )
 	Disconnect();
 }
 
-//XWORD Device::Boot( void )
-//{
-//	if (!m_power) {
-//		m_power = true;
-//		Output(XWORD{ HANDSHAKE });
-//	}
-//	return XWORD{0};
-//}
-//
-//XWORD Device::Cycle( void )
-//{
-//	return XWORD{0};
-//}
-//
-//XWORD Device::Shutdown( void )
-//{
-//	if (m_power) {
-//		Output(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically connected.
-//		m_power = false;
-//	}
-//	return XWORD{0};
-//}
-
 void Device::PowerOn( void )
 {
 	if (IsPoweredOff()) {
 		m_power = true;
 		m_clock_ps = 0;
+		m_exec_ps = 0;
 		Output(XWORD{ HANDSHAKE });
 	}
 }
@@ -144,9 +122,12 @@ void Device::Cycle( void )
 
 void Device::Run(uint32_t ms)
 {
-	uint64_t cycles = ms > 0 ? (uint64_t(m_cycles_per_second) * 1000) / ms : 0;
-	while (cycles-- >= 1 && IsPoweredOn()) {
+	uint32_t cycles = 0;
+	m_exec_ps += uint64_t(ms) * 1000000000ULL;
+	while (m_exec_ps >= m_ps_per_cycle && IsPoweredOn()) {
 		Cycle();
+		++cycles;
+		m_exec_ps -= m_ps_per_cycle;
 	}
 }
 
@@ -155,6 +136,7 @@ void Device::PowerOff( void )
 	if (IsPoweredOn()) {
 		Output(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically connected.
 		m_clock_ps = 0;
+		m_exec_ps = 0;
 		m_power = false;
 	}
 }

@@ -142,46 +142,46 @@ draw_text(text, len, x, y)
 	return x;
 }
 
-//const NUM_PORTS = 16;
+const NUM_PORTS = 16;
 
-//hwid(port_index)
-//{
-//	auto id;
-//	asm {
-//		put port_index.
-//		port.
-//		put &id.
-//		hwid.
-//		mov.
-//	}
-//	return id;
-//}
+hwid(port_index)
+{
+	auto id;
+	asm {
+		//put port_index.
+		//port.
+		//put &id.
+		//hwid.
+		//mov.
+	}
+	return id;
+}
 
-//hwscan(id)
-//{
-//	auto i = 0;
-//	while (i < NUM_PORTS) {
-//		if (hwid(i) == id) {
-//			return i;
-//		}
-//		++i;
-//	}
-//	return -1;
-//}
+hwscan(id)
+{
+	auto i = 0;
+	while (i < NUM_PORTS) {
+		if (hwid(i) == id) {
+			return i;
+		}
+		++i;
+	}
+	return -1;
+}
 
-//const HWID_KB  = 0x0001;
-//const HWID_MON = 0x0003;
+const HWID_KB  = 0x0001;
+const HWID_MON = 0x0003;
 
-//auto hw_kb  = hwscan(HWID_KB);
-//auto hw_mon = hwscan(HWID_MON);
+auto hw_kb  = hwscan(HWID_KB);
+auto hw_mon = hwscan(HWID_MON);
 
 main(a,b)
 {
-//	if (hw_kb == -1 || hw_mon == -1) {
-//		// Print error message
-//		auto text[43] = "Plug in keyboard and/or monitor and reboot."
-//		while (1) {}
-//	}
+	if (hw_kb == -1 || hw_mon == -1) {
+		// Print error message
+		auto text[43] = "Plug in keyboard and/or monitor and reboot.";
+		while (1) {}
+	}
 	auto x = 0;
 	x = draw_glyph( 72, x, 0);
 	x = draw_glyph(101, x, 0);
