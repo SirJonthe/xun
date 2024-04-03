@@ -1,3 +1,6 @@
+// [ ] Detect keyboard
+// [ ] Detect monitor
+
 const VIDEO_PX_WIDTH           = 320;
 const VIDEO_PX_HEIGHT          = 240;
 const VIDEO_BITS_PER_PX        =   1;
