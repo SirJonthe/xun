@@ -176,7 +176,11 @@ void Device::SetCyclesPerSecond(uint32_t hz)
 	static constexpr uint64_t PS_PER_S = 1000000000000ULL;
 	hz = (uint64_t(hz) < PS_PER_S) ? hz : PS_PER_S;
 	m_cycles_per_second = hz;
-	m_ps_per_cycle = 1000000000000ULL / hz;
+	m_ps_per_cycle = PS_PER_S / uint64_t(hz); // BUG Dividing this by 60 becomes 3781764778 instead of 16666666666
+
+// max:    18446744073709551615
+// target:          16666666666
+// actual:           3781764778
 }
 
 uint64_t Device::GetLocalClock( void ) const
