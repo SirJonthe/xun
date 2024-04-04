@@ -19,7 +19,8 @@ private:
 public:
 	Monitor( void );
 
-	void Plot(U8 x, U8 y, U8 color);
+	void Plot(U16 x, U16 y, U8 color);
+	U8 GetPixel(U16 x, U16 y) const;
 	void PowerOn( void );
 	void Cycle( void );
 	void PowerOff( void );

@@ -14,9 +14,14 @@ void Monitor::Refresh( void ) const
 Monitor::Monitor( void ) : Device("XERXES(tm) High Resolution Display V452", 0x0003)
 {}
 
-void Monitor::Plot(U8 x, U8 y, U8 color)
+void Monitor::Plot(U16 x, U16 y, U8 color)
 {
 	m_pixels[y * WIDTH + x] = color;
+}
+
+U8 Monitor::GetPixel(U16 x, U16 y) const
+{
+	return m_pixels[y * WIDTH + x];
 }
 
 void Monitor::PowerOn( void )

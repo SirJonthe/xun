@@ -119,16 +119,18 @@ void Device::Cycle( void )
 {
 	m_clock_ps += m_ps_per_cycle;
 }
-
+#include <iostream>
 void Device::Run(uint32_t ms)
 {
 	uint32_t cycles = 0;
 	m_exec_ps += uint64_t(ms) * 1000000000ULL;
+	std::cout << " (" << m_exec_ps << "/" << m_ps_per_cycle << ",";
 	while (m_exec_ps >= m_ps_per_cycle && IsPoweredOn()) {
 		Cycle();
 		++cycles;
 		m_exec_ps -= m_ps_per_cycle;
 	}
+	std::cout << cycles << ") ";
 }
 
 void Device::PowerOff( void )
@@ -171,10 +173,10 @@ bool Device::IsPoweredOff( void ) const
 void Device::SetCyclesPerSecond(uint32_t hz)
 {
 	// TODO optimally we adjust 'hz' down to become an even multiple of 1000000000000
-	if (uint64_t(hz) < 1000000000000ULL) {
-		m_cycles_per_second = hz;
-		m_ps_per_cycle = 1000000000000ULL / hz;
-	}
+	static constexpr uint64_t PS_PER_S = 1000000000000ULL;
+	hz = (uint64_t(hz) < PS_PER_S) ? hz : PS_PER_S;
+	m_cycles_per_second = hz;
+	m_ps_per_cycle = 1000000000000ULL / hz;
 }
 
 uint64_t Device::GetLocalClock( void ) const

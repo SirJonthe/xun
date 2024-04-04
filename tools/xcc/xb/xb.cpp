@@ -13,14 +13,15 @@
 //}
 
 // TODO
-// [ ] XASM to use write_rel
-// [ ] ++*ptr
-// [ ] Instructions and library functions to detect hardware and send and receive data from ports
-// [ ] Arrays without explicit size
-// [ ] Include files (hard because it requires a virtual file system)
-// [ ] static (variables stored in binary, RLA used to address)
-// [ ] namespace
-// [ ] Re-assignments as expression statements: a = b = c;
+// [ ] xcc:  prevent new symbols from having same name as keywords
+// [ ] xasm: XASM to use write_rel
+// [ ] xb:   ++*ptr
+// [ ] xun:  Instructions and library functions to detect hardware and send and receive data from ports
+// [ ] xb:   Arrays without explicit size
+// [ ] xb:   Include files (hard because it requires a virtual file system)
+// [ ] xb:   static (variables stored in binary, RLA used to address)
+// [ ] xb:   namespace
+// [ ] xb:   Re-assignments as expression statements: a = b = c;
 
 /// @brief Constructs a new parser state from an end token.
 /// @param end A token user type representing the end of the token stream.
