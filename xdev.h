@@ -51,9 +51,9 @@ private:
 	MessageQueue  m_in_queue;          // The input buffer where the connected device sends input messages.
 	std::string   m_name;              // The name of the device.
 	U16           m_HWID;              // The unique hardware ID of the device (remember that this has to be unique, otherwise computers may not be able to distinguish this device from another device).
-	uint64_t      m_clock_ps;          // The clock in pico seconds.
-	uint64_t      m_exec_ps;           // Internal state representing the remainder of execution time left over after a given time slice.
-	uint32_t      m_ps_per_cycle;      // The number of pico seconds per cycle.
+	uint64_t      m_clock_ns;          // The clock in pico seconds.
+	uint64_t      m_exec_ns;           // Internal state representing the remainder of execution time left over after a given time slice.
+	uint64_t      m_ns_per_cycle;      // The number of pico seconds per cycle.
 	uint32_t      m_cycles_per_second; // The number of cycles that can run per second.
 	bool          m_power;             // The power state of the device.
 

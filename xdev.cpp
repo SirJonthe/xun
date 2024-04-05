@@ -95,7 +95,7 @@ void Device::Output(XWORD msg)
 	}
 }
 
-Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ps(0), m_exec_ps(0), m_power(false)
+Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ns(0), m_exec_ns(0), m_power(false)
 {
 	SetCyclesPerSecond(60);
 }
@@ -109,36 +109,34 @@ void Device::PowerOn( void )
 {
 	if (IsPoweredOff()) {
 		m_power = true;
-		m_clock_ps = 0;
-		m_exec_ps = 0;
+		m_clock_ns = 0;
+		m_exec_ns = 0;
 		Output(XWORD{ HANDSHAKE });
 	}
 }
 
 void Device::Cycle( void )
 {
-	m_clock_ps += m_ps_per_cycle;
+	m_clock_ns += m_ns_per_cycle;
 }
-#include <iostream>
+
 void Device::Run(uint32_t ms)
 {
 	uint32_t cycles = 0;
-	m_exec_ps += uint64_t(ms) * 1000000000ULL;
-	std::cout << " (" << m_exec_ps << "/" << m_ps_per_cycle << ",";
-	while (m_exec_ps >= m_ps_per_cycle && IsPoweredOn()) {
+	m_exec_ns += uint64_t(ms) * 1000000ULL;
+	while (m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
 		Cycle();
 		++cycles;
-		m_exec_ps -= m_ps_per_cycle;
+		m_exec_ns -= m_ns_per_cycle;
 	}
-	std::cout << cycles << ") ";
 }
 
 void Device::PowerOff( void )
 {
 	if (IsPoweredOn()) {
 		Output(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically connected.
-		m_clock_ps = 0;
-		m_exec_ps = 0;
+		m_clock_ns = 0;
+		m_exec_ns = 0;
 		m_power = false;
 	}
 }
@@ -172,20 +170,16 @@ bool Device::IsPoweredOff( void ) const
 
 void Device::SetCyclesPerSecond(uint32_t hz)
 {
-	// TODO optimally we adjust 'hz' down to become an even multiple of 1000000000000
-	static constexpr uint64_t PS_PER_S = 1000000000000ULL;
-	hz = (uint64_t(hz) < PS_PER_S) ? hz : PS_PER_S;
+	// TODO optimally we adjust 'hz' down to become an even multiple of 1000000000
+	static constexpr uint64_t NS_PER_S = 1000000000ULL;
+	hz = (uint64_t(hz) < NS_PER_S) ? hz : NS_PER_S;
 	m_cycles_per_second = hz;
-	m_ps_per_cycle = PS_PER_S / uint64_t(hz); // BUG Dividing this by 60 becomes 3781764778 instead of 16666666666
-
-// max:    18446744073709551615
-// target:          16666666666
-// actual:           3781764778
+	m_ns_per_cycle = hz > 0 ? (((NS_PER_S * 10ULL) / uint64_t(hz)) + 5ULL) / 10ULL : 0ULL;
 }
 
 uint64_t Device::GetLocalClock( void ) const
 {
-	return m_clock_ps;
+	return m_clock_ns;
 }
 
 Device *Device::GetConnectedDevice( void )
