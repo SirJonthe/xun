@@ -12,17 +12,6 @@
 //	std::cout << std::endl << "tok=" << t.index+1 << ",txt=\'" << t.text.str << "\' @ row=" << t.row+1 << ",col=" << t.col+1 << " " << std::flush;
 //}
 
-// TODO
-// [ ] xcc:  prevent new symbols from having same name as keywords
-// [ ] xasm: XASM to use write_rel
-// [ ] xb:   ++*ptr
-// [ ] xun:  Instructions and library functions to detect hardware and send and receive data from ports
-// [ ] xb:   Arrays without explicit size
-// [ ] xb:   Include files (hard because it requires a virtual file system)
-// [ ] xb:   static (variables stored in binary, RLA used to address)
-// [ ] xb:   namespace
-// [ ] xb:   Re-assignments as expression statements: a = b = c;
-
 /// @brief Constructs a new parser state from an end token.
 /// @param end A token user type representing the end of the token stream.
 /// @return A new parser state.
@@ -1602,7 +1591,7 @@ static bool try_new_arr_item(xcc_parser_state ps)
 	if (
 		manage_state(
 			match               (ps.p, token::ALIAS, &t)                                    &&
-			(sym = xcc_add_var(t.text, ps.p)) != NULL                                       &&
+			(sym = xcc_add_var(t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT)) != NULL            &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                 &&
 			try_lit_expr        (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
@@ -1643,9 +1632,9 @@ static bool try_new_var_item(xcc_parser_state ps)
 	token t;
 	if (
 		manage_state(
-			match               (ps.p, token::ALIAS, &t)                 &&
-			xcc_add_var         (t.text, ps.p) != NULL                   &&
-			try_opt_var_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
+			match               (ps.p, token::ALIAS, &t)                          &&
+			xcc_add_var         (t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT) != NULL &&
+			try_opt_var_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON))          &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ?
 					try_new_var_list(new_state(ps.end)) :
@@ -1709,9 +1698,9 @@ static bool try_new_const_item(xcc_parser_state ps)
 	U16 result = 0;
 	if (
 		manage_state(
-			match             (ps.p, token::ALIAS, &t)                         &&
-			try_const_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), result) &&
-			xcc_add_lit       (t.text, result, ps.p) != NULL                   &&
+			match             (ps.p, token::ALIAS, &t)                                  &&
+			try_const_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), result)          &&
+			xcc_add_lit       (t.text, result, ps.p, XB_TOKENS, XB_TOKEN_COUNT) != NULL &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ?
 					try_new_const_list(new_state(ps.end)) :
@@ -1759,7 +1748,7 @@ static bool try_fn_param(xcc_parser_state ps, xcc_symbol *param)
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
-		param->param = xcc_add_param(t.text, ps.p);
+		param->param = xcc_add_param(t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT);
 		if (param->param == NULL) {
 			return false;
 		}
@@ -2276,7 +2265,7 @@ static bool try_fn_def(xcc_parser_state ps)
 			(
 				(verify_params = ((ps.p->fn = xcc_find_fn(t.text, ps.p)) != NULL)) ||
 				(
-					(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL &&
+					(ps.p->fn = xcc_add_fn(t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT)) != NULL &&
 					emit_empty_symbol_storage(ps.p, ps.p->fn)
 				)
 			)                                                                                    &&
@@ -2369,7 +2358,7 @@ static bool try_fn_decl(xcc_parser_state ps)
 	if (
 		manage_state(
 			match                    (ps.p, token::ALIAS, &t)                             &&
-			(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL                                 &&
+			(ps.p->fn = xcc_add_fn(t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT)) != NULL      &&
 			emit_empty_symbol_storage(ps.p, ps.p->fn)                                     &&
 			match                    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
 			try_count_opt_fn_params  (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&

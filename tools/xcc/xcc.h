@@ -185,9 +185,12 @@ xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p);
 /// @param category The category of the symbol.
 /// @param p The parser.
 /// @param value The initial value of the symbol.
+/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
+/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value);
+/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
+xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value, const token *reserved = NULL, signed num_tokens = 0);
 
 /// @brief Adds a specified amount of memory on the stack. The result is the same as adding an anonymous symbol of a given size to the symbol stack.
 /// @param p The parser.
@@ -199,38 +202,53 @@ bool xcc_add_memory(xcc_parser *p, U16 size);
 /// @brief Adds a variable (automatic local storage) symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param p The parser.
+/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
+/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p);
+/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
+xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
 
 /// @brief Adds a variable (static global storage) symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param p The parser.
+/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
+/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p);
+/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
+xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
 
 /// @brief Adds a parameter symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param p The parser.
+/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
+/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p);
+/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
+xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
 
 /// @brief Adds a literal symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param value The initial value of the symbol.
 /// @param p The parser.
+/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
+/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p);
+/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
+xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
 
 /// @brief Adds a function symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param p The parser.
+/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
+/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p);
+/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
+xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
 
 /// @brief Returns the size (in words) of the topmost symbol scope.
 /// @param p The parser containing the symbol stack.

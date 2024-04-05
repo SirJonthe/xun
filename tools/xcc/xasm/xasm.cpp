@@ -173,7 +173,7 @@ static bool try_decl_var(xcc_parser_state ps)
 			match(ps.p, token::ALIAS)
 		)
 	) {
-		if (xcc_add_var(t.text, ps.p) == NULL) { return false; }
+		if (xcc_add_var(t.text, ps.p, X_TOKENS, X_TOKEN_COUNT) == NULL) { return false; }
 		return true;
 	}
 	return false;
@@ -257,7 +257,7 @@ static bool try_decl_lit(xcc_parser_state ps)
 			try_lit(new_state(ps.end))
 		)
 	) {
-		if (xcc_add_lit(t.text, ps.p->out.buffer[--ps.p->out.size].u, ps.p) == NULL) { return false; }
+		if (xcc_add_lit(t.text, ps.p->out.buffer[--ps.p->out.size].u, ps.p, X_TOKENS, X_TOKEN_COUNT) == NULL) { return false; }
 		return true;
 	}
 	return false;

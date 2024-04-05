@@ -149,7 +149,7 @@ xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p)
 	return sym;
 }
 
-xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value)
+xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value, const token *reserved, signed num_tokens)
 {
 	if (p->scopes.count >= p->scopes.capacity) {
 		xcc_set_error(p, xcc_error::MEMORY, __LINE__);
@@ -161,6 +161,14 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 			if (xcc_strcmp(p->scopes.symbols[i].name.str, xcc_chcount(p->scopes.symbols[i].name.str), name.str, name_char_count)) {
 				xcc_set_error(p, xcc_error::REDEF, __LINE__);
 				return NULL;
+			}
+		}
+		if (reserved != NULL) {
+			for (signed i = 0; i < num_tokens; ++i) {
+				if (reserved[i].type == token::KEYWORD && xcc_strcmp(reserved[i].text.str, xcc_chcount(reserved[i].text.str), name.str, name_char_count)) {
+					// This is a non-fatal error, since we may match against another pattern.
+					return NULL;
+				}
 			}
 		}
 	}
@@ -199,29 +207,29 @@ bool xcc_add_memory(xcc_parser *p, U16 size)
 	return sym != NULL;
 }
 
-xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p, const token *reserved, signed num_tokens)
 {
-	return xcc_add_symbol(name, xcc_symbol::VAR, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	return xcc_add_symbol(name, xcc_symbol::VAR, p, xcc_top_scope_stack_size(p->scopes) + 1, reserved, num_tokens);
 }
 
-xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p, const token *reserved, signed num_tokens)
 {
-	return xcc_add_symbol(name, xcc_symbol::SVAR, p, p->out.size + 1);
+	return xcc_add_symbol(name, xcc_symbol::SVAR, p, p->out.size + 1, reserved, num_tokens);
 }
 
-xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p, const token *reserved, signed num_tokens)
 {
-	return xcc_add_symbol(name, xcc_symbol::PARAM, p, 0);
+	return xcc_add_symbol(name, xcc_symbol::PARAM, p, 0, reserved, num_tokens);
 }
 
-xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p)
+xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p, const token *reserved, signed num_tokens)
 {
-	return xcc_add_symbol(name, xcc_symbol::LIT, p, value);
+	return xcc_add_symbol(name, xcc_symbol::LIT, p, value, reserved, num_tokens);
 }
 
-xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p, const token *reserved, signed num_tokens)
 {
-	return xcc_add_symbol(name, xcc_symbol::FN, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	return xcc_add_symbol(name, xcc_symbol::FN, p, xcc_top_scope_stack_size(p->scopes) + 1, reserved, num_tokens);
 }
 
 U16 xcc_top_scope_stack_size(const xcc_parser *p)
