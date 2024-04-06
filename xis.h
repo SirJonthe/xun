@@ -18,13 +18,13 @@ struct XIS
 		// #7 Register access
 		// #8 I/O
 		NOP    = 0,  // nothing
-		PUT    = 0b10000000 + ( 1<<8), // put a constant on the stack (use EREL/CREL + AT if you want to transform a constant address to a value)
+		PUT    = 0b10000000 + ( 1<<8), // put a constant on the stack (use RLA/RLB/RLC + AT if you want to transform a constant address to a value)
 		PUTS   = 0b10000010 + ( 2<<8), // put the absolute address of the top stack element on the stack
 		PUTI   = 0b10000010 + ( 3<<8), // put the absolute address of the current instruction on the stack
 		CLOCK  = 0b10000000 + ( 4<<8), // put the processor clock value on top of the stack.
 		BIN    = 0b00000000 + ( 5<<8), // skips reading the next instruction
-		AT     = 0b00100000 + ( 6<<8), // dereference top value on the stack as an absolute address (use EREL/CREL to transform relative address to absolute)
-		JMP    = 0b01000000 + ( 7<<8), // jump to top value (absolute address) on stack (use EREL/CREL to transform relative address to absolute), collapse stack by 1
+		AT     = 0b00100000 + ( 6<<8), // dereference top value on the stack as an absolute address (use RLA/RLB/RLC to transform relative address to absolute)
+		JMP    = 0b01000000 + ( 7<<8), // jump to top value (absolute address) on stack (use RLA/RLB/RLC to transform relative address to absolute), collapse stack by 1
 		SKIP   = 0b01000000 + ( 8<<8), // increment/decrement current IP by an amount
 		ADD    = 0b10010000 + ( 9<<8), // add top and top-1, collapse stack by 1
 		SUB    = 0b10010000 + (10<<8), // subtract top from top-1, collapse stack by 1
@@ -55,22 +55,20 @@ struct XIS
 		IGE    = 0b10001100 + (35<<8), // test top-1 >= top, collapse stack by 1 (signed)
 		ILT    = 0b10001100 + (36<<8), // test top-1 < top, collapse stack by 1 (signed)
 		IGT    = 0b10001100 + (37<<8), // test top-1 > top, collapse stack by 1 (signed)
-
-		PORT   = 0b10001001 + (38<<8), // Select a port to perform I/O on.
-		POLL   = 0b10000001 + (39<<8), // Receive data from device on selected port.
-		PASS   = 0b10000001 + (40<<8), // Send top word on stack to selected port.
-		HWID   = 0b10000001 + (41<<8), // Puts the hardware ID of the device on a selected port on the stack.
-
-		RES42  = 0b11000010 + (42<<8), // Reserved #42
+		PORT   = 0b10001001 + (38<<8), // Select a port to perform I/O on. collapse stack by 1.
+		POLL   = 0b10000001 + (39<<8), // Receive data from device on selected port. Uses two top values on stack as addresses to store packet header and packed payload. collapse stack by 2.
+		PASS   = 0b10000001 + (40<<8), // Send top word on stack to selected port. Uses two top values on stack as addresses to read packet header and packed payload. collapse stack by 2.
+		CPUID  = 0b10000000 + (41<<8), // Puts the CPU ID on the stack.
+		PEND   = 0b10000001 + (42<<8), // Puts 1 on the stack if there is a pending message on the selected port, 0 otherwise.
 		PUSH   = 0b10000000 + (43<<8), // increases the SP by the top value - 1
 		POP    = 0b10000000 + (44<<8), // decreases the SP by the top value
 		TOSS   = 0b10000000 + (45<<8), // remove a constant from the stack
-		MOVD   = 0b10000000 + (46<<8), // remove a constant from the stack and store it in specified absolute address (use EREL/CREL to transform relative address to absolute) by storing the top stack entry as a value at the address in the second topmost stack entry. Collapses the stack two entries.
-		MOVU   = 0b10000000 + (47<<8), // remove a constant from the stack and store it in specified absolute address (use EREL/CREL to transform relative address to absolute) by storing the second topmost stack entry as a value at the address in the top stack entry. Collapses the stack two entries.
-		PEEK   = 0b00000000 + (48<<8), // store top constant from stack in specified absolute address (use EREL/CREL to transform relative address to absolute)
+		MOVD   = 0b10000000 + (46<<8), // remove a constant from the stack and store it in specified absolute address (use RLA/RLB/RLC to transform relative address to absolute) by storing the top stack entry as a value at the address in the second topmost stack entry. Collapses the stack two entries.
+		MOVU   = 0b10000000 + (47<<8), // remove a constant from the stack and store it in specified absolute address (use RLA/RLB/RLC to transform relative address to absolute) by storing the second topmost stack entry as a value at the address in the top stack entry. Collapses the stack two entries.
+		PEEK   = 0b00000000 + (48<<8), // store top constant from stack in specified absolute address (use RLA/RLB/RLC to transform relative address to absolute)
 		HALT   = 0b00000000 + (49<<8), // halt execution (deprecate with power controller)
 
-		RES50  = 0b00000010 + (50<<8), // Reserved #50
+		ACK    = 0b10000001 + (50<<8), // Consume the top message on the current port.
 		RES51  = 0b00000010 + (51<<8), // Reserved #51
 		RES52  = 0b00000010 + (52<<8), // Reserved #52
 		RES53  = 0b00000010 + (53<<8), // Reserved #53

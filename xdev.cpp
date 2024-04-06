@@ -38,6 +38,11 @@ bool Device::MessageQueue::IsFull( void ) const
 	return GetSize() == CAPACITY;
 }
 
+bool Device::MessageQueue::IsEmpty( void ) const
+{
+	return GetSize() == 0;
+}
+
 XWORD Device::HandleHandshake( void ) { return XWORD{ U16(FINISHED) }; }
 void Device::HandleDisconnect( void ) {}
 XWORD Device::HandleCustomMessage(XWORD) { return XWORD{ U16(ERROR) }; }
@@ -202,6 +207,11 @@ std::string Device::GetName( void ) const
 	return m_name;
 }
 
+U16 Device::GetClock( void ) const
+{
+	return U16(m_clock_ns / 1000000000ULL);
+}
+
 bool Device::IsConnected(const Device &device) const
 {
 	return m_connection != &device;
@@ -232,6 +242,11 @@ void Device::Input(XWORD msg)
 bool Device::IsFull( void ) const
 {
 	return m_in_queue.IsFull();
+}
+
+bool Device::IsEmpty( void ) const
+{
+	return m_in_queue.IsEmpty();
 }
 
 void Device::Connect(Device &a, Device &b)

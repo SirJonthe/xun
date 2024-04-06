@@ -274,16 +274,25 @@ void Computer::Cycle( void )
 		P.u = TOP.u % NUM_PORTS;
 		POP_STACK(1);
 		break;
-//	case XIS::POLL: break; // Receive data from device on selected port.
-//	case XIS::PASS:
-//		if (m_ports[P.u].IsValid()) {
-//			(*m_ports[P.u].GetOther())->Respond(TOP);
-//		}
-//		POP_STACK(1);
-//		break; // Send top word on stack to selected port.
-	case XIS::HWID:
+	case XIS::PEND:
 		PUSH_STACK(1);
-		TOP.u = (m_ports[P.u].GetConnectedDevice() != nullptr) ? (m_ports[P.u].GetConnectedDevice()->GetHWID()) : 0;
+		TOP.u = m_ports[P.u].IsEmpty() ? 0 : 1;
+		break;
+//	case XIS::ACK: // TODO Consumes the top message from the port bus (if there is one).
+//		// DO STUFF
+//		POP_STACK(2);
+//		break;
+//	case XIS::POLL: // TODO Reads two addresses from the top of the stack and writes header data to the first address, and payload data to the other. Does not consume the message (need to call ACK for that).
+//		// DO STUFF
+//		POP_STACK(2);
+//		break; 
+//	case XIS::PASS: // TODO Reads two addresses from the top of the stack and sends header data from the first address and payload data from the other to a given port.
+//		// DO STUFF
+//		POP_STACK(2);
+//		break; // Send top word on stack to selected port.
+	case XIS::CPUID:
+		PUSH_STACK(1);
+		TOP.u = GetHWID();
 		break;
 	case XIS::HALT:
 		--IP.u;
@@ -309,7 +318,7 @@ void Computer::Cycle( void )
 		break;
 	case XIS::CLOCK:
 		PUSH_STACK(1);
-		TOP.u = U16(GetLocalClock() / 1000000000ULL);
+		TOP.u = GetClock();
 		break;
 	case XIS::BIN:
 		READI;

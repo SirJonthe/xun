@@ -128,7 +128,9 @@ chars decode_instruction(U16 i)
 		case XIS::PORT:   render(c, "PORT  "); break;
 		case XIS::POLL:   render(c, "POLL  "); break;
 		case XIS::PASS:   render(c, "PASS  "); break;
-		case XIS::HWID:   render(c, "HWID  "); break;
+		case XIS::CPUID:  render(c, "CPUID "); break;
+		case XIS::PEND:   render(c, "PEND  "); break;
+		case XIS::ACK:    render(c, "ACK   "); break;
 		default:          render(c, "???   "); break;
 	}
 	return c;

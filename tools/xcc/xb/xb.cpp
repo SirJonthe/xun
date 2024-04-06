@@ -57,6 +57,8 @@ struct xbtoken
 		KEYWORD_TYPE_AUTO,
 		KEYWORD_TYPE_CONST,
 		KEYWORD_TYPE_STATIC,
+		KEYWORD_TYPE_UNSIGNED,
+		KEYWORD_TYPE_SIGNED,
 		KEYWORD_CONTROL_RETURN,
 		KEYWORD_CONTROL_IF,
 		KEYWORD_CONTROL_ELSE,
@@ -115,7 +117,7 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 60; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 62; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -127,6 +129,8 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_keyword ("auto",                    4, xbtoken::KEYWORD_TYPE_AUTO),
 	new_keyword ("const",                   5, xbtoken::KEYWORD_TYPE_CONST),
 	new_keyword ("static",                  6, xbtoken::KEYWORD_TYPE_STATIC),
+	new_keyword ("unsigned",                8, xbtoken::KEYWORD_TYPE_SIGNED),
+	new_keyword ("signed",                  6, xbtoken::KEYWORD_TYPE_SIGNED),
 	new_keyword ("namespace",               9, xbtoken::KEYWORD_NAMESPACE),
 	new_operator("+=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_ADD),
 	new_operator("-=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_SUB),
@@ -202,9 +206,9 @@ token xblex1(lexer *l)
 /// @return False if the output binary buffer is full. True otherwise.
 static bool emit_empty_symbol_storage(xcc_parser *p, const xcc_symbol *sym)
 {
-	if (sym->category != xcc_symbol::PARAM && sym->category != xcc_symbol::LIT) {
+	if (sym->storage != xcc_symbol::STORAGE_PARAM && sym->storage != xcc_symbol::STORAGE_LIT) {
 		return 
-			(sym->category == xcc_symbol::SVAR ? xcc_write_word(p, XWORD{XIS::BIN}) : xcc_write_word(p, XWORD{XIS::PUT})) &&
+			(sym->storage == xcc_symbol::STORAGE_STATIC ? xcc_write_word(p, XWORD{XIS::BIN}) : xcc_write_word(p, XWORD{XIS::PUT})) &&
 			xcc_write_word(p, XWORD{0});
 	}
 	return true;
@@ -443,7 +447,7 @@ static bool try_put_opt_fn_params(xcc_parser_state ps, const xcc_symbol *sym)
 			try_put_fn_params(new_state(ps.end), &param_count)
 		)
 	) {
-		if (sym != NULL && sym->category == xcc_symbol::FN && sym->param_count != param_count) {
+		if (sym != NULL && sym->storage == xcc_symbol::STORAGE_FN && sym->param_count != param_count) {
 			set_error(ps.p, xcc_error::VERIFY);
 			return false;
 		}
@@ -1591,7 +1595,7 @@ static bool try_new_arr_item(xcc_parser_state ps)
 	if (
 		manage_state(
 			match               (ps.p, token::ALIAS, &t)                                    &&
-			(sym = xcc_add_var(t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT)) != NULL            &&
+			(sym = xcc_add_var(t.text, ps.p)) != NULL                                       &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                 &&
 			try_lit_expr        (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
@@ -1632,9 +1636,9 @@ static bool try_new_var_item(xcc_parser_state ps)
 	token t;
 	if (
 		manage_state(
-			match               (ps.p, token::ALIAS, &t)                          &&
-			xcc_add_var         (t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT) != NULL &&
-			try_opt_var_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON))          &&
+			match               (ps.p, token::ALIAS, &t)                 &&
+			xcc_add_var         (t.text, ps.p) != NULL                   &&
+			try_opt_var_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ?
 					try_new_var_list(new_state(ps.end)) :
@@ -1698,9 +1702,9 @@ static bool try_new_const_item(xcc_parser_state ps)
 	U16 result = 0;
 	if (
 		manage_state(
-			match             (ps.p, token::ALIAS, &t)                                  &&
-			try_const_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), result)          &&
-			xcc_add_lit       (t.text, result, ps.p, XB_TOKENS, XB_TOKEN_COUNT) != NULL &&
+			match             (ps.p, token::ALIAS, &t)                         &&
+			try_const_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), result) &&
+			xcc_add_lit       (t.text, result, ps.p) != NULL                   &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ?
 					try_new_const_list(new_state(ps.end)) :
@@ -1748,7 +1752,7 @@ static bool try_fn_param(xcc_parser_state ps, xcc_symbol *param)
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
-		param->param = xcc_add_param(t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT);
+		param->param = xcc_add_param(t.text, ps.p);
 		if (param->param == NULL) {
 			return false;
 		}
@@ -2265,7 +2269,7 @@ static bool try_fn_def(xcc_parser_state ps)
 			(
 				(verify_params = ((ps.p->fn = xcc_find_fn(t.text, ps.p)) != NULL)) ||
 				(
-					(ps.p->fn = xcc_add_fn(t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT)) != NULL &&
+					(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL &&
 					emit_empty_symbol_storage(ps.p, ps.p->fn)
 				)
 			)                                                                                    &&
@@ -2358,7 +2362,7 @@ static bool try_fn_decl(xcc_parser_state ps)
 	if (
 		manage_state(
 			match                    (ps.p, token::ALIAS, &t)                             &&
-			(ps.p->fn = xcc_add_fn(t.text, ps.p, XB_TOKENS, XB_TOKEN_COUNT)) != NULL      &&
+			(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL                                 &&
 			emit_empty_symbol_storage(ps.p, ps.p->fn)                                     &&
 			match                    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
 			try_count_opt_fn_params  (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&

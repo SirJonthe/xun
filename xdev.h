@@ -44,6 +44,10 @@ protected:
 		/// @brief Checks if the queue is full and can take no more messages.
 		/// @return True if the queue is full.
 		bool IsFull( void ) const;
+
+		/// @brief Checks if the queue is empty.
+		/// @return True if the queue is empty.
+		bool IsEmpty( void ) const;
 	};
 
 private:
@@ -176,6 +180,10 @@ public:
 	/// @return The hardware name of the device.
 	std::string GetName( void ) const;
 
+	/// @brief Returns the local time of the device.
+	/// @return The local time of the device.
+	U16 GetClock( void ) const;
+
 	/// @brief Checks if a given device is connected to this device.
 	/// @param device The device to check connectivity to.
 	/// @return True if connected.
@@ -196,6 +204,10 @@ public:
 	/// @return True if the queue is full.
 	bool IsFull( void ) const;
 
+	/// @brief Checks if the queue is empty.
+	/// @return True if the queue is empty.
+	bool IsEmpty( void ) const;
+
 	/// @brief Connects two devices together (disconnects previously connected devices if need be) and performs a handshake.
 	/// @param a A device.
 	/// @param b Another device.
@@ -205,19 +217,21 @@ public:
 struct Packet
 {
 	enum {
-		TYPE_ERR,
-		TYPE_ACK,
-		TYPE_NACK,
-		TYPE_CONNECT,
-		TYPE_DISCONNECT,
-		TYPE_HWNAME,
-		TYPE_HWID,
-		TYPE_INTERRUPT,
-		TYPE_SET_INTERRUPT
+		TYPE_ERR,        // Error. The payload contains more information about the error.
+		TYPE_CONNECT,    // Send to a device when there is a physical connection to that device. The payload contains the device name.
+		TYPE_DISCONNECT, // Send to a device when the connection has been disrupted.
+		TYPE_PING,       // When sent we expect the receiver to send PONG back.
+		TYPE_PONG,       // Sent back as an acknowledgement of a PING.
+		TYPE_DATA        // Data is found in the payload.
 	};
 
-	U16 id, type, sequence, size;
-	U16 payload[12];
+	U16 id;          // The hardware ID of the sending device.
+	U16 clock;       // The local time as reported by the sender.
+	U16 type;        // The type of the packet.
+	U16 seq;         // The packet sequence number if this packet is part of a series of packets.
+	U16 size;        // The number of words in the payload.
+	U16 irq;         // The IRQ code for the receiving device to call.
+	U16 payload[26]; // The packet payload (user data).
 };
 
 #endif // XDEV_H

@@ -13,7 +13,7 @@ __cpu_clock()
 	return c;
 }
 
-auto __clock_appstart = __cpu_clock();
+auto __clock_appstart = __cpu_clock(); // The state of the clock when the application started.
 
 /// @brief Returns the current clock state since the start of the program.
 /// @return The current clock state since the start of the program.

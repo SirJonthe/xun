@@ -96,7 +96,7 @@ bool xcc_write_word(xcc_parser *p, XWORD data)
 
 bool xcc_write_rel(xcc_parser *p, const xcc_symbol *sym, U16 offset)
 {
-	if (sym->category == xcc_symbol::LIT) {
+	if (sym->storage == xcc_symbol::STORAGE_LIT) {
 		return
 			xcc_write_word(p, XWORD{XIS::PUT})                  &&
 			xcc_write_word(p, XWORD{U16(sym->data.u + offset)});
@@ -104,7 +104,7 @@ bool xcc_write_rel(xcc_parser *p, const xcc_symbol *sym, U16 offset)
 	return
 		xcc_write_word(p, XWORD{XIS::PUT})                  &&
 		xcc_write_word(p, XWORD{U16(sym->data.u + offset)}) &&
-		sym->category == xcc_symbol::SVAR ? xcc_write_word(p, XWORD{XIS::RLA}) : (
+		sym->storage == xcc_symbol::STORAGE_STATIC ? xcc_write_word(p, XWORD{XIS::RLA}) : (
 			sym->scope_index > 0 ?
 				xcc_write_word(p, XWORD{XIS::RLC}) :
 				xcc_write_word(p, XWORD{XIS::RLB})
@@ -125,7 +125,7 @@ xcc_symbol *xcc_find_symbol(const chars &name, xcc_parser *p)
 xcc_symbol *xcc_find_var(const chars &name, xcc_parser *p)
 {
 	xcc_symbol *sym = xcc_find_symbol(name, p);
-	if (sym != NULL && sym->category != xcc_symbol::VAR && sym->category != xcc_symbol::SVAR && sym->category != xcc_symbol::PARAM) {
+	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_AUTO && sym->storage != xcc_symbol::STORAGE_STATIC && sym->storage != xcc_symbol::STORAGE_PARAM) {
 		return NULL;
 	}
 	return sym;
@@ -134,7 +134,7 @@ xcc_symbol *xcc_find_var(const chars &name, xcc_parser *p)
 xcc_symbol *xcc_find_lit(const chars &name, xcc_parser *p)
 {
 	xcc_symbol *sym = xcc_find_symbol(name, p);
-	if (sym != NULL && sym->category != xcc_symbol::LIT) {
+	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_LIT) {
 		return NULL;
 	}
 	return sym;
@@ -143,13 +143,13 @@ xcc_symbol *xcc_find_lit(const chars &name, xcc_parser *p)
 xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p)
 {
 	xcc_symbol *sym = xcc_find_symbol(name, p);
-	if (sym != NULL && sym->category != xcc_symbol::FN) {
+	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_FN) {
 		return NULL;
 	}
 	return sym;
 }
 
-xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value, const token *reserved, signed num_tokens)
+xcc_symbol *xcc_add_symbol(const chars &name, unsigned storage, xcc_parser *p, U16 value)
 {
 	if (p->scopes.count >= p->scopes.capacity) {
 		xcc_set_error(p, xcc_error::MEMORY, __LINE__);
@@ -163,32 +163,25 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, 
 				return NULL;
 			}
 		}
-		if (reserved != NULL) {
-			for (signed i = 0; i < num_tokens; ++i) {
-				if (reserved[i].type == token::KEYWORD && xcc_strcmp(reserved[i].text.str, xcc_chcount(reserved[i].text.str), name.str, name_char_count)) {
-					// This is a non-fatal error, since we may match against another pattern.
-					return NULL;
-				}
-			}
-		}
 	}
 
 	xcc_symbol &sym = p->scopes.symbols[p->scopes.count];
 	sym.name        = name;
-	sym.category    = category;
+	sym.storage     = storage;
+	sym.type        = xcc_symbol::TYPE_UNSIGNED;
 	sym.scope_index = p->scopes.scope;
 	sym.param_count = 0;
 	sym.size        = 1;
 	sym.param       = NULL;
 	sym.data.u      = value;
-	switch (category) {
-	case xcc_symbol::PARAM:
-	case xcc_symbol::LIT:
-	case xcc_symbol::SVAR:
+	switch (storage) {
+	case xcc_symbol::STORAGE_PARAM:
+	case xcc_symbol::STORAGE_LIT:
+	case xcc_symbol::STORAGE_STATIC:
 		sym.size = 0;
 		break;
-	case xcc_symbol::VAR:
-	case xcc_symbol::FN:
+	case xcc_symbol::STORAGE_AUTO:
+	case xcc_symbol::STORAGE_FN:
 		sym.size = 1;
 		break;
 	}
@@ -202,34 +195,34 @@ bool xcc_add_memory(xcc_parser *p, U16 size)
 	for (unsigned i = 0; i < sizeof(empty_name.str); ++i) {
 		empty_name.str[i] = 0;
 	}
-	xcc_symbol *sym = xcc_add_symbol(empty_name, xcc_symbol::VAR, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	xcc_symbol *sym = xcc_add_symbol(empty_name, xcc_symbol::STORAGE_AUTO, p, xcc_top_scope_stack_size(p->scopes) + 1);
 	sym->size = size;
 	return sym != NULL;
 }
 
-xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p, const token *reserved, signed num_tokens)
+xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::VAR, p, xcc_top_scope_stack_size(p->scopes) + 1, reserved, num_tokens);
+	return xcc_add_symbol(name, xcc_symbol::STORAGE_AUTO, p, xcc_top_scope_stack_size(p->scopes) + 1);
 }
 
-xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p, const token *reserved, signed num_tokens)
+xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::SVAR, p, p->out.size + 1, reserved, num_tokens);
+	return xcc_add_symbol(name, xcc_symbol::STORAGE_STATIC, p, p->out.size + 1);
 }
 
-xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p, const token *reserved, signed num_tokens)
+xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::PARAM, p, 0, reserved, num_tokens);
+	return xcc_add_symbol(name, xcc_symbol::STORAGE_PARAM, p, 0);
 }
 
-xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p, const token *reserved, signed num_tokens)
+xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::LIT, p, value, reserved, num_tokens);
+	return xcc_add_symbol(name, xcc_symbol::STORAGE_LIT, p, value);
 }
 
-xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p, const token *reserved, signed num_tokens)
+xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::FN, p, xcc_top_scope_stack_size(p->scopes) + 1, reserved, num_tokens);
+	return xcc_add_symbol(name, xcc_symbol::STORAGE_FN, p, xcc_top_scope_stack_size(p->scopes) + 1);
 }
 
 U16 xcc_top_scope_stack_size(const xcc_parser *p)

@@ -73,19 +73,26 @@ bool xcc_write_word(xcc_binary &buf, XWORD data);
 struct xcc_symbol
 {
 	enum {
-		VAR,   // A modifiable value with local automatic storage.
-		SVAR,  // A modifiable value with global static storage.
-		PARAM, // A modifiable value, that does not modify the stack.
-		LIT,   // An immediate constant.
-		FN     // An immediate constant for use as a target for jump instructions. Local automatic storage.
+		STORAGE_AUTO,   // A modifiable value with local automatic storage.
+		STORAGE_STATIC,  // A modifiable value with global static storage.
+		STORAGE_PARAM, // A modifiable value, that does not modify the stack.
+		STORAGE_LIT,   // An immediate constant.
+		STORAGE_FN     // An immediate constant for use as a target for jump instructions. Local automatic storage.
+	};
+	enum { // This also represents the order in which types are promoted (i.e. to the higher type number).
+		TYPE_SIGNED,   // signed integer
+		TYPE_UNSIGNED, // unsigned integer
+		TYPE_FLOAT,    // signed floating-point value
+		TYPE_GROUP     // structs and classes
 	};
 	chars       name;        // The name of the symbol.
 	XWORD       data;        // The address of a variable/function, or the value of a literal.
-	U16         category;    // VAR, PARAM, LIT, FN
+	U16         storage;     // STORAGE_AUTO, STORAGE_STATIC, STORAGE_PARAM, STORAGE_LIT, STORAGE_FN
+	U16         type;
 	U16         scope_index; // The scope index this symbol is defined in.
 	U16         param_count; // For functions, the number of parameters a function takes.
 	U16         size;        // 0 for literals and parameters, 1 for functions, 1 or more for variables.
-	xcc_symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter.
+	xcc_symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter. For groups, this points to the first member. For members this points to the next member.
 };
 
 /// @brief The data structure containing the current state of declared and defined symbols in the compiler.
@@ -182,15 +189,13 @@ xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p);
 
 /// @brief Adds a symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
-/// @param category The category of the symbol.
+/// @param storage The storage of the symbol.
 /// @param p The parser.
 /// @param value The initial value of the symbol.
-/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
-/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
-xcc_symbol *xcc_add_symbol(const chars &name, unsigned category, xcc_parser *p, U16 value, const token *reserved = NULL, signed num_tokens = 0);
+/// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
+xcc_symbol *xcc_add_symbol(const chars &name, unsigned storage, xcc_parser *p, U16 value);
 
 /// @brief Adds a specified amount of memory on the stack. The result is the same as adding an anonymous symbol of a given size to the symbol stack.
 /// @param p The parser.
@@ -202,53 +207,43 @@ bool xcc_add_memory(xcc_parser *p, U16 size);
 /// @brief Adds a variable (automatic local storage) symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param p The parser.
-/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
-/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
-xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
+/// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
+xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p);
 
 /// @brief Adds a variable (static global storage) symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param p The parser.
-/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
-/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
-xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
+/// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
+xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p);
 
 /// @brief Adds a parameter symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param p The parser.
-/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
-/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
-xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
+/// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
+xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p);
 
 /// @brief Adds a literal symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param value The initial value of the symbol.
 /// @param p The parser.
-/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
-/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
-xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
+/// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
+xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p);
 
 /// @brief Adds a function symbol to the topmost symbol scope.
 /// @param name The name of the symbol.
 /// @param p The parser.
-/// @param reserved A list of tokens containing a subset of reserved keywords that will fail adding a symbol if matched.
-/// @param num_tokens The number of tokens in the reserved list.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
-/// @note The reserved token list contains all tokens. Only matching against keywords will fail the function. 'num_tokens' represents the size of the full list of tokens, not just the number of reserved keywords.
-xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p, const token *reserved = NULL, signed num_tokens = 0);
+/// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
+xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p);
 
 /// @brief Returns the size (in words) of the topmost symbol scope.
 /// @param p The parser containing the symbol stack.
