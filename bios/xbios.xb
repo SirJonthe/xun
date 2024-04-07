@@ -148,7 +148,6 @@ auto __devices[NUM_PORTS];
 
 get_connection_id(port_idex, out_packet)
 {
-	// 
 }
 
 scan_ports(dev_arr)

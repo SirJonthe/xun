@@ -2484,6 +2484,7 @@ xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
 		return xcc_out{ p.in.l, p.out, p.max, 0, xcc_error{ p.max, xcc_error::NONE, 0 } };
 	}
 	set_error(ps.p, xcc_error::UNEXPECTED);
+	p.error.tok = p.max;
 	return xcc_out{ p.in.l, p.out, p.max, 1, p.error };
 }
 

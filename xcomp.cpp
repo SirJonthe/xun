@@ -1,4 +1,3 @@
-#include <iostream>
 #include "xcomp.h"
 
 #define AT(x)         RAM[x.u]
@@ -24,7 +23,9 @@ Computer::Computer(bool debug) : Device(XUN_NAME, XUN_HWID), m_storage(1<<21), m
 	SetCyclesPerSecond(10000000U);
 
 	Device::Connect(m_ports[0], m_power_controller);
-	Device::Connect(m_ports[1], m_storage);
+	// Device::Connect(m_ports[1], m_internal_reader);
+	// Device::Connect(m_ports[1], m_external_reader);
+	// Device::Connect(m_internal_reader, m_storage);
 }
 
 // Flash memory with a program.

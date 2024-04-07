@@ -831,14 +831,14 @@ static bool try_directive_bin(xcc_parser_state ps)
 		manage_state(
 			match            (ps.p, xtoken::KEYWORD_DIRECTIVE_BIN) &&
 			xcc_write_word   (ps.p, XWORD{XIS::PUT})               &&
-			xcc_write_word   (ps.p, XWORD{0})                      &&
 			(ip = ps.p->out.size)                                  &&
+			xcc_write_word   (ps.p, XWORD{0})                      &&
 			xcc_write_word   (ps.p, XWORD{XIS::SKIP})              &&
 			try_emit_lit_list(new_state(xtoken::OPERATOR_STOP))    &&
 			match            (ps.p, xtoken::OPERATOR_STOP)
 		)
 	) {
-		ps.p->out.buffer[ip].u = ps.p->out.size - ip;
+		ps.p->out.buffer[ip].u = ps.p->out.size - ip - 2;
 		return true;
 	}
 	return false;
@@ -903,7 +903,6 @@ static bool try_put_var(xcc_parser_state ps)
 		manage_state(
 			match        (ps.p, token::ALIAS, &t)      &&
 			(sym = xcc_find_var(t.text, ps.p)) != NULL &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})      &&
 			xcc_write_rel(ps.p, sym)                   &&
 			(
 				skip_redir ||
@@ -1031,7 +1030,6 @@ static bool try_put_lvar(xcc_parser_state ps)
 		manage_state(
 			match        (ps.p, token::ALIAS, &t)      &&
 			(sym = xcc_find_var(t.text, ps.p)) != NULL &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})      &&
 			xcc_write_rel(ps.p, sym)
 		)
 	) {
@@ -1091,7 +1089,7 @@ static bool try_mov_param(xcc_parser_state ps)
 	if (
 		manage_state(
 			try_lparam    (new_state(ps.end))      &&
-			xcc_write_word(ps.p, XWORD{XIS::MOVD})
+			xcc_write_word(ps.p, XWORD{XIS::MOVU})
 		)
 	) {
 		return true;
@@ -1135,11 +1133,11 @@ static bool try_instruction_mov(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			match(ps.p, XIS::MOVD) &&
+			match(ps.p, XIS::MOVU) &&
 			(
 				(
 					peek(ps.p).user_type == ps.end &&
-					xcc_write_word(ps.p, XWORD{XIS::MOVD})
+					xcc_write_word(ps.p, XWORD{XIS::MOVU})
 				) ||
 				try_repeat_mov_param(new_state(xtoken::OPERATOR_STOP))
 			)
@@ -1155,7 +1153,8 @@ static bool try_instruction_all(xcc_parser_state ps)
 	token i = peek(ps.p);
 	if (
 		manage_state(
-			i.type == token::KEYWORD &&
+			i.type == token::KEYWORD          &&
+			match         (ps.p, i.user_type) &&
 			xcc_write_word(ps.p, XWORD{U16(i.user_type)})
 		)
 	) {
@@ -1201,12 +1200,19 @@ static bool try_instruction_stmt(xcc_parser_state ps)
 
 static bool try_emit_lit_list(xcc_parser_state ps)
 {
-	while (manage_state(try_put_lit(new_state(ps.end)))) {
+	U16 lit = 0;
+	while (
+		manage_state(
+			try_lit_expr(new_state(ps.end), lit) &&
+			xcc_write_word(ps.p, XWORD{lit})
+		)
+	) {
 		if (peek(ps.p).user_type == ps.end) {
 			return true;
 		} else if (!match(ps.p, xtoken::OPERATOR_COMMA)) {
 			break;
 		}
+		lit = 0;
 	}
 	return false;
 }
@@ -1258,12 +1264,12 @@ xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity)
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	xcc_parser       p  = xcc_init_parser(l, memory, sym_mem, sym_capacity);
 	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF, 0, 0, 0);
-	if (!manage_state(try_program(new_state(ps.end)))) {
-		return { p.in.l, p.out, p.max, 1 };
+	if (manage_state(try_program(new_state(ps.end)))) {
+		return xcc_out{ p.in.l, p.out, p.max, 0, p.error };
 	}
 	set_error(ps.p, xcc_error::UNEXPECTED);
 	p.error.tok = p.max;
-	return { p.in.l, p.out, p.max, 0 };
+	return xcc_out{ p.in.l, p.out, p.max, 1, p.error };
 }
 
 bool xasm_inline(xcc_parser_state ps)

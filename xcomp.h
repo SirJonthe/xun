@@ -41,11 +41,14 @@ private:
 		
 		// Error registers
 		ERR; // Error register.
+	static constexpr uint32_t ROM_SIZE = 4096;     // The size, in words of the ROM.
+	static XWORD              ROM[ROM_SIZE];       // BIOS lives here. At boot, the BIOS is flashed over to RAM.
 	XWORD                     RAM[MEM_SIZE_MAX];   // The internal working memory of the computer. Non-persistent.
-	PersistentStorage         m_storage;           // Built-in, small persistent memory bank.
+	DataStorage               m_storage;           // Built-in, small persistent memory bank.
 	PowerController           m_power_controller;  // Can physically turn power off.
 	
-	// DiskReader     m_reader;                      // 
+	// DataStorageReader     m_external_reader;                      // 
+	// DataStorageReader     m_internal_reader;
 
 	static constexpr uint32_t NUM_PORTS = 16;      // The number of I/O ports on the computer.
 	IOPort                    m_ports[NUM_PORTS];  // The I/O ports of the computer.
@@ -71,6 +74,8 @@ public:
 	/// @note If debug mode is true, writes HALT instruction to all memory locations not occupied by the given program.
 	/// @deprecated This function will be replaced by a more proper boot sequence when powering on.
 	void BootDisk(const XWORD *bin, U16 bin_count);
+
+	// DiskReader &GetDiskReader();
 
 	/// @brief Turns the power off.
 	/// @note Not in use.
