@@ -8,7 +8,7 @@ cpuid()
 	auto id;
 	asm {
 		cpuid.
-		mov &id.
+		mov id.
 	}
 	return id;
 }
@@ -35,7 +35,10 @@ hwpush(port_index, data, len)
 	auto irq   = 0; // We do not use this field.
 
 	// Select the port to output the data to.
-	asm { port port_index. }
+	asm {
+		put port_index.
+		port.
+	}
 
 	// Split the data up into several numbered packages.
 	while (len > 0) {
@@ -47,7 +50,8 @@ hwpush(port_index, data, len)
 			len = 0;
 		}
 		asm {
-			pass &id, data. // Put the address of the header and the data, and send the values at the addresses to the selected port. 
+			put &id, data.
+			pass. // Put the address of the header and the data, and send the values at the addresses to the selected port. 
 		}
 		data += MAX_PAYLOAD_SIZE;
 		++seq;
@@ -61,9 +65,10 @@ hwpend(port_index)
 {
 	auto msg_pending;
 	asm {
-		port port_index.
+		put port_index.
+		port.
 		pend.
-		mov &msg_pending;
+		mov msg_pending;
 	}
 	return msg_pending;
 }
@@ -100,8 +105,10 @@ hwid(port_index)
 
 		// Select the port to output the data to.
 		asm {
-			port port_index. // Select port.
-			pass &id, 0.     // Put the address of the header but we send no data, so just point to null.Send the values at the addresses to the selected port.
+			put port_index. // Select port.
+			port.
+			put &id, 0.
+			pass.     // Put the address of the header but we send no data, so just point to null.Send the values at the addresses to the selected port.
 		}
 
 		// We give a device 1 second to respond, checking every iteration.
@@ -141,8 +148,10 @@ hwpeek(port_index, header, data)
 	auto pending = hwpend(port_index);
 	if (pending) {
 		asm {
-			port port_index.
-			poll header, data.
+			put port_index.
+			port.
+			put &header, data.
+			poll.
 		}
 	}
 	return pending;

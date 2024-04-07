@@ -6,7 +6,7 @@ This is the back end that is used for both the XASM and the XB programming langu
 
 ## TODO
 
-// [ ] xasm: Prevent emitting "bin", "lit", "here", etc. as instructions in try_instruction_all
+// [ ] xasm: Prevent emitting "here", "frame", "base", etc. as instructions in try_instruction_all
 // [ ] xun:  Instructions and library functions to detect hardware and send and receive data from ports
 // [ ] xb:   Arrays without explicit size
 // [ ] xb:   Include files (hard because it requires a virtual file system)

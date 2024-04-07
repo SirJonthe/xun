@@ -155,6 +155,91 @@ scan_ports(dev_arr)
 
 }
 
+/// @brief Checks a given port if its bus has pending messages.
+/// @param port_index The port index to check for pending messages.
+/// @return 1 if the given port has pending messages on its bus. 0 otherwise.
+hwpend(port_index)
+{
+	auto msg_pending;
+	asm {
+		put port_index.
+		port.
+		pend.
+		mov msg_pending;
+	}
+	return msg_pending;
+}
+
+/// @brief Attempts to poll a message from a specific port index. Does not consume the message.
+/// @param port_index The port to sniff for a message.
+/// @param header Pointer to the packet header.
+/// @param data Pointer to the packet payload.
+/// @return 1 if there was a message to consume. 0 otherwise.
+hwpeek(port_index, header, data)
+{
+	auto pending = hwpend(port_index);
+	if (pending) {
+		asm {
+			port port_index.
+			poll header, data.
+		}
+	}
+	return pending;
+}
+
+/// @brief Does a scan of the given port to retrieve the hardware ID of the connected device.
+/// @param port_index The port to scan.
+/// @return The hardware ID of the device connected at the port. 0 if there is no device connected.
+/// @note There is no way of knowing for sure if there is a device connected on a port other than to see if there are pending messages on the bus or if a potential device responds to a ping. If a ping is sent, this function may block for up to a second while polling the bus for a response message. After the time is up the function abandons its retries. However, a device could still potentially be connected, just too busy to respond on time or its message buffer being full and dropping messages.
+hwid(port_index)
+{
+	const MAX_PAYLOAD_SIZE = 26;
+
+	// The packet data.
+	auto id;
+	auto clck;
+	auto type; 
+	auto seq;
+	auto size;
+	auto irq;
+	auto data[MAX_PAYLOAD_SIZE];
+
+	// First check if there is already an event on the bus we can peek.
+	if (hwpeek(port_index, &id, data) == 0) {
+		// Constants.
+		const TYPE_PING = 3; // The constant representing a ping request.
+		
+		// Initialize a PING request.
+		id   = cpuid();
+		clck = clock();
+		type = TYPE_PING; 
+		seq  = 0;
+		size = 0;
+		irq  = 0;
+
+		// Select the port to output the data to.
+		asm {
+			port port_index. // Select port.
+			pass &id, 0.     // Put the address of the header but we send no data, so just point to null.Send the values at the addresses to the selected port.
+		}
+
+		// We give a device 1 second to respond, checking every iteration.
+		auto poll_until = clock() + 1;
+		while (hwpeek(port_index, &id, data) == 0) {
+			if (clock() > poll_until) {
+				id = 0;
+				break;
+			}
+		}
+	}
+	return id;
+}
+
+hwid(port_index)
+{
+
+}
+
 hwscan(id)
 {
 	auto i = 0;
