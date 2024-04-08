@@ -3,7 +3,7 @@
 Device::MessageQueue::MessageQueue( void ) : m_queue(), m_start(0), m_end(0)
 {}
 
-void Device::MessageQueue::Pass(XWORD msg)
+void Device::MessageQueue::Pass(const Device::Packet &msg)
 {
 	if (!IsFull()) {
 		m_queue[m_end] = msg;
@@ -11,16 +11,14 @@ void Device::MessageQueue::Pass(XWORD msg)
 	}
 }
 
-XWORD Device::MessageQueue::Poll( void )
+void Device::MessageQueue::Ack( void )
 {
-	XWORD msg = Peek();
 	if (m_end != m_start) {
 		m_start = (m_start + 1) % CAPACITY;
 	}
-	return msg;
 }
 
-XWORD Device::MessageQueue::Peek( void ) const
+Device::Packet Device::MessageQueue::Peek( void ) const
 {
 	return m_queue[m_start];
 }
@@ -43,46 +41,12 @@ bool Device::MessageQueue::IsEmpty( void ) const
 	return GetSize() == 0;
 }
 
-XWORD Device::HandleHandshake( void ) { return XWORD{ U16(FINISHED) }; }
-void Device::HandleDisconnect( void ) {}
-XWORD Device::HandleCustomMessage(XWORD) { return XWORD{ U16(ERROR) }; }
-
-XWORD Device::Respond(XWORD message)
+void Device::Ack( void )
 {
-	switch (message.u) {
-	case HANDSHAKE:
-		return HandleHandshake();
-
-	case GET_NAME:
-		Output(XWORD{ DATA });
-		Output(XWORD{ U16(m_name.size()) });
-		for (size_t i = 0; i < m_name.size(); ++i) {
-			Output(XWORD{ U16(m_name[i]) });
-		}
-		return XWORD{ U16(FINISHED) };
-
-	case GET_HWID:
-		Output(XWORD{ DATA });
-		Output(XWORD{ 1 });
-		Output(XWORD{ m_HWID });
-		return XWORD{ U16(FINISHED) };
-
-	case DISCONNECT:
-		HandleDisconnect();
-		return XWORD{ U16(FINISHED) };
-
-	default:
-		return HandleCustomMessage(message);
-	}
-	return XWORD{ U16(ERROR) };
+	return m_in_queue.Ack();
 }
 
-XWORD Device::Poll( void )
-{
-	return m_in_queue.Poll();
-}
-
-XWORD Device::Peek( void ) const
+Device::Packet Device::Peek( void ) const
 {
 	return m_in_queue.Peek();
 }
@@ -92,12 +56,55 @@ bool Device::Pending( void ) const
 	return m_in_queue.GetSize() > 0;
 }
 
-void Device::Output(XWORD msg)
+void Device::Output(const Device::Packet &msg)
 {
 	Device *dev = m_connection;
 	if (dev != nullptr) {
 		dev->Input(msg);
 	}
+}
+
+Device::Packet Device::NewPacket(U16 type) const
+{
+	Device::Packet p = {
+		{
+			GetHWID(),
+			GetClock(),
+			type,
+			0,
+			0,
+			0
+		}
+	};
+	for (uint32_t i = 0; i < sizeof(p.payload) / sizeof(U16); ++i) {
+		p.payload[i] = 0;
+	}
+	return p;
+}
+
+Device::Packet Device::ErrorPacket( void ) const
+{
+	return NewPacket(Packet::TYPE_ERR);
+}
+
+Device::Packet Device::PingPacket( void ) const
+{
+	return NewPacket(Packet::TYPE_PING);
+}
+
+Device::Packet Device::PongPacket( void ) const
+{
+	return NewPacket(Packet::TYPE_PONG);
+}
+
+Device::Packet Device::ConnectPacket( void ) const
+{
+	return NewPacket(Packet::TYPE_CONNECT);
+}
+
+Device::Packet Device::DisconnectPacket( void ) const
+{
+	return NewPacket(Packet::TYPE_DISCONNECT);
 }
 
 Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ns(0), m_exec_ns(0), m_power(false)
@@ -116,7 +123,7 @@ void Device::PowerOn( void )
 		m_power = true;
 		m_clock_ns = 0;
 		m_exec_ns = 0;
-		Output(XWORD{ HANDSHAKE });
+		Output(ConnectPacket());
 	}
 }
 
@@ -139,7 +146,7 @@ void Device::Run(uint32_t ms)
 void Device::PowerOff( void )
 {
 	if (IsPoweredOn()) {
-		Output(XWORD{ DISCONNECT }); // Do not formally call Disconnect since devices may still be physically connected.
+		Output(DisconnectPacket()); // Do not formally call Disconnect since devices may still be physically connected.
 		m_clock_ns = 0;
 		m_exec_ns = 0;
 		m_power = false;
@@ -224,7 +231,7 @@ bool Device::IsConnected( void ) const
 
 void Device::Disconnect( void )
 {
-	Output(XWORD{ DISCONNECT });
+	Output(DisconnectPacket());
 	Device *dev = m_connection;
 	m_connection = nullptr;
 	if (dev != nullptr) {
@@ -232,7 +239,7 @@ void Device::Disconnect( void )
 	}
 }
 
-void Device::Input(XWORD msg)
+void Device::Input(const Device::Packet &msg)
 {
 	if (IsPoweredOn()) {
 		m_in_queue.Pass(msg);
@@ -255,6 +262,6 @@ void Device::Connect(Device &a, Device &b)
 	b.Disconnect();
 	a.m_connection = &b;
 	b.m_connection = &a;
-	a.Output(XWORD{ HANDSHAKE });
-	b.Output(XWORD{ HANDSHAKE });
+	a.Output(b.ConnectPacket());
+	b.Output(a.ConnectPacket());
 }

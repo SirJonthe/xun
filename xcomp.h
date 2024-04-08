@@ -17,10 +17,59 @@ private:
 	/// @brief An I/O port with its own input buffer.
 	class IOPort : public Device
 	{
+		friend class Computer;
+
 	public:
 		/// @brief Constructs an IOPort object.
 		IOPort( void );
 	};
+
+	/// @brief Returns the port at the given index.
+	/// @param index The port index.
+	/// @return The port at the given index.
+	/// @note Returns NULL if the index is out of the valid bounds.
+	IOPort *GetPort(U16 index);
+
+	/// @brief Flips the error register flag as indicated by the error code.
+	/// @param code The error code.
+	void SetError(U16 code);
+
+	/// @brief Unflips the error register flag as indicated by the error code.
+	/// @param code The error code.
+	void ClearError(U16 code);
+
+	/// @brief Puts a message on the queue of the device at the other end of a given port.
+	/// @param port_index The index of the port.
+	/// @param header_addr The pointer to the location in memory holding the packet header data.
+	/// @param data_addr The pointer to the location in memory holding the payload data.
+	/// @note If the queue is full then the message will be dropped.
+	/// @note If the port index does not exist, sets the error flag.
+	void Output(U16 port_index, U16 header_addr, U16 data_addr);
+
+	/// @brief Consumes the top message from the given port.
+	/// @param port_index The port index.
+	/// @note If the port index does not exist, sets the error flag.
+	void Ack(U16 port_index);
+
+	/// @brief Peeks at the top message without consuming it from the port queue.
+	/// @param port_index The port index.
+	/// @param header_addr The pointer to the location in memory to store the packet header data.
+	/// @param data_addr The pointer to the location in memory to store the payload data.
+	/// @warning Make sure there are messages to peek. If there is not, garbage data will be displayed.
+	/// @note If the port index does not exist, sets the error flag.
+	void Peek(U16 port_index, U16 header_addr, U16 data_addr);
+
+	/// @brief Checks if the queue is full and can take no more messages.
+	/// @param port_index The index of the port to 
+	/// @return True if the queue is full.
+	/// @note If the port index does not exist, sets the error flag.
+	bool IsFull(U16 port_index);
+
+	/// @brief Checks if the queue is empty.
+	/// @param port_index The index of the port to 
+	/// @return True if the queue is empty.
+	/// @note If the port index does not exist, sets the error flag.
+	bool IsEmpty(U16 port_index);
 
 private:
 	XWORD

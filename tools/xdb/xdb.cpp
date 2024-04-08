@@ -131,6 +131,8 @@ chars decode_instruction(U16 i)
 		case XIS::CPUID:  render(c, "CPUID "); break;
 		case XIS::PEND:   render(c, "PEND  "); break;
 		case XIS::ACK:    render(c, "ACK   "); break;
+		case XIS::ERR:    render(c, "ERR   "); break;
+		case XIS::CERR:   render(c, "CERR  "); break;
 		default:          render(c, "???   "); break;
 	}
 	return c;

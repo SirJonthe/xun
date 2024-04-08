@@ -74,24 +74,28 @@ struct xcc_symbol
 {
 	enum {
 		STORAGE_AUTO,   // A modifiable value with local automatic storage.
-		STORAGE_STATIC,  // A modifiable value with global static storage.
-		STORAGE_PARAM, // A modifiable value, that does not modify the stack.
-		STORAGE_LIT,   // An immediate constant.
-		STORAGE_FN     // An immediate constant for use as a target for jump instructions. Local automatic storage.
+		STORAGE_STATIC, // A modifiable value with global static storage.
+		STORAGE_PARAM,  // A modifiable value, that does not modify the stack.
+		STORAGE_LIT,    // An immediate constant.
+		STORAGE_FN,     // A modifiable value with local automatic storage for use as a target for jump instructions.
+		STORAGE_LBL     // A modifiable value with local automatic storage for use as a target for jump instructions.
 	};
 	enum { // This also represents the order in which types are promoted (i.e. to the higher type number).
 		TYPE_SIGNED,   // signed integer
 		TYPE_UNSIGNED, // unsigned integer
 		TYPE_FLOAT,    // signed floating-point value
+		TYPE_LBL,      // a label
 		TYPE_GROUP     // structs and classes
 	};
-	chars       name;        // The name of the symbol.
+	token       tok;
+	//chars       name;        // The name of the symbol.
 	XWORD       data;        // The address of a variable/function, or the value of a literal.
-	U16         storage;     // STORAGE_AUTO, STORAGE_STATIC, STORAGE_PARAM, STORAGE_LIT, STORAGE_FN
-	U16         type;
+	U16         storage;     // STORAGE_AUTO, STORAGE_STATIC, STORAGE_PARAM, STORAGE_LIT, STORAGE_FN, STORAGE_LBL
+	U16         type;        // TYPE_SIGNED, TYPE_UNSIGNED, TYPE_FLOAT, TYPE_LBL, TYPE_GROUP
 	U16         scope_index; // The scope index this symbol is defined in.
 	U16         param_count; // For functions, the number of parameters a function takes.
 	U16         size;        // 0 for literals and parameters, 1 for functions, 1 or more for variables.
+	U16         link;        // Indicates that the symbol is declared, but not defined and requires linkage between ASDASD
 	xcc_symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter. For groups, this points to the first member. For members this points to the next member.
 };
 
@@ -117,13 +121,14 @@ U16 xcc_loop_stack_size(const xcc_symbol_stack &s, U16 scope_index);
 
 /// @brief Adds a new topmost scope to the symbol stack.
 /// @param ss The symbol stack.
-/// @return False if the symbol stack is full. True otherwise.
+/// @return Always true.
 bool xcc_push_scope(xcc_symbol_stack &ss);
 
 /// @brief Removes the topmost scope, and all its symbols, from the symbol stack.
 /// @param ss The symbol stack.
-/// @return False if the symbol stack has no scopes to remove. True otherwise.
-bool xcc_pop_scope(xcc_symbol_stack &ss);
+/// @param undef If there are unlinked symbols on the scope being popped, returns the last instance. Returns nothing if null.
+/// @return False if the symbol stack that is being popped contains unlinked symbols. True otherwise.
+bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef = NULL);
 
 /// @brief The main data structure used for parsing C code.
 struct xcc_parser
@@ -149,6 +154,17 @@ xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16
 /// @param code The error code.
 /// @param line The line in which the error occurred in the compiler.
 void xcc_set_error(xcc_parser *p, U16 code, unsigned line);
+
+/// @brief Adds a new topmost scope to the symbol stack.
+/// @param p The parser.
+/// @return False if the symbol stack is full. True otherwise.
+/// @note 
+bool xcc_push_scope(xcc_parser *p);
+
+/// @brief Removes the topmost scope, and all its symbols, from the symbol stack.
+/// @param p The parser.
+/// @return False if the symbol stack has no scopes to remove. True otherwise.
+bool xcc_pop_scope(xcc_parser *p);
 
 /// @brief Writes data to the binary buffer in the parser.
 /// @param buf The parser containing the buffer to write the data to.
@@ -188,14 +204,14 @@ xcc_symbol *xcc_find_lit(const chars &name, xcc_parser *p);
 xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p);
 
 /// @brief Adds a symbol to the topmost symbol scope.
-/// @param name The name of the symbol.
+/// @param tok The token containing the name of the symbol to be added.
 /// @param storage The storage of the symbol.
 /// @param p The parser.
 /// @param value The initial value of the symbol.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 /// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
-xcc_symbol *xcc_add_symbol(const chars &name, unsigned storage, xcc_parser *p, U16 value);
+xcc_symbol *xcc_add_symbol(const token &tok, unsigned storage, xcc_parser *p, U16 value);
 
 /// @brief Adds a specified amount of memory on the stack. The result is the same as adding an anonymous symbol of a given size to the symbol stack.
 /// @param p The parser.
@@ -205,45 +221,45 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned storage, xcc_parser *p, U
 bool xcc_add_memory(xcc_parser *p, U16 size);
 
 /// @brief Adds a variable (automatic local storage) symbol to the topmost symbol scope.
-/// @param name The name of the symbol.
+/// @param tok The token containing the name of the symbol to be added.
 /// @param p The parser.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 /// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
-xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_add_var(const token &tok, xcc_parser *p);
 
 /// @brief Adds a variable (static global storage) symbol to the topmost symbol scope.
-/// @param name The name of the symbol.
+/// @param tok The token containing the name of the symbol to be added.
 /// @param p The parser.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 /// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
-xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_add_svar(const token &tok, xcc_parser *p);
 
 /// @brief Adds a parameter symbol to the topmost symbol scope.
-/// @param name The name of the symbol.
+/// @param tok The token containing the name of the symbol to be added.
 /// @param p The parser.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 /// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
-xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_add_param(const token &tok, xcc_parser *p);
 
 /// @brief Adds a literal symbol to the topmost symbol scope.
-/// @param name The name of the symbol.
+/// @param tok The token containing the name of the symbol to be added.
 /// @param value The initial value of the symbol.
 /// @param p The parser.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 /// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
-xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p);
+xcc_symbol *xcc_add_lit(const token &tok, U16 value, xcc_parser *p);
 
 /// @brief Adds a function symbol to the topmost symbol scope.
-/// @param name The name of the symbol.
+/// @param tok The token containing the name of the symbol to be added.
 /// @param p The parser.
 /// @return The added symbol. Null if there was an error.
 /// @note The parser receives an error if there is an internal error when adding a symbol.
 /// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
-xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_add_fn(const token &tok, xcc_parser *p);
 
 /// @brief Returns the size (in words) of the topmost symbol scope.
 /// @param p The parser containing the symbol stack.

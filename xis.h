@@ -67,12 +67,10 @@ struct XIS
 		MOVU   = 0b10000000 + (47<<8), // remove a constant from the stack and store it in specified absolute address (use RLA/RLB/RLC to transform relative address to absolute) by storing the second topmost stack entry as a value at the address in the top stack entry. Collapses the stack two entries.
 		PEEK   = 0b00000000 + (48<<8), // store top constant from stack in specified absolute address (use RLA/RLB/RLC to transform relative address to absolute)
 		HALT   = 0b00000000 + (49<<8), // halt execution (deprecate with power controller)
-
 		ACK    = 0b10000001 + (50<<8), // Consume the top message on the current port.
-		RES51  = 0b00000010 + (51<<8), // Reserved #51
-		RES52  = 0b00000010 + (52<<8), // Reserved #52
+		ERR    = 0b10000010 + (51<<8), // put the error register on the top of the stack. move stack by 1
+		CERR   = 0b10000010 + (52<<8), // clear the error flag at the index indicated by the top value on the stack. collapse stack by 1.
 		RES53  = 0b00000010 + (53<<8), // Reserved #53
-
 		RES54  = 0b10000010 + (54<<8), // Reserved #54
 		RES55  = 0b11000010 + (55<<8), // Reserved #55
 		RES56  = 0b10000010 + (56<<8), // Reserved #56

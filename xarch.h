@@ -20,10 +20,11 @@ static const     U8  *HILO_IDX8 = reinterpret_cast<const uint8_t*>(&HILO_IDX);
 
 enum ERRMASK
 {
-	ERR_DIV0      = 1,
-	ERR_OVERFLOW  = 2,
-	ERR_UNDERFLOW = 4,
-	ERR_UNDEF     = 8
+	ERR_DIV0,
+	ERR_OVERFLOW,
+	ERR_UNDERFLOW,
+	ERR_UNDEF,
+	ERR_IO
 };
 
 union XBYTE

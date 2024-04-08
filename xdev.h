@@ -8,13 +8,42 @@
 /// @brief An abstraction class representing any hardware device that can connect to another device and send messages between them. Its main way of functioning is by calling a function that simulates the device for a given amount of non-real world time.
 class Device
 {
+public:
+	struct Packet
+	{
+		
+
+		enum {
+			TYPE_ERR,        // Error. The payload contains more information about the error.
+			TYPE_CONNECT,    // Send to a device when there is a physical connection to that device. The payload contains the device name.
+			TYPE_DISCONNECT, // Send to a device when the connection has been disrupted.
+			TYPE_PING,       // When sent we expect the receiver to send PONG back.
+			TYPE_PONG,       // Sent back as an acknowledgement of a PING.
+			TYPE_DATA        // Data is found in the payload.
+		};
+		enum {
+			HEADER_ID,
+			HEADER_CLOCK,
+			HEADER_TYPE,
+			HEADER_SEQ,
+			HEADER_SIZE,
+			HEADER_IRQ,
+			HEADER_WORD_SIZE
+		};
+		static constexpr uint32_t PACKET_WORD_SIZE  = 32;
+		static constexpr uint32_t PAYLOAD_WORD_SIZE = PACKET_WORD_SIZE - HEADER_WORD_SIZE;
+		
+		U16 header[HEADER_WORD_SIZE];
+		U16 payload[PAYLOAD_WORD_SIZE]; // The packet payload (user data).
+	};
+
 protected:
 	/// @brief A queue for messages between devices.
 	class MessageQueue
 	{
 	private:
-		static constexpr uint32_t CAPACITY = 1024;   // The capacity of the queue.
-		XWORD                     m_queue[CAPACITY]; // The message queue.
+		static constexpr uint32_t CAPACITY = 256;    // The capacity of the queue.
+		Packet                    m_queue[CAPACITY]; // The message queue.
 		uint32_t                  m_start;           // The start index of the messages.
 		uint32_t                  m_end;             // The end index of the messages.
 	
@@ -25,17 +54,15 @@ protected:
 		/// @brief Puts a message on the queue.
 		/// @param msg The message to put on the queue.
 		/// @note If the queue is full then the message will be dropped.
-		void Pass(XWORD msg);
+		void Pass(const Packet &msg);
 
-		/// @brief Consumes the top message and returns it.
-		/// @return The message.
-		/// @warning Make sure there are messages to peek. If there is not, garbage data will be displayed.
-		XWORD Poll( void );
+		/// @brief Consumes the top message.
+		void Ack( void );
 
 		/// @brief Peeks at the top message without consuming it from the queue.
 		/// @return The message.
 		/// @warning Make sure there are messages to peek. If there is not, garbage data will be displayed.
-		XWORD Peek( void ) const;
+		Packet Peek( void ) const;
 
 		/// @brief Gets the number of messages on the queue.
 		/// @return The number of messages on the queue.
@@ -62,33 +89,14 @@ private:
 	bool          m_power;             // The power state of the device.
 
 protected:
-	/// @brief A programmable function that lets devices handle handshakes in a way appropriate for the individual device.
-	/// @return The response.
-	virtual XWORD HandleHandshake( void );
-	
-	/// @brief A programmable function that lets devices handle disconnects in a way appropriate for the individual device.
-	virtual void HandleDisconnect( void );
-	
-	/// @brief A programmable function that lets devices handle non-standard messages in a way appropriate for the individual device.
-	/// @param message The message.
-	/// @return The response.
-	virtual XWORD HandleCustomMessage(XWORD message);
-	
-	/// @brief Contains a switch-case that jumps to an appropriate response given an input message in the queue.
-	/// @param message The message to respond to.
-	/// @return The response.
-	/// @deprecated This should be done in the 'Cycle' function by manually polling the input queue.
-	XWORD Respond(XWORD message); // Responds to a message from a connected device.
-
 	/// @brief Consumes the top message and returns it.
-	/// @return The message.
 	/// @warning Make sure there are messages to peek. If there is not, garbage data will be displayed.
-	XWORD Poll( void );
+	void Ack( void );
 
 	/// @brief Peeks at the top message without consuming it from the queue.
 	/// @return The message.
 	/// @warning Make sure there are messages to peek. If there is not, garbage data will be displayed.
-	XWORD Peek( void ) const;
+	Packet Peek( void ) const;
 
 	/// @brief Checks if there are unconsumed messages on the out queue.
 	/// @return True if there are messages on the out queue.
@@ -97,29 +105,34 @@ protected:
 	/// @brief Sends a message to the connected device's input queue.
 	/// @param msg The message.
 	/// @warning Silently does nothing if there is no connected device or if the connected device has a full input buffer.
-	void Output(XWORD msg);
+	void Output(const Packet &msg);
+
+	/// @brief Creates a new packet.
+	/// @param type The message type to attach to the new packet.
+	/// @return The new packet.
+	Packet NewPacket(U16 type) const;
+
+	/// @brief Creates a new error packet.
+	/// @return The error packet.
+	Packet ErrorPacket( void ) const;
+	
+	/// @brief Creates a new ping packet.
+	/// @return The ping packet.
+	Packet PingPacket( void ) const;
+
+	/// @brief Creates a new pong packet.
+	/// @return The pong packet.
+	Packet PongPacket( void ) const;
+	
+	/// @brief Creates a new connect packet.
+	/// @return The connect packet.
+	Packet ConnectPacket( void ) const;
+	
+	/// @brief Creates a new disconnect packet.
+	/// @return The disconnect packet.
+	Packet DisconnectPacket( void ) const;
 
 public:
-	/// @brief Contains standard messages that devices may send to eachother to establish a communications protocol.
-	enum StdMessage
-	{
-		HANDSHAKE,         // A device has been connected
-		DATA,              // Tells the receiving end that a bunch of data is about to be sent. The next message should contain a number indicating how many XWORD elements are to be sent.
-		GET_NAME,          // request a device to return its name via the Send. Response should be [DATA][count][count elements]
-		GET_HWID,          // request a device to return its HWID. Response should be [DATA][1][HWID]
-		SET_INTERRUPT,     // [SET_INTERRUPT][IRQ]
-		INTERRUPT_REQUEST, // [INTERRUPT_REQUEST] valid for programmable machines
-		DISCONNECT         // tell the connected device that this device has been powered off or physically disconnected
-	};
-
-	/// @brief Contains standard responses to messages that devices may send upon receiving a message to establish a communications protocol.
-	enum StdReponse
-	{
-		NO_RESPONSE, // Reserved for when you try to send data to an unconnected device
-		FINISHED,    // Finished
-		ERROR        // Finished with error
-	};
-
 	/// @brief Creates a new Device object.
 	/// @param name The hardware name.
 	/// @param HWID The hardware ID. Must be unique.
@@ -198,7 +211,7 @@ public:
 
 	/// @brief Passes a message to this device's input queue.
 	/// @param msg The message.
-	void Input(XWORD msg);
+	void Input(const Packet &msg);
 
 	/// @brief Checks if the queue is full and can take no more messages.
 	/// @return True if the queue is full.
@@ -212,26 +225,6 @@ public:
 	/// @param a A device.
 	/// @param b Another device.
 	static void Connect(Device &a, Device &b);
-};
-
-struct Packet
-{
-	enum {
-		TYPE_ERR,        // Error. The payload contains more information about the error.
-		TYPE_CONNECT,    // Send to a device when there is a physical connection to that device. The payload contains the device name.
-		TYPE_DISCONNECT, // Send to a device when the connection has been disrupted.
-		TYPE_PING,       // When sent we expect the receiver to send PONG back.
-		TYPE_PONG,       // Sent back as an acknowledgement of a PING.
-		TYPE_DATA        // Data is found in the payload.
-	};
-
-	U16 id;          // The hardware ID of the sending device.
-	U16 clock;       // The local time as reported by the sender.
-	U16 type;        // The type of the packet.
-	U16 seq;         // The packet sequence number if this packet is part of a series of packets.
-	U16 size;        // The number of words in the payload.
-	U16 irq;         // The IRQ code for the receiving device to call.
-	U16 payload[26]; // The packet payload (user data).
 };
 
 #endif // XDEV_H

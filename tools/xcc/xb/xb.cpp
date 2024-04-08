@@ -229,7 +229,7 @@ static bool emit_pop_scope(xcc_parser *p)
 				xcc_write_word(p, XWORD{XIS::POP})
 			)
 		) &&
-		xcc_pop_scope(p->scopes);
+		xcc_pop_scope(p);
 }
 
 /// @brief Peeks the next token without advancing the parser.
@@ -1120,13 +1120,13 @@ static bool try_rval(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_bwnot_val(new_state(ps.end))  ||
-			try_lnot_val (new_state(ps.end))  ||
-			try_call_fn  (new_state(ps.end))  ||
-			try_put_lit  (new_state(ps.end))  ||
-			try_put_index(new_state(ps.end))  ||
+			try_bwnot_val (new_state(ps.end)) ||
+			try_lnot_val  (new_state(ps.end)) ||
+			try_call_fn   (new_state(ps.end)) ||
+			try_put_lit   (new_state(ps.end)) ||
+			try_put_index (new_state(ps.end)) ||
 			try_incdec_var(new_state(ps.end)) ||
-			try_put_var  (new_state(ps.end))  ||
+			try_put_var   (new_state(ps.end)) ||
 			(
 				(
 					match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
@@ -1595,7 +1595,7 @@ static bool try_new_arr_item(xcc_parser_state ps)
 	if (
 		manage_state(
 			match               (ps.p, token::ALIAS, &t)                                    &&
-			(sym = xcc_add_var(t.text, ps.p)) != NULL                                       &&
+			(sym = xcc_add_var(t, ps.p)) != NULL                                            &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                 &&
 			try_lit_expr        (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
 			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
@@ -1637,7 +1637,7 @@ static bool try_new_var_item(xcc_parser_state ps)
 	if (
 		manage_state(
 			match               (ps.p, token::ALIAS, &t)                 &&
-			xcc_add_var         (t.text, ps.p) != NULL                   &&
+			xcc_add_var         (t, ps.p) != NULL                        &&
 			try_opt_var_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ?
@@ -1704,7 +1704,7 @@ static bool try_new_const_item(xcc_parser_state ps)
 		manage_state(
 			match             (ps.p, token::ALIAS, &t)                         &&
 			try_const_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), result) &&
-			xcc_add_lit       (t.text, result, ps.p) != NULL                   &&
+			xcc_add_lit       (t, result, ps.p) != NULL                        &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ?
 					try_new_const_list(new_state(ps.end)) :
@@ -1752,7 +1752,7 @@ static bool try_fn_param(xcc_parser_state ps, xcc_symbol *param)
 			match(ps.p, token::ALIAS, &t)
 		)
 	) {
-		param->param = xcc_add_param(t.text, ps.p);
+		param->param = xcc_add_param(t, ps.p);
 		if (param->param == NULL) {
 			return false;
 		}
@@ -1835,7 +1835,7 @@ static bool try_else(xcc_parser_state ps)
 			xcc_write_word(ps.p, XWORD{0})                      &&
 			xcc_write_word(ps.p, XWORD{XIS::RLA})               &&
 			xcc_write_word(ps.p, XWORD{XIS::JMP})               &&
-			xcc_push_scope(ps.p->scopes)                        &&
+			xcc_push_scope(ps.p)                                &&
 			try_statement (new_state(ps.end))                   &&
 			emit_pop_scope(ps.p)
 		)
@@ -1848,8 +1848,6 @@ static bool try_else(xcc_parser_state ps)
 
 static bool try_if(xcc_parser_state ps)
 {
-	// TODO: Using CSKIP for conditionals makes binaries more resilient once I start using IP as an offset from the A pointer.
-
 	U16 jmp_addr_idx = 0;
 	if (
 		manage_state(
@@ -1862,7 +1860,7 @@ static bool try_if(xcc_parser_state ps)
 			xcc_write_word(ps.p, XWORD{0})                                     &&
 			xcc_write_word(ps.p, XWORD{XIS::RLA})                              &&
 			xcc_write_word(ps.p, XWORD{XIS::CNJMP})                            &&
-			xcc_push_scope(ps.p->scopes)                                       &&
+			xcc_push_scope(ps.p)                                               &&
 			try_statement (new_state(ps.end))                                  &&
 			emit_pop_scope(ps.p)                                               &&
 			(ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size)                &&
@@ -1880,8 +1878,6 @@ static bool try_if(xcc_parser_state ps)
 
 static bool try_while(xcc_parser_state ps)
 {
-	// TODO: Using CSKIP for conditionals makes binaries more resilient once I start using IP as an offset from the A pointer.
-
 	U16 jmp_addr_idx   = 0;
 	U16 return_jmp_idx = ps.p->out.size;
 	ps.loop_scope = ps.p->scopes.scope;
@@ -1898,7 +1894,7 @@ static bool try_while(xcc_parser_state ps)
 			xcc_write_word(ps.p, XWORD{0})                                     &&
 			xcc_write_word(ps.p, XWORD{XIS::RLA})                              &&
 			xcc_write_word(ps.p, XWORD{XIS::CNJMP})                            &&
-			xcc_push_scope(ps.p->scopes)                                       &&
+			xcc_push_scope(ps.p)                                               &&
 			try_statement (new_state(ps.end))                                  &&
 			emit_pop_scope(ps.p)                                               &&
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                              &&
@@ -1920,7 +1916,7 @@ static bool try_scope(xcc_parser_state ps)
 	if (
 		manage_state(
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)      &&
-			xcc_push_scope(ps.p->scopes)                                 &&
+			xcc_push_scope(ps.p)                                         &&
 			try_statements(new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)      &&
 			emit_pop_scope(ps.p)
@@ -2108,7 +2104,7 @@ static bool try_break_stmt(xcc_parser_state ps)
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
 			xcc_write_word(ps.p, XWORD{0})                                        &&
 			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{U16(ps.break_ip)})                          &&
+			xcc_write_word(ps.p, XWORD{U16(ps.break_ip)})                         &&
 			xcc_write_word(ps.p, XWORD{XIS::RLA})                                 &&
 			xcc_write_word(ps.p, XWORD{XIS::JMP})
 		)
@@ -2269,7 +2265,7 @@ static bool try_fn_def(xcc_parser_state ps)
 			(
 				(verify_params = ((ps.p->fn = xcc_find_fn(t.text, ps.p)) != NULL)) ||
 				(
-					(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL &&
+					(ps.p->fn = xcc_add_fn(t, ps.p)) != NULL &&
 					emit_empty_symbol_storage(ps.p, ps.p->fn)
 				)
 			)                                                                                    &&
@@ -2362,7 +2358,7 @@ static bool try_fn_decl(xcc_parser_state ps)
 	if (
 		manage_state(
 			match                    (ps.p, token::ALIAS, &t)                             &&
-			(ps.p->fn = xcc_add_fn(t.text, ps.p)) != NULL                                 &&
+			(ps.p->fn = xcc_add_fn(t, ps.p)) != NULL                                      &&
 			emit_empty_symbol_storage(ps.p, ps.p->fn)                                     &&
 			match                    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
 			try_count_opt_fn_params  (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
@@ -2397,7 +2393,7 @@ static bool try_global_statement(xcc_parser_state ps)
 
 static bool add_main(xcc_parser *p)
 {
-	xcc_symbol *sym = xcc_add_fn(to_chars("main",4), p);
+	xcc_symbol *sym = xcc_add_fn(new_token("main",4,token::ALIAS,token::ALIAS), p);
 	if (sym == NULL) {
 		return false;
 	}
@@ -2452,6 +2448,7 @@ static bool try_program(xcc_parser_state ps)
 		)
 	) {
 		// NOTE: xcc_pop_scope not possible since we are at index 0 here.
+		// TODO: Make push and pop scope work here since we rely on some if its logic
 		const U16 lsp = xcc_top_scope_stack_size(ps.p);
 		return
 			(

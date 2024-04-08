@@ -52,17 +52,24 @@ bool xcc_push_scope(xcc_symbol_stack &ss)
 	return true;
 }
 
-bool xcc_pop_scope(xcc_symbol_stack &ss)
+bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef)
 {
+	bool retval = true;
 	if (ss.scope >= 1) {
 		while (ss.count > 0 && ss.symbols[ss.count - 1].scope_index == ss.scope) {
 			--ss.count;
+			if (ss.symbols[ss.count].link > 0) {
+				if (undef != NULL) {
+					*undef = ss.symbols[ss.count].tok;
+				}
+				retval = false;
+			}
 		}
 	} else {
 		ss.count = 0;
 	}
 	--ss.scope;
-	return true;
+	return retval;
 }
 
 xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity)
@@ -83,6 +90,20 @@ void xcc_set_error(xcc_parser *p, U16 code, unsigned line)
 	if (p->error.code == xcc_error::NONE) {
 		p->error = xcc_error{ p->in.l.last, code, line };
 	}
+}
+
+bool xcc_push_scope(xcc_parser *p)
+{
+	return xcc_push_scope(p->scopes);
+}
+
+bool xcc_pop_scope(xcc_parser *p)
+{
+	if (!xcc_pop_scope(p->scopes, &p->in.l.last)) {
+		xcc_set_error(p, xcc_error::UNDEF, __LINE__);
+		return false;
+	}
+	return true;
 }
 
 bool xcc_write_word(xcc_parser *p, XWORD data)
@@ -115,7 +136,7 @@ xcc_symbol *xcc_find_symbol(const chars &name, xcc_parser *p)
 {
 	const unsigned name_char_count = xcc_chcount(name.str);
 	for (signed i = p->scopes.count - 1; i >= 0; --i) {
-		if (xcc_strcmp(name.str, name_char_count, p->scopes.symbols[i].name.str, xcc_chcount(p->scopes.symbols[i].name.str))) {
+		if (xcc_strcmp(name.str, name_char_count, p->scopes.symbols[i].tok.text.str, xcc_chcount(p->scopes.symbols[i].tok.text.str))) {
 			return p->scopes.symbols + i;
 		}
 	}
@@ -149,16 +170,16 @@ xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p)
 	return sym;
 }
 
-xcc_symbol *xcc_add_symbol(const chars &name, unsigned storage, xcc_parser *p, U16 value)
+xcc_symbol *xcc_add_symbol(const token &tok, unsigned storage, xcc_parser *p, U16 value)
 {
 	if (p->scopes.count >= p->scopes.capacity) {
 		xcc_set_error(p, xcc_error::MEMORY, __LINE__);
 		return NULL;
 	}
-	const unsigned name_char_count = xcc_chcount(name.str);
+	const unsigned name_char_count = xcc_chcount(tok.text.str);
 	if (name_char_count > 0) {
 		for (signed i = p->scopes.count - 1; i >= 0 && p->scopes.symbols[i].scope_index == p->scopes.scope; --i) {
-			if (xcc_strcmp(p->scopes.symbols[i].name.str, xcc_chcount(p->scopes.symbols[i].name.str), name.str, name_char_count)) {
+			if (xcc_strcmp(p->scopes.symbols[i].tok.text.str, xcc_chcount(p->scopes.symbols[i].tok.text.str), tok.text.str, name_char_count)) {
 				xcc_set_error(p, xcc_error::REDEF, __LINE__);
 				return NULL;
 			}
@@ -166,7 +187,7 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned storage, xcc_parser *p, U
 	}
 
 	xcc_symbol &sym = p->scopes.symbols[p->scopes.count];
-	sym.name        = name;
+	sym.tok         = tok;
 	sym.storage     = storage;
 	sym.type        = xcc_symbol::TYPE_UNSIGNED;
 	sym.scope_index = p->scopes.scope;
@@ -174,6 +195,7 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned storage, xcc_parser *p, U
 	sym.size        = 1;
 	sym.param       = NULL;
 	sym.data.u      = value;
+	sym.link        = 0;
 	switch (storage) {
 	case xcc_symbol::STORAGE_PARAM:
 	case xcc_symbol::STORAGE_LIT:
@@ -191,38 +213,37 @@ xcc_symbol *xcc_add_symbol(const chars &name, unsigned storage, xcc_parser *p, U
 
 bool xcc_add_memory(xcc_parser *p, U16 size)
 {
-	chars empty_name;
-	for (unsigned i = 0; i < sizeof(empty_name.str); ++i) {
-		empty_name.str[i] = 0;
-	}
-	xcc_symbol *sym = xcc_add_symbol(empty_name, xcc_symbol::STORAGE_AUTO, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	token empty = new_token("", 0, token::NONE, token::NONE);
+	xcc_symbol *sym = xcc_add_symbol(empty, xcc_symbol::STORAGE_AUTO, p, xcc_top_scope_stack_size(p->scopes) + 1);
 	sym->size = size;
 	return sym != NULL;
 }
 
-xcc_symbol *xcc_add_var(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_add_var(const token &tok, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::STORAGE_AUTO, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	return xcc_add_symbol(tok, xcc_symbol::STORAGE_AUTO, p, xcc_top_scope_stack_size(p->scopes) + 1);
 }
 
-xcc_symbol *xcc_add_svar(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_add_svar(const token &tok, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::STORAGE_STATIC, p, p->out.size + 1);
+	return xcc_add_symbol(tok, xcc_symbol::STORAGE_STATIC, p, p->out.size + 1);
 }
 
-xcc_symbol *xcc_add_param(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_add_param(const token &tok, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::STORAGE_PARAM, p, 0);
+	return xcc_add_symbol(tok, xcc_symbol::STORAGE_PARAM, p, 0);
 }
 
-xcc_symbol *xcc_add_lit(const chars &name, U16 value, xcc_parser *p)
+xcc_symbol *xcc_add_lit(const token &tok, U16 value, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::STORAGE_LIT, p, value);
+	return xcc_add_symbol(tok, xcc_symbol::STORAGE_LIT, p, value);
 }
 
-xcc_symbol *xcc_add_fn(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_add_fn(const token &tok, xcc_parser *p)
 {
-	return xcc_add_symbol(name, xcc_symbol::STORAGE_FN, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	xcc_symbol *sym = xcc_add_symbol(tok, xcc_symbol::STORAGE_FN, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	sym->link = p->out.size;
+	return sym;
 }
 
 U16 xcc_top_scope_stack_size(const xcc_parser *p)

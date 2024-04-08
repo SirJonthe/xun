@@ -18,6 +18,82 @@
 Computer::IOPort::IOPort( void ) : Device(XUN_NAME, XUN_HWID)
 {}
 
+Computer::IOPort *Computer::GetPort(U16 index)
+{
+	return index < NUM_PORTS ? &m_ports[index] : NULL;
+}
+
+void Computer::SetError(U16 code)
+{
+	ERR.u |= U16(1 << code);
+	// IRQ here maybe?
+}
+
+void Computer::ClearError(U16 code)
+{
+	ERR.u &= ~U16(1 << code);
+}
+
+void Computer::Output(U16 port_index, U16 header_addr, U16 data_addr)
+{
+	if (GetPort(port_index) != NULL) {
+		Packet p;
+		for (XWORD i = XWORD{0}; i.u < Packet::HEADER_WORD_SIZE; ++i.u) {
+			p.header[i.u] = ATN(i, header_addr).u;
+		}
+		for (XWORD i = XWORD{0}; i.u < Packet::PAYLOAD_WORD_SIZE; ++i.u) {
+			p.payload[i.u] = ATN(i, data_addr).u;
+		}
+		GetPort(port_index)->Output(p);
+	} else {
+		SetError(ERR_IO);
+	}
+}
+
+void Computer::Ack(U16 port_index)
+{
+	if (GetPort(port_index) != NULL) {
+		GetPort(port_index)->Ack();
+	} else {
+		SetError(ERR_IO);
+	}
+}
+
+void Computer::Peek(U16 port_index, U16 header_addr, U16 data_addr)
+{
+	if (GetPort(port_index) != NULL) {
+		Packet p = GetPort(port_index)->Peek();
+		for (XWORD i = XWORD{0}; i.u < Packet::HEADER_WORD_SIZE; ++i.u) {
+			ATN(i, header_addr).u = p.header[i.u];
+		}
+		for (XWORD i = XWORD{0}; i.u < Packet::PAYLOAD_WORD_SIZE; ++i.u) {
+			ATN(i, data_addr).u = p.payload[i.u];
+		}
+	} else {
+		SetError(ERR_IO);
+	}
+}
+
+bool Computer::IsFull(U16 port_index)
+{
+	if (GetPort(port_index) != NULL) {
+		return GetPort(port_index)->IsFull();
+	} else {
+		SetError(ERR_IO);
+	}
+	return true;
+}
+
+bool Computer::IsEmpty(U16 port_index)
+{
+	if (GetPort(port_index) != NULL) {
+		return GetPort(port_index)->IsFull();
+	} else {
+		SetError(ERR_IO);
+	}
+	return true;
+}
+
 Computer::Computer(bool debug) : Device(XUN_NAME, XUN_HWID), m_storage(1<<21), m_debug(debug)
 {
 	SetCyclesPerSecond(10000000U);
@@ -161,13 +237,13 @@ void Computer::Cycle( void )
 		break;
 	case XIS::DIV:
 		if (TOP.u != 0)      { LST.u /= TOP.u; }
-		else if (LST.u != 0) { LST.u = U_MAX; ERR.u |= ERR_DIV0; }
+		else if (LST.u != 0) { LST.u = U_MAX; SetError(ERR_DIV0); }
 		else                 { LST.u = 0; }
 		POP_STACK(1);
 		break;
 	case XIS::MOD:
 		if (TOP.u != 0)      { LST.u %= TOP.u; }
-		else if (LST.u != 0) { LST.u = U_MAX; ERR.u |= ERR_DIV0; }
+		else if (LST.u != 0) { LST.u = U_MAX; SetError(ERR_DIV0); }
 		else                 { LST.u = 0; }
 		POP_STACK(1);
 		break;
@@ -185,15 +261,15 @@ void Computer::Cycle( void )
 		break;
 	case XIS::IDIV:
 		if (TOP.i != 0)     { LST.i /= TOP.i; }
-		else if (LST.i < 0) { LST.i = I_MIN; ERR.u |= ERR_DIV0; }
-		else if (LST.i > 0) { LST.i = I_MAX; ERR.u |= ERR_DIV0; }
+		else if (LST.i < 0) { LST.i = I_MIN; SetError(ERR_DIV0); }
+		else if (LST.i > 0) { LST.i = I_MAX; SetError(ERR_DIV0); }
 		else                { LST.i = 0; }
 		POP_STACK(1);
 		break;
 	case XIS::IMOD:
 		if (TOP.i != 0)     { LST.i %= TOP.i; }
-		else if (LST.i < 0) { LST.i = I_MIN; ERR.u |= ERR_DIV0; }
-		else if (LST.i > 0) { LST.i = I_MAX; ERR.u |= ERR_DIV0; }
+		else if (LST.i < 0) { LST.i = I_MIN; SetError(ERR_DIV0); }
+		else if (LST.i > 0) { LST.i = I_MAX; SetError(ERR_DIV0); }
 		else                { LST.i = 0; }
 		POP_STACK(1);
 		break;
@@ -272,25 +348,28 @@ void Computer::Cycle( void )
 		POP_STACK(1);
 		break;
 	case XIS::PORT:
-		P.u = TOP.u % NUM_PORTS;
+		P.u = TOP.u;
 		POP_STACK(1);
 		break;
 	case XIS::PEND:
 		PUSH_STACK(1);
-		TOP.u = m_ports[P.u].IsEmpty() ? 0 : 1;
+		TOP.u = IsEmpty(P.u) ? 0 : 1;
 		break;
-//	case XIS::ACK: // TODO Consumes the top message from the port bus (if there is one).
-//		// DO STUFF
-//		POP_STACK(2);
-//		break;
-//	case XIS::POLL: // TODO Reads two addresses from the top of the stack and writes header data to the first address, and payload data to the other. Does not consume the message (need to call ACK for that).
-//		// DO STUFF
-//		POP_STACK(2);
-//		break; 
-//	case XIS::PASS: // TODO Reads two addresses from the top of the stack and sends header data from the first address and payload data from the other to a given port.
-//		// DO STUFF
-//		POP_STACK(2);
-//		break; // Send top word on stack to selected port.
+	case XIS::ACK:
+		Ack(P.u);
+		break;
+	case XIS::POLL: {
+		U16 d = TOP.u, h = LST.u;
+		POP_STACK(2);
+		Peek(P.u, h, d);
+		break;
+	}
+	case XIS::PASS: {
+		U16 d = TOP.u, h = LST.u;
+		POP_STACK(2);
+		Output(P.u, h, d);
+		break;
+	}
 	case XIS::CPUID:
 		PUSH_STACK(1);
 		TOP.u = GetHWID();
@@ -408,18 +487,15 @@ void Computer::Cycle( void )
 		C  = ATN(A, -1);
 		B  = ATN(A, -2);
 		A  = ATN(A, -3);
-		//POP_STACK(4);
 		break;
 	case XIS::LDB:
 		SP = ATN(B,  0);
 		C  = ATN(B, -1);
 		B  = ATN(B, -2);
-		//POP_STACK(3);
 		break;
 	case XIS::LDC:
 		SP = ATN(C,  0);
 		C  = ATN(C, -1);
-		//POP_STACK(2);
 		break;
 	case XIS::RLA:
 		TOP.u = TOP.u + A.u;
@@ -430,9 +506,14 @@ void Computer::Cycle( void )
 	case XIS::RLC:
 		TOP.u = TOP.u + C.u;
 		break;
+	case XIS::ERR:
+		PUSH_STACK(1);
+		TOP.u = ERR.u;
+	case XIS::CERR:
+		ClearError(TOP.u);
+		POP_STACK(1);
 	default:
-		// Generate a hardware exception here that will allow a potential OS to recover.
-		ERR.u |= ERR_UNDEF;
+		SetError(ERR_UNDEF);
 		break;
 	}
 	Device::Cycle();

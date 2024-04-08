@@ -55,6 +55,7 @@ struct xtoken
 		KEYWORD_DIRECTIVE_FRAME,   // Emtis the top stack address of the frame (C relative).
 		KEYWORD_DIRECTIVE_BASE,    // Emits the top stack address of the program stack entry point (the bottom at program start) (B relative).
 		KEYWORD_DIRECTIVE_ENTRY,   // Emits the top address of (A relative)
+		KEYWORD_DIRECTIVE_ERR,     // Emit the error register
 
 		OPERATOR_DIRECTIVE_AT,
 		OPERATOR_DIRECTIVE_ADDR,
@@ -99,7 +100,7 @@ struct xtoken
 	};
 };
 
-const signed X_TOKEN_COUNT = 93;
+const signed X_TOKEN_COUNT = 95;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, XIS::NOP),
 	new_keyword ("at",                      2, XIS::AT),
@@ -136,7 +137,6 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("skip",                    4, XIS::SKIP),
 	new_keyword ("cskip",                   5, XIS::CSKIP),
 	new_keyword ("clock",                   5, XIS::CLOCK),
-
 	new_keyword("sva",                      3, XIS::SVA),
 	new_keyword("lda",                      3, XIS::LDA),
 	new_keyword("rla",                      3, XIS::RLA),
@@ -146,13 +146,12 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword("svc",                      3, XIS::SVC),
 	new_keyword("ldc",                      3, XIS::LDC),
 	new_keyword("rlc",                      3, XIS::RLC),
-
 	new_keyword("port",                     4, XIS::PORT),
 	new_keyword("poll",                     4, XIS::POLL),
 	new_keyword("pass",                     4, XIS::PASS),
 	new_keyword("pend",                     4, XIS::PEND),
-
 	new_keyword("cpuid",                    5, XIS::CPUID),
+	new_keyword("cerr",                     4, XIS::CERR),
 
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),
@@ -166,6 +165,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("base",                    4, xtoken::KEYWORD_DIRECTIVE_BASE),
 	new_keyword ("entry",                   5, xtoken::KEYWORD_DIRECTIVE_ENTRY),
 	new_keyword ("lit",                     3, xtoken::KEYWORD_DIRECTIVE_LIT),
+	new_keyword ("err",                     3, xtoken::KEYWORD_DIRECTIVE_ERR),
 
 	new_operator("+",                       1, xtoken::OPERATOR_ARITHMETIC_ADD),
 	new_operator("-",                       1, xtoken::OPERATOR_ARITHMETIC_SUB),
@@ -198,7 +198,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_operator(",",                       1, xtoken::OPERATOR_COMMA),
 	new_operator(".",                       1, xtoken::OPERATOR_STOP),
 	new_comment ("//",                      2),
-	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,   token::ALIAS),
+	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,  token::ALIAS),
 	new_literal ("[0-9]+",                  6, xtoken::LITERAL_INT),
 	new_literal ("0[xX][0-9a-fA-F]+",      17, xtoken::LITERAL_INT, hex2u)
 };
@@ -743,7 +743,7 @@ static bool try_decl_var(xcc_parser_state ps)
 			match(ps.p, token::ALIAS)
 		)
 	) {
-		if (xcc_add_var(t.text, ps.p) == NULL) { return false; }
+		if (xcc_add_var(t, ps.p) == NULL) { return false; }
 		return true;
 	}
 	return false;
@@ -792,10 +792,10 @@ static bool try_directive_scope(xcc_parser_state ps)
 	U16 stack_size;
 	if (
 		manage_state(
-			match                (ps.p, xtoken::KEYWORD_DIRECTIVE_SCOPE)                                       &&
-			match                (ps.p, xtoken::OPERATOR_COLON)                                                &&
-			xcc_push_scope       (ps.p->scopes)                                                                &&
-			try_decl_list        (new_state(xtoken::OPERATOR_ENCLOSE_BRACE_L))                                 &&
+			match                (ps.p, xtoken::KEYWORD_DIRECTIVE_SCOPE)       &&
+			match                (ps.p, xtoken::OPERATOR_COLON)                &&
+			xcc_push_scope       (ps.p)                                        &&
+			try_decl_list        (new_state(xtoken::OPERATOR_ENCLOSE_BRACE_L)) &&
 			(
 				(stack_size = xcc_top_scope_stack_size(ps.p)) == 0 ||
 				(
@@ -804,9 +804,9 @@ static bool try_directive_scope(xcc_parser_state ps)
 					xcc_write_word(ps.p, XWORD{XIS::PUSH})
 				)
 			) &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L)                                      &&
-			try_statements       (new_state(xtoken::OPERATOR_ENCLOSE_BRACE_R))                                 &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R)                                      &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L)      &&
+			try_statements       (new_state(xtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R)      &&
 			(
 				stack_size == 0 ||
 				(
@@ -815,7 +815,7 @@ static bool try_directive_scope(xcc_parser_state ps)
 					xcc_write_word(ps.p, XWORD{XIS::POP})
 				)
 			) &&
-			xcc_pop_scope        (ps.p->scopes)
+			xcc_pop_scope        (ps.p)
 		)
 	) {
 		
@@ -854,7 +854,7 @@ static bool try_directive_lit(xcc_parser_state ps)
 			match       (ps.p, token::ALIAS, &t)                &&
 			match       (ps.p, xtoken::OPERATOR_COMMA)          &&
 			try_lit_expr(new_state(xtoken::OPERATOR_STOP), val) &&
-			xcc_add_lit (t.text, val, ps.p)                     &&
+			xcc_add_lit (t, val, ps.p)                          &&
 			match       (ps.p, xtoken::OPERATOR_STOP)
 		)
 	) {
@@ -981,6 +981,10 @@ static bool try_put_reg(xcc_parser_state ps)
 					xcc_write_word(ps.p, XWORD{XIS::PUT})                 &&
 					xcc_write_word(ps.p, XWORD{0})                        &&
 					xcc_write_word(ps.p, XWORD{XIS::RLA})
+				) ||
+				(
+					match         (ps.p, xtoken::KEYWORD_DIRECTIVE_ERR)   &&
+					xcc_write_word(ps.p, XWORD{XIS::ERR})
 				)
 			)
 		)
@@ -1153,8 +1157,14 @@ static bool try_instruction_all(xcc_parser_state ps)
 	token i = peek(ps.p);
 	if (
 		manage_state(
-			i.type == token::KEYWORD          &&
-			match         (ps.p, i.user_type) &&
+			i.type      == token::KEYWORD                  &&
+			i.user_type != xtoken::KEYWORD_DIRECTIVE_HERE  &&
+			i.user_type != xtoken::KEYWORD_DIRECTIVE_FRAME &&
+			i.user_type != xtoken::KEYWORD_DIRECTIVE_BASE  &&
+			i.user_type != xtoken::KEYWORD_DIRECTIVE_ENTRY &&
+			i.user_type != xtoken::KEYWORD_DIRECTIVE_TOP   &&
+			i.user_type != xtoken::KEYWORD_DIRECTIVE_ERR   &&
+			match         (ps.p, i.user_type)              &&
 			xcc_write_word(ps.p, XWORD{U16(i.user_type)})
 		)
 	) {
