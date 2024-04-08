@@ -126,7 +126,7 @@ bool xcc_push_scope(xcc_symbol_stack &ss);
 
 /// @brief Removes the topmost scope, and all its symbols, from the symbol stack.
 /// @param ss The symbol stack.
-/// @param undef If there are unlinked symbols on the scope being popped, returns the last instance. Returns nothing if null.
+/// @param undef If there are unlinked symbols on the scope being popped, returns the first instance. Returns nothing if null.
 /// @return False if the symbol stack that is being popped contains unlinked symbols. True otherwise.
 bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef = NULL);
 

@@ -20,7 +20,7 @@ const __NUM_HWPORTS = 16; // The number of ports available on this hardware.
 /// @param data Pointer to data to send to the port.
 /// @param len The number of data points to send to the port in words. If this is greater than the maximum payload size then several indexed packages will be sent.
 /// @note If the amount of data is greater than the bus bandwidth, then the program will stall until the device consumes enough data to resume execution.
-hwpush(port_index, data, len)
+hwpush(port_index, data_ptr, len)
 {
 	// Constants.
 	const TYPE_DATA        = 5; // The constant representing data transmission.
@@ -50,10 +50,10 @@ hwpush(port_index, data, len)
 			len = 0;
 		}
 		asm {
-			put &id, data.
+			put &id, data_ptr.
 			pass. // Put the address of the header and the data, and send the values at the addresses to the selected port. 
 		}
-		data += MAX_PAYLOAD_SIZE;
+		data_ptr += MAX_PAYLOAD_SIZE;
 		++seq;
 	}
 }
@@ -140,17 +140,17 @@ hwscan(id)
 
 /// @brief Attempts to poll a message from a specific port index. Does not consume the message.
 /// @param port_index The port to sniff for a message.
-/// @param header Pointer to the packet header.
-/// @param data Pointer to the packet payload.
+/// @param header_ptr Pointer to the packet header.
+/// @param data_ptr Pointer to the packet payload.
 /// @return 1 if there was a message to consume. 0 otherwise.
-hwpeek(port_index, header, data)
+hwpeek(port_index, header_ptr, data_ptr)
 {
 	auto pending = hwpend(port_index);
 	if (pending) {
 		asm {
 			put port_index.
 			port.
-			put &header, data.
+			put header_ptr, data_ptr.
 			poll.
 		}
 	}
@@ -161,16 +161,16 @@ auto __irq_table[256]; // A table with function pointers to be called upon an in
 
 /// @brief Attempts to poll a message from a specific port index. Consumes the message. If there is an IRQ function associated with the header IRQ request, that function is executed.
 /// @param port_index The port to sniff for a message.
-/// @param header Pointer to the packet header.
-/// @param data Pointer to the packet payload.
+/// @param header_ptr Pointer to the packet header.
+/// @param data_ptr Pointer to the packet payload.
 /// @return 1 if there was a message to consume. 0 otherwise.
-hwpoll(port_index, header, data)
+hwpoll(port_index, header_ptr, data_ptr)
 {
-	auto pending = hwpeek(port_index, header, data);
+	auto pending = hwpeek(port_index, header_ptr, data_ptr);
 	if (pending) {
-		asm { ack. }
+		asm ack.
 		if (irq < 256 && __irq_table[irq]) {
-			__irq_table[irq](header, data);
+			__irq_table[irq](header_ptr, data_ptr);
 		}
 	}
 	return pending;

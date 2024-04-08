@@ -67,6 +67,7 @@ struct xbtoken
 		KEYWORD_CONTROL_CONTINUE,
 		KEYWORD_INTRINSIC_ASM,
 		KEYWORD_NAMESPACE,
+		KEYWORD_INCLUDE,
 		OPERATOR_ARITHMETIC_ADD,
 		OPERATOR_ARITHMETIC_SUB,
 		OPERATOR_ARITHMETIC_MUL,
@@ -112,12 +113,13 @@ struct xbtoken
 		OPERATOR_SEMICOLON,
 		OPERATOR_COLON,
 		OPERATOR_COMMA,
+		OPERATOR_HASH,
 		LITERAL_INT
 		// LITERAL_FLOAT
 	};
 };
 
-const signed XB_TOKEN_COUNT = 62; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 64; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -132,6 +134,8 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_keyword ("unsigned",                8, xbtoken::KEYWORD_TYPE_SIGNED),
 	new_keyword ("signed",                  6, xbtoken::KEYWORD_TYPE_SIGNED),
 	new_keyword ("namespace",               9, xbtoken::KEYWORD_NAMESPACE),
+	new_keyword ("include",                 7, xbtoken::KEYWORD_INCLUDE),
+	new_operator("#",                       1, xbtoken::OPERATOR_HASH),
 	new_operator("+=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_ADD),
 	new_operator("-=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_SUB),
 	new_operator("*=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_MUL),
@@ -270,7 +274,8 @@ static bool match1(xcc_parser *p, unsigned type, token *out = NULL)
 /// @note The function does not consume the end token, so care must be taken to consume that token outside of calling this function.
 static bool until_end(xcc_parser_state ps, bool (*try_fn)(xcc_parser_state))
 {
-	while (peek(ps.p).user_type != ps.end) {
+	token t;
+	while ((t = peek(ps.p)).user_type != ps.end && t.user_type != token::STOP_EOF) {
 		if (
 			!manage_state(
 				try_fn(new_state(ps.end))
@@ -2254,6 +2259,67 @@ static bool adjust_fn_rel_ptr(xcc_parser_state ps)
 		xcc_write_word(ps.p, XWORD{XIS::SUB});
 }
 
+static bool try_filepath(xcc_parser_state ps, chars::view &fp)
+{
+	fp = { ps.p->in.l.code.str + ps.p->in.l.head, 0 }; // BUG: If we implement paging this will not work.
+	token t;
+	while (match1(ps.p, token::CHAR, &t) && t.user_type != ps.end) {
+		if (t.user_type == token::STOP_EOF) {
+			set_error(ps.p, xcc_error::UNEXPECTED);
+			return false;
+		}
+		++fp.len;
+	}
+	return true;
+}
+
+static bool try_include_relative_filepath(xcc_parser_state ps)
+{
+	chars::view fp;
+	if (
+		manage_state(
+			match       (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)          &&
+			try_filepath(new_state(xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE), fp) &&
+			match       (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)          
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_include_absolute_filepath(xcc_parser_state ps)
+{
+	chars::view fp;
+	if (
+		manage_state(
+			match       (ps.p, xbtoken::OPERATOR_LOGICAL_LESS)             &&
+			try_filepath(new_state(xbtoken::OPERATOR_LOGICAL_GREATER), fp) &&
+			match       (ps.p, xbtoken::OPERATOR_LOGICAL_GREATER)          
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_include(xcc_parser_state ps)
+{
+	if (
+		manage_state(
+			match(ps.p, xbtoken::OPERATOR_HASH)   &&
+			match(ps.p, xbtoken::KEYWORD_INCLUDE) &&
+			(
+				try_include_relative_filepath(new_state(ps.end)) ||
+				try_include_absolute_filepath(new_state(ps.end))
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_fn_def(xcc_parser_state ps)
 {
 	U16   guard_jmp_idx = 0;
@@ -2263,41 +2329,47 @@ static bool try_fn_def(xcc_parser_state ps)
 		manage_state(
 			match            (ps.p,  token::ALIAS, &t)                                           &&
 			(
-				(verify_params = ((ps.p->fn = xcc_find_fn(t.text, ps.p)) != NULL)) ||
 				(
-					(ps.p->fn = xcc_add_fn(t, ps.p)) != NULL &&
-					emit_empty_symbol_storage(ps.p, ps.p->fn)
+					verify_params = ((ps.p->fn = xcc_find_fn(t.text, ps.p)) != NULL)
+				) ||
+				(
+					(ps.p->fn = xcc_add_fn(t, ps.p)) != NULL  &&
+					emit_empty_symbol_storage(ps.p, ps.p->fn) &&
+					(ps.p->fn->link = ps.p->out.size - 1)     &&
+					xcc_write_word(ps.p, XWORD{XIS::RLA})
 				)
 			)                                                                                    &&
-			xcc_write_rel    (ps.p, ps.p->fn)                                                    &&
-			xcc_write_word   (ps.p, XWORD{XIS::PUTI})                                            &&
-			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             &&
-			xcc_write_word   (ps.p, XWORD{10})                                                   && // NOTE: 10 is the offset to get to SVC (the first instruction of the function body).
-			xcc_write_word   (ps.p, XWORD{XIS::ADD})                                             &&
-			xcc_write_word   (ps.p, XWORD{XIS::RLA})                                             &&
-			xcc_write_word   (ps.p, XWORD{XIS::MOVD})                                            &&
-			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             &&
-			(guard_jmp_idx = ps.p->out.size)                                                     &&
-			xcc_write_word   (ps.p, XWORD{0})                                                    &&
-			xcc_write_word   (ps.p, XWORD{XIS::RLA})                                             &&
-			xcc_write_word   (ps.p, XWORD{XIS::JMP})                                             &&
+//			xcc_write_rel    (ps.p, ps.p->fn)                                                    &&
+//			xcc_write_word   (ps.p, XWORD{XIS::PUTI})                                            &&
+//			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             &&
+//			xcc_write_word   (ps.p, XWORD{10})                                                   && // NOTE: 10 is the offset to get to SVC (the first instruction of the function body).
+//			xcc_write_word   (ps.p, XWORD{XIS::ADD})                                             &&
+//			xcc_write_word   (ps.p, XWORD{XIS::RLA})                                             &&
+//			xcc_write_word   (ps.p, XWORD{XIS::MOVD})                                            &&
+			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             && // 1/5 Set up function guard to jump over function body.
+			(guard_jmp_idx = ps.p->out.size)                                                     && // 2/5 Record jump constant index so it can be modified later.
+			xcc_write_word   (ps.p, XWORD{0})                                                    && // 3/5 The jump-to address. Insert any value temporarily. This will be changed later.
+			xcc_write_word   (ps.p, XWORD{XIS::RLA})                                             && // 4/5 Make the jump-to address relative to A.
+			xcc_write_word   (ps.p, XWORD{XIS::JMP})                                             && // 5/5 Perform jump.
+			(ps.p->fn->link == 0 || (ps.p->out.buffer[ps.p->fn->link].u = ps.p->out.size))       && // 1/1 Record first instruction address in function variable store.
 			xcc_write_word   (ps.p, XWORD{XIS::SVC})                                             &&
 			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)                     &&
-			xcc_push_scope   (ps.p->scopes)                                                      && // NOTE: Push the parameter scope.
-			try_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) &&
+			xcc_push_scope   (ps.p->scopes)                                                      && // 1/1 Push a parameter scope.
+			try_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), verify_params) && // 1/1 Scan for parameters, and only verify number against a forward declared function.
 			adjust_fn_rel_ptr(new_state(ps.end))                                                 &&
-			xcc_push_scope   (ps.p->scopes)                                                      && // NOTE: Push the local variable scope.
+			xcc_push_scope   (ps.p->scopes)                                                      && // 1/1 Push a local variable scope.
 			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)                     &&
 			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)                           &&
 			try_statements   (new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R))                      &&
-			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)                           && // NOTE: Pop the local variable scope.
-			emit_pop_scope   (ps.p)                                                              && // NOTE: Pop the parameter scope.
+			match            (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)                           && // 1/1 Pop the local variable scope.
+			emit_pop_scope   (ps.p)                                                              && // 1/1 Pop the parameter scope.
 			emit_pop_scope   (ps.p)                                                              &&
 			xcc_write_word   (ps.p, XWORD{XIS::LDC})                                             && // NOTE: We do not explicitly set a return value since the call site sets it to 0 by default.
-			xcc_write_word   (ps.p, XWORD{XIS::JMP})                                                // NOTE: Jump back to call site
+			xcc_write_word   (ps.p, XWORD{XIS::JMP})                                                // 1/1 Jump back to call site
 		)
 	) {
 		ps.p->out.buffer[guard_jmp_idx].u = ps.p->out.size;
+		ps.p->fn->link = 0;
 		ps.p->fn = NULL;
 		return true;
 	}
@@ -2360,6 +2432,8 @@ static bool try_fn_decl(xcc_parser_state ps)
 			match                    (ps.p, token::ALIAS, &t)                             &&
 			(ps.p->fn = xcc_add_fn(t, ps.p)) != NULL                                      &&
 			emit_empty_symbol_storage(ps.p, ps.p->fn)                                     &&
+			(ps.p->fn->link = ps.p->out.size - 1)                                         &&
+			xcc_write_word           (ps.p, XWORD{XIS::RLA})                              &&
 			match                    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
 			try_count_opt_fn_params  (new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
 			match                    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)      &&
@@ -2379,6 +2453,7 @@ static bool try_global_statement(xcc_parser_state ps)
 	if (
 		manage_state(
 			match         (ps.p, xbtoken::OPERATOR_SEMICOLON) ||
+			try_include   (new_state(ps.end))                 ||
 			try_fn_def    (new_state(ps.end))                 ||
 			try_fn_decl   (new_state(ps.end))                 ||
 			try_new_vars  (new_state(ps.end))                 ||
@@ -2398,7 +2473,10 @@ static bool add_main(xcc_parser *p)
 		return false;
 	}
 	sym->param_count = 2; // argc, argv
-	return emit_empty_symbol_storage(p, sym);
+	return
+		emit_empty_symbol_storage(p, sym)  &&
+		(sym->link = p->out.size - 1)      &&
+		xcc_write_word(p, XWORD{XIS::RLA});
 }
 
 static bool try_global_statements(xcc_parser_state ps)

@@ -792,10 +792,10 @@ static bool try_directive_scope(xcc_parser_state ps)
 	U16 stack_size;
 	if (
 		manage_state(
-			match                (ps.p, xtoken::KEYWORD_DIRECTIVE_SCOPE)       &&
-			match                (ps.p, xtoken::OPERATOR_COLON)                &&
-			xcc_push_scope       (ps.p)                                        &&
-			try_decl_list        (new_state(xtoken::OPERATOR_ENCLOSE_BRACE_L)) &&
+			match         (ps.p, xtoken::KEYWORD_DIRECTIVE_SCOPE)       &&
+			match         (ps.p, xtoken::OPERATOR_COLON)                &&
+			xcc_push_scope(ps.p)                                        &&
+			try_decl_list (new_state(xtoken::OPERATOR_ENCLOSE_BRACE_L)) &&
 			(
 				(stack_size = xcc_top_scope_stack_size(ps.p)) == 0 ||
 				(
@@ -804,9 +804,9 @@ static bool try_directive_scope(xcc_parser_state ps)
 					xcc_write_word(ps.p, XWORD{XIS::PUSH})
 				)
 			) &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L)      &&
-			try_statements       (new_state(xtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
-			match                (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R)      &&
+			match         (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_L)      &&
+			try_statements(new_state(xtoken::OPERATOR_ENCLOSE_BRACE_R)) &&
+			match         (ps.p, xtoken::OPERATOR_ENCLOSE_BRACE_R)      &&
 			(
 				stack_size == 0 ||
 				(
@@ -815,7 +815,7 @@ static bool try_directive_scope(xcc_parser_state ps)
 					xcc_write_word(ps.p, XWORD{XIS::POP})
 				)
 			) &&
-			xcc_pop_scope        (ps.p)
+			xcc_pop_scope(ps.p)
 		)
 	) {
 		
