@@ -146,8 +146,6 @@ const HWID_KB      = 0x0001;
 const HWID_MONITOR = 0x0003;
 const HWID_READER  = 0x0002; 
 
-// #include <sys.xb>
-
 main(a,b)
 {
 	auto x = 0;

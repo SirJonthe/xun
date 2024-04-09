@@ -2302,7 +2302,7 @@ static bool file_compiled(const xcc_text &text, const xcc_parser_state &ps)
 	return false;
 }
 
-static bool try_load_text(xcc_parser_state ps, const chars::view &source_file, xcc_text &text)
+static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, xcc_text &text)
 {
 	if (!xcc_load_text(source_file, text)) {
 		set_error(ps.p, xcc_error::MISSING);
@@ -2324,20 +2324,23 @@ static bool try_global_statements(xcc_parser_state ps);
 static bool try_file(xcc_parser_state ps, const chars::view &source_file, const chars::view &append_ext)
 {
 	xcc_parser p = *ps.p;
+	xcc_parser_state nps = xcc_new_state(&p, &ps, token::STOP_EOF, 0, 0, 0);
 	xcc_text text;
 	xcc_text full_source_file;
-	xcc_new_text(full_source_file, source_file.len + append_ext.len + 1);
+	xcc_new_text(full_source_file, source_file.len + (append_ext.len > 0 ? (append_ext.len + 1) : 0));
 	for (uint32_t i = 0; i < source_file.len; ++i) {
 		full_source_file.txt[i] = source_file.str[i];
 	}
-	full_source_file.txt[source_file.len] = '.';
-	for (uint32_t i = 0; i < append_ext.len; ++i) {
-		full_source_file.txt[source_file.len + 1 + i] = append_ext.str[i];
+	if (append_ext.len > 0) {
+		full_source_file.txt[source_file.len] = '.';
+		for (uint32_t i = 0; i < append_ext.len; ++i) {
+			full_source_file.txt[source_file.len + 1 + i] = append_ext.str[i];
+		}
 	}
 	if (
 		manage_state(
-			try_load_text        (ps, chars::view{full_source_file.txt, full_source_file.len, 0}, text) &&
-			try_global_statements(xcc_new_state(&p, &ps, token::STOP_EOF, 0, 0, 0))
+			try_load_text        (nps, chars::view{full_source_file.txt, full_source_file.len, 0}, text) &&
+			try_global_statements(nps)
 		)
 	) {
 		ps.p->out = p.out;
