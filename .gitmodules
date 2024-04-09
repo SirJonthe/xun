@@ -1,0 +1,3 @@
+[submodule "lib/sum"]
+	path = lib/sum
+	url = https://github.com/SirJonthe/sum.git
