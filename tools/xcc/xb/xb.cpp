@@ -2274,8 +2274,8 @@ static bool try_filepath(xcc_parser_state ps, chars::view &fp)
 {
 	fp = { ps.p->in.code.str + ps.p->in.head, 0, 0 }; // BUG: If we implement paging this will not work.
 	token t;
-	while (match1(ps.p, token::CHAR, &t) && t.user_type != ps.end) {
-		if (t.user_type == token::STOP_EOF) {
+	while (peek(ps.p).user_type != ps.end) {
+		if (!match1(ps.p, token::CHAR, &t)) {
 			set_error(ps.p, xcc_error::UNEXPECTED);
 			return false;
 		}
