@@ -4,7 +4,7 @@
 /// @brief Constructs a new xcc_parser state from an end token.
 /// @param end A token user type representing the end of the token stream.
 /// @return A new xcc_parser state.
-#define new_state(end) xcc_new_state(ps.p, end, ps.break_ip, ps.continue_ip, ps.loop_scope)
+#define new_state(end) xcc_new_state(ps, end, ps.break_ip, ps.continue_ip, ps.loop_scope)
 
 /// @brief Manages the xcc_parser state so it properly rewinds if the parsing fails.
 /// @param success The success of the parsing.
@@ -994,6 +994,46 @@ static bool try_put_reg(xcc_parser_state ps)
 	return false;
 }
 
+/// @brief Creates space in the binary for the creation of a new variable.
+/// @param p The parser.
+/// @param sym The symbol.
+/// @return False if the output binary buffer is full. True otherwise.
+static bool emit_empty_symbol_storage(xcc_parser *p, const xcc_symbol *sym)
+{
+	if (sym->storage != xcc_symbol::STORAGE_PARAM && sym->storage != xcc_symbol::STORAGE_LIT) {
+		return 
+			(sym->storage == xcc_symbol::STORAGE_STATIC ? xcc_write_word(p, XWORD{XIS::BIN}) : xcc_write_word(p, XWORD{XIS::PUT})) &&
+			xcc_write_word(p, XWORD{0});
+	}
+	return true;
+}
+
+static bool try_put_lbl(xcc_parser_state ps)
+{
+	token t;
+	xcc_symbol *sym;
+	if (
+		manage_state(
+			match(ps.p, xtoken::OPERATOR_DIRECTIVE_LABEL)  &&
+			match(ps.p, token::ALIAS, &t)                  &&
+			(
+				(sym = xcc_find_lbl(t.text, ps.p)) != NULL ||
+				(
+					(sym = xcc_add_lbl(t, ps.p)) != NULL   &&
+					emit_empty_symbol_storage(ps.p, sym)   &&
+					(sym->link = ps.p->out.size - 1)       &&
+					xcc_write_word(ps.p, XWORD{XIS::RLA})
+				)
+			)                                              &&
+			xcc_write_rel (ps.p, sym)                      &&
+			xcc_write_word(ps.p, XWORD{XIS::AT})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_param(xcc_parser_state ps)
 {
 	if (
@@ -1002,7 +1042,8 @@ static bool try_param(xcc_parser_state ps)
 				try_redir_param(new_state(ps.end)) ||
 				try_put_var    (new_state(ps.end)) ||
 				try_put_lit    (new_state(ps.end)) ||
-				try_put_reg    (new_state(ps.end))
+				try_put_reg    (new_state(ps.end)) ||
+				try_put_lbl    (new_state(ps.end))
 			) &&
 			try_opt_index(new_state(ps.end))
 		)
@@ -1227,12 +1268,39 @@ static bool try_emit_lit_list(xcc_parser_state ps)
 	return false;
 }
 
+static bool try_lbl_def_stmt(xcc_parser_state ps)
+{
+	token t;
+	xcc_symbol *sym;
+	if (
+		manage_state(
+			match(ps.p, token::ALIAS, &t)       &&
+			match(ps.p, xtoken::OPERATOR_COMMA) &&
+			(
+				(sym = xcc_find_lbl(t.text, ps.p)) != NULL ||
+				(
+					(sym = xcc_add_lbl(t, ps.p)) != NULL  &&
+					emit_empty_symbol_storage(ps.p, sym)  &&
+					(sym->link = ps.p->out.size - 1)      &&
+					xcc_write_word(ps.p, XWORD{XIS::RLA})
+				)
+			 ) &&
+			(sym->link == 0 || (ps.p->out.buffer[sym->link].u = ps.p->out.size))
+		)
+	) {
+		sym->link = 0;
+		return true;
+	}
+	return false;
+}
+
 static bool try_statement(xcc_parser_state ps)
 {
 	if (
 		manage_state(
 			try_directive_stmt  (new_state(ps.end)) ||
-			try_instruction_stmt(new_state(ps.end))
+			try_instruction_stmt(new_state(ps.end)) ||
+			try_lbl_def_stmt    (new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1273,13 +1341,13 @@ xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity)
 {
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	xcc_parser       p  = xcc_init_parser(l, memory, sym_mem, sym_capacity);
-	xcc_parser_state ps = xcc_new_state(&p, token::STOP_EOF, 0, 0, 0);
+	xcc_parser_state ps = xcc_new_state(&p, NULL, token::STOP_EOF, 0, 0, 0);
 	if (manage_state(try_program(new_state(ps.end)))) {
-		return xcc_out{ p.in.l, p.out, p.max, 0, p.error };
+		return xcc_out{ p.in, p.out, p.max, 0, p.error };
 	}
 	set_error(ps.p, xcc_error::UNEXPECTED);
 	p.error.tok = p.max;
-	return xcc_out{ p.in.l, p.out, p.max, 1, p.error };
+	return xcc_out{ p.in, p.out, p.max, 1, p.error };
 }
 
 bool xasm_inline(xcc_parser_state ps)

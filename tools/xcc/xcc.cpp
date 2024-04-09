@@ -1,5 +1,47 @@
+#include <fstream>
 #include <cstddef>
 #include "xcc.h"
+
+xcc_text::xcc_text( void ) : txt(NULL), len(0), sum(cc0::sum::md5())
+{}
+
+xcc_text::~xcc_text( void )
+{
+	xcc_clear_text(*this);
+}
+
+void xcc_new_text(xcc_text &txt, uint32_t len)
+{
+	xcc_clear_text(txt);
+	txt.txt = new char[len + 1];
+	txt.len = len;
+	txt.txt[len + 1] = 0;
+}
+
+void xcc_clear_text(xcc_text &txt)
+{
+	delete [] txt.txt;
+	txt.txt = NULL;
+	txt.len = 0;
+	txt.sum = cc0::sum::md5();
+}
+
+bool xcc_load_text(const chars::view &filename, xcc_text &out)
+{
+	xcc_clear_text(out);
+	std::ifstream fin(std::string(filename.str, filename.len));
+	if (fin.is_open()) {
+		fin.seekg(0, std::ios::end);
+		xcc_new_text(out, fin.tellg());
+		fin.seekg(0);
+		fin.read(out.txt, out.len);
+		out.sum = cc0::sum::md5(out.txt, out.len);
+	} else {
+		return false;
+	}
+	fin.close();
+	return true;
+}
 
 bool xcc_strcmp(const char *a, unsigned a_count, const char *b, unsigned b_count)
 {
@@ -75,12 +117,13 @@ bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef)
 xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity)
 {
 	xcc_parser p = {
-		xcc_input_tokens{ l, NULL, 0, 0 },
+		l,
 		bin_mem,
 		l.last,
 		xcc_symbol_stack{ sym_mem, sym_capacity, 0, 0 },
 		NULL,
-		xcc_error{ new_eof(), xcc_error::NONE, 0 }
+		xcc_error{ new_eof(), xcc_error::NONE, 0 },
+		cc0::sum::md5(l.code.str, l.code.len)
 	};
 	return p;
 }
@@ -88,7 +131,7 @@ xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16
 void xcc_set_error(xcc_parser *p, U16 code, unsigned line)
 {
 	if (p->error.code == xcc_error::NONE) {
-		p->error = xcc_error{ p->in.l.last, code, line };
+		p->error = xcc_error{ p->in.last, code, line };
 	}
 }
 
@@ -99,7 +142,7 @@ bool xcc_push_scope(xcc_parser *p)
 
 bool xcc_pop_scope(xcc_parser *p)
 {
-	if (!xcc_pop_scope(p->scopes, &p->in.l.last)) {
+	if (!xcc_pop_scope(p->scopes, &p->in.last)) {
 		xcc_set_error(p, xcc_error::UNDEF, __LINE__);
 		return false;
 	}
@@ -165,6 +208,15 @@ xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p)
 {
 	xcc_symbol *sym = xcc_find_symbol(name, p);
 	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_FN) {
+		return NULL;
+	}
+	return sym;
+}
+
+xcc_symbol *xcc_find_lbl(const chars &name, xcc_parser *p)
+{
+	xcc_symbol *sym = xcc_find_symbol(name, p);
+	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_LBL && sym->scope_index != p->scopes.scope) {
 		return NULL;
 	}
 	return sym;
@@ -246,6 +298,13 @@ xcc_symbol *xcc_add_fn(const token &tok, xcc_parser *p)
 	return sym;
 }
 
+xcc_symbol *xcc_add_lbl(const token &tok, xcc_parser *p)
+{
+	xcc_symbol *sym = xcc_add_symbol(tok, xcc_symbol::STORAGE_LBL, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	sym->link = p->out.size;
+	return sym;
+}
+
 U16 xcc_top_scope_stack_size(const xcc_parser *p)
 {
 	return xcc_top_scope_stack_size(p->scopes);
@@ -258,29 +317,15 @@ U16 xcc_loop_stack_size(const xcc_parser *p, U16 loop_scope)
 
 token xcc_peek(xcc_parser *p, token (*lexfn)(lexer*))
 {
-	token t;
-	if (p->in.tokens != NULL) {
-		t = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
-	} else {
-		lexer l = p->in.l;
-		t = lexfn(&l);
-	}
-	return t;
+	lexer l = p->in;
+	return lexfn(&l);
 }
 
 bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 {
-	lexer l = p->in.l;
-
-	// Read from token stream if it is available.
-	if (p->in.tokens != NULL) {
-		l.last = p->in.index < p->in.capacity ? p->in.tokens[p->in.index] : new_eof();
-		l.last.index = p->in.index;
-	}
-	// Otherwise read from lexer. This is done in a separate copy to avoid committing to reads of unexpected types.
-	else {
-		lexfn(&l);
-	}
+	// Read from lexer. This is done in a separate copy to avoid committing to reads of unexpected types.
+	lexer l = p->in;
+	lexfn(&l);
 
 	// Record the read token if requested.
 	if (out != NULL) {
@@ -299,7 +344,7 @@ bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 
 	// If the token user type is the same as the type we are looking for, we advance the main lexer state before reporting that we got a match.
 	if (type == l.last.user_type) {
-		p->in.l = l;
+		p->in = l;
 		++p->in.index;
 		return true;
 	}
@@ -308,10 +353,16 @@ bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 	return false;
 }
 
-xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
+xcc_parser_state xcc_new_state(const xcc_parser_state &ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
 {
-	xcc_parser_state ps = { p, *p, end, break_ip, continue_ip, loop_scope };
-	return ps;
+	xcc_parser_state nps = { ps.p, *ps.p, &ps, ps.p->filesum, end, break_ip, continue_ip, loop_scope };
+	return nps;
+}
+
+xcc_parser_state xcc_new_state(xcc_parser *p, const xcc_parser_state *ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
+{
+	xcc_parser_state nps = { p, *p, ps, p->filesum, end, break_ip, continue_ip, loop_scope };
+	return nps;
 }
 
 bool xcc_manage_state(xcc_parser_state &ps, bool success)

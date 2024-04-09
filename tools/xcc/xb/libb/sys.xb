@@ -1,8 +1,6 @@
-#include <time.xb>
-#include <stdlib.xb>
+#include <time>
+#include <stdlib>
 
-/// @brief Returns the CPU ID.
-/// @return The CPU ID.
 cpuid()
 {
 	auto id;
@@ -15,11 +13,6 @@ cpuid()
 
 const __NUM_HWPORTS = 16; // The number of ports available on this hardware.
 
-/// @brief Sends data to a device at a given port.
-/// @param port_index The port to send the data to.
-/// @param data Pointer to data to send to the port.
-/// @param len The number of data points to send to the port in words. If this is greater than the maximum payload size then several indexed packages will be sent.
-/// @note If the amount of data is greater than the bus bandwidth, then the program will stall until the device consumes enough data to resume execution.
 hwpush(port_index, data_ptr, len)
 {
 	// Constants.
@@ -58,9 +51,6 @@ hwpush(port_index, data_ptr, len)
 	}
 }
 
-/// @brief Checks a given port if its bus has pending messages.
-/// @param port_index The port index to check for pending messages.
-/// @return 1 if the given port has pending messages on its bus. 0 otherwise.
 hwpend(port_index)
 {
 	auto msg_pending;
@@ -73,10 +63,6 @@ hwpend(port_index)
 	return msg_pending;
 }
 
-/// @brief Does a scan of the given port to retrieve the hardware ID of the connected device.
-/// @param port_index The port to scan.
-/// @return The hardware ID of the device connected at the port. 0 if there is no device connected.
-/// @note There is no way of knowing for sure if there is a device connected on a port other than to see if there are pending messages on the bus or if a potential device responds to a ping. If a ping is sent, this function may block for up to a second while polling the bus for a response message. After the time is up the function abandons its retries. However, a device could still potentially be connected, just too busy to respond on time or its message buffer being full and dropping messages.
 hwid(port_index)
 {
 	const MAX_PAYLOAD_SIZE = 26;
@@ -123,9 +109,6 @@ hwid(port_index)
 	return id;
 }
 
-/// @brief Scans all available ports to look for a connected device with the requested hardware ID.
-/// @param id The hardware ID of the requested device.
-/// @return The port in which a device of the given hardware ID is plugged in. Returns -1 if the device was not found.
 hwscan(id)
 {
 	auto i = 0;
@@ -138,11 +121,6 @@ hwscan(id)
 	return -1;
 }
 
-/// @brief Attempts to poll a message from a specific port index. Does not consume the message.
-/// @param port_index The port to sniff for a message.
-/// @param header_ptr Pointer to the packet header.
-/// @param data_ptr Pointer to the packet payload.
-/// @return 1 if there was a message to consume. 0 otherwise.
 hwpeek(port_index, header_ptr, data_ptr)
 {
 	auto pending = hwpend(port_index);
@@ -159,11 +137,6 @@ hwpeek(port_index, header_ptr, data_ptr)
 
 auto __irq_table[256]; // A table with function pointers to be called upon an interrupt request. Takes two arguments; a pointer to packet header data, and a pointer to packet payload data.
 
-/// @brief Attempts to poll a message from a specific port index. Consumes the message. If there is an IRQ function associated with the header IRQ request, that function is executed.
-/// @param port_index The port to sniff for a message.
-/// @param header_ptr Pointer to the packet header.
-/// @param data_ptr Pointer to the packet payload.
-/// @return 1 if there was a message to consume. 0 otherwise.
 hwpoll(port_index, header_ptr, data_ptr)
 {
 	auto pending = hwpeek(port_index, header_ptr, data_ptr);
@@ -176,9 +149,6 @@ hwpoll(port_index, header_ptr, data_ptr)
 	return pending;
 }
 
-/// @brief Puts execution of the application to sleep for a specified number of milliseconds.
-/// @param ms The time to sleep in milliseconds.
-/// @note Sleeps at least the specified number of milliseconds, but may sleep more.
 sleep(ms)
 {
 	// BUG If 'to' wraps (which it very often will) then the program will not sleep at all.
@@ -186,8 +156,6 @@ sleep(ms)
 	while (clock() < to) {}
 }
 
-/// @brief Runs a binary file as a program. Returns execution here only once the program is done running.
-/// @param bin The name of the file containing the binary to run.
 run(bin)
 {
 	// TODO IMPL
@@ -196,9 +164,6 @@ run(bin)
 
 auto __hw_power = hwscan(0x0004); // The port index of the power controller circuit.
 
-/// @brief Turns the computer off.
-/// @note The processor has no control to turn the computer off, so it relies on a circuit breaker being connected to the machine which it can communicate with.
-/// @warning Use this sparingly.
 shutdown()
 {
 	// TODO IMPL

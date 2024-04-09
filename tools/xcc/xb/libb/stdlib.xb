@@ -1,15 +1,10 @@
-const NULL = 0; // Null value.
-
-const EXIT_FAILURE = -1; // Program return value representing failure.
-const EXIT_SUCCESS =  0; // Program return value representing success.
+#include <stdlib>
 
 auto __rand_x = 0;     // Random state variable.
 auto __rand_y = 0;     // Random state variable.
 auto __rand_z = 0;     // Random state variable.
 auto __rand_state = 1; // Random state variable.
 
-/// @brief Generates a pseudo-random number.
-/// @return The pseudo-random number.
 rand()
 {
 	auto t = __rand_x ^ (__rand_x << 4);
@@ -20,16 +15,11 @@ rand()
 	return __rand_state;
 }
 
-/// @brief Initializes the state of the pseudo-random number generator.
-/// @param seed The initialization value.
 srand(seed)
 {
 	__rand_state = seed;
 }
 
-/// @brief Allocates memory dynamically on the heap.
-/// @param n The number of words to allocate.
-/// @return A pointer to the allocated memory.
 malloc(n)
 {
 	if (n <= 0) {
@@ -38,9 +28,6 @@ malloc(n)
 	// TODO: More here...
 }
 
-/// @brief Allocates memory dynamically on the heap and sets each memory location to zero.
-/// @param n The number of words to allocate.
-/// @return A pointer to the allocated memory.
 calloc(n)
 {
 	auto mem = malloc(n);
@@ -52,16 +39,13 @@ calloc(n)
 	return mem;
 }
 
-/// @brief Frees memory on the heap as pointed to by the input parameter.
-/// @param  mem The pointer to the first memory location of the memory allocated by 'malloc' or 'calloc'.
-/// @sa malloc
-/// @sa calloc
-free(mem);
+free(mem)
+{
+	// TODO IMPL
+}
 
 auto __exitfn = NULL; // A custom function called when the program exits.
 
-/// @brief Sets a function to call before the program finally returns execution to the host program.
-/// @param  fn The function to call before the program finally returns execution to the host program.
 atexit(fn)
 {
 	__exitfn = fn;
@@ -69,10 +53,6 @@ atexit(fn)
 
 auto __exitlock = 0; // A lock preventing the exit function from being called recursively.
 
-/// @brief Exits the current program and returns execution to the host program.
-/// @param status The exit status to return to the host program.
-/// @return Nothing. However the host program will receive a return value from this program corresponding to 'status'.
-/// @note This function is implicitly called after execution of 'main' even if it is not explicitly called.
 exit(status)
 {
 	if (__exitlock > 0) {
@@ -91,9 +71,6 @@ exit(status)
 	// NOTE: Return instructions here will never be reached.
 }
 
-/// @brief Returns the absolute of the input value.
-/// @param a The input value.
-/// @return The absolute of the input value.
 abs(a)
 {
 	if (a < 0) {

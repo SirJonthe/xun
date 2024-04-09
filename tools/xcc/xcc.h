@@ -3,6 +3,38 @@
 
 #include "../../xarch.h"
 #include "../../lib/parsec/lex.h"
+#include "../../lib/sum/sum.h"
+
+static constexpr unsigned XCC_DEFAULT_SYM_CAPACITY = 128; // The default symbol capacity to use when compiling.
+
+/// @brief Contains the text of a single file.
+struct xcc_text
+{
+	char               *txt; // The text.
+	uint32_t            len; // The length, in characters, of the text.
+	cc0::sum::md5::sum  sum; // The checksum of the file.
+
+	/// @brief Creates a new instance.
+	xcc_text( void );
+
+	/// @brief Frees allocated memory.
+	~xcc_text( void );
+};
+
+/// @brief Creates a new text buffer.
+/// @param txt The buffer to allocate memory in.
+/// @param len The length of the buffer.
+void xcc_new_text(xcc_text &txt, uint32_t len);
+
+/// @brief Deletes text from memory.
+/// @param txt The text to delete from memory.
+void xcc_clear_text(xcc_text &txt);
+
+/// @brief Loads the contents of a file into a specified output.
+/// @param filename The file to buffer.
+/// @param out The buffered output of the file.
+/// @return True if load was successful.
+bool xcc_load_text(const chars::view &filename, xcc_text &out);
 
 /// @brief Compares two strings.
 /// @param a The first string.
@@ -36,7 +68,8 @@ struct xcc_error
 		REDEF,
 		VERIFY,
 		INTERNAL,
-		UNEXPECTED
+		UNEXPECTED,
+		MISSING
 	};
 	token    tok;  // The token generating the error.
 	U16      code; // The error code.
@@ -51,16 +84,6 @@ struct xcc_out
 	token      max;    // The highest reached token in the input token stream. Generally only interesting if the assembly failed.
 	U16        errors; // The number of confirmed errors encountered.
 	xcc_error  error;  // The first fatal error encountered.
-};
-
-/// @brief The input stream of tokens. If the user provides a pre-lexed array of tokens then the match function will consume from that array, while if the token array is null then the match function will instead lex code as attached to the lexer.
-/// @sa xcc_match
-struct xcc_input_tokens
-{
-	lexer        l;        // The lexer to use for parsing input tokens.
-	const token *tokens;   // The input tokens. Can be null. If so, then tokens will be lexed from code attached to the lexer instead.
-	U16          capacity; // The number of tokens in the explicit token stream, 'tokens'.
-	U16          index;    // The index of the currently unread token.
 };
 
 /// @brief Writes data to the binary buffer.
@@ -133,12 +156,13 @@ bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef = NULL);
 /// @brief The main data structure used for parsing C code.
 struct xcc_parser
 {
-	xcc_input_tokens  in;     // The parser input.
-	xcc_binary        out;    // The parser output.
-	token             max;    // The maximally reached token.
-	xcc_symbol_stack  scopes; // The symbols ordered into scopes.
-	xcc_symbol       *fn;     // The current function being parsed.
-	xcc_error         error;  // The first fatal error.
+	lexer               in;      // The parser input.
+	xcc_binary          out;     // The parser output.
+	token               max;     // The maximally reached token.
+	xcc_symbol_stack    scopes;  // The symbols ordered into scopes.
+	xcc_symbol         *fn;      // The current function being parsed.
+	xcc_error           error;   // The first fatal error.
+	cc0::sum::md5::sum  filesum; // The checksum of the currently read file.
 };
 
 /// @brief Initializes a new parser.
@@ -203,6 +227,13 @@ xcc_symbol *xcc_find_lit(const chars &name, xcc_parser *p);
 /// @return The found symbol. Null if no symbol was found.
 xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p);
 
+/// @brief Does a search for a given label symbol.
+/// @param name The name of the symbol.
+/// @param p The parser containing the symbol stack to search.
+/// @return The found symbol. Null if no symbol was found.
+/// @note Due to the dangers of jumping, only the top scope is searched.
+xcc_symbol *xcc_find_lbl(const chars &name, xcc_parser *p);
+
 /// @brief Adds a symbol to the topmost symbol scope.
 /// @param tok The token containing the name of the symbol to be added.
 /// @param storage The storage of the symbol.
@@ -261,6 +292,14 @@ xcc_symbol *xcc_add_lit(const token &tok, U16 value, xcc_parser *p);
 /// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
 xcc_symbol *xcc_add_fn(const token &tok, xcc_parser *p);
 
+/// @brief Adds a label symbol to the topmost symbol scope.
+/// @param tok The token containing the name of the symbol to be added.
+/// @param p The parser.
+/// @return The added symbol. Null if there was an error.
+/// @note The parser receives an error if there is an internal error when adding a symbol.
+/// @note Reserved keywords and other tokens are implemented by having the alias regex last in the token list. That way a potential alias matches against a keyword first and the parser fails to recognize the token as an alias, thereby preventing it from being registered as a symbol.
+xcc_symbol *xcc_add_lbl(const token &tok, xcc_parser *p);
+
 /// @brief Returns the size (in words) of the topmost symbol scope.
 /// @param p The parser containing the symbol stack.
 /// @return The size (in words) of the topmost symbol scope.
@@ -292,22 +331,34 @@ bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 /// @sa xcc_new_state
 struct xcc_parser_state
 {
-	xcc_parser *p;             // The main parser.
-	xcc_parser  restore_point; // The restore point if the current parsing fails.
-	unsigned    end;           // The end token to know if the parser has reached an end.
-	unsigned    break_ip;      // The relative instruction address of the CNJMP instruction of last entered loop.
-	unsigned    continue_ip;   // The relative instruction address to the first instruction of the test of the last loop.
-	unsigned    loop_scope;    // The index of the scope right outside the loop.
+	xcc_parser             *p;             // The main parser.
+	xcc_parser              restore_point; // The restore point if the current parsing fails.
+	const xcc_parser_state *prev;          // The previous parser state.
+	cc0::sum::md5::sum      filesum;       // The checksum of the currently parsed file.
+	unsigned                end;           // The end token to know if the parser has reached an end.
+	unsigned                break_ip;      // The relative instruction address of the CNJMP instruction of last entered loop.
+	unsigned                continue_ip;   // The relative instruction address to the first instruction of the test of the last loop.
+	unsigned                loop_scope;    // The index of the scope right outside the loop.
 };
 
-/// @brief Constructs a new parser state from a current parser and an end token.
-/// @param p The parser.
+/// @brief Constructs a new parser state from a current parser state and an end token.
+/// @param ps The previous parser state to base the new one on.
 /// @param end A token user type representing the end of the token stream.
 /// @param break_ip The relative instruction address of the CNJMP instruction of last entered loop.
 /// @param continue_ip The relative instruction address to the first instruction of the test of the last loop.
 /// @param loop_scope The scope index of the scope outside the last loop.
 /// @return A new parser state.
-xcc_parser_state xcc_new_state(xcc_parser *p, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope);
+xcc_parser_state xcc_new_state(const xcc_parser_state &ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope);
+
+/// @brief Constructs a new parser state from a current parser and an end token.
+/// @param p The parser to base the new state on.
+/// @param ps The previous parser state.
+/// @param end A token user type representing the end of the token stream.
+/// @param break_ip The relative instruction address of the CNJMP instruction of last entered loop.
+/// @param continue_ip The relative instruction address to the first instruction of the test of the last loop.
+/// @param loop_scope The scope index of the scope outside the last loop.
+/// @return A new parser state.
+xcc_parser_state xcc_new_state(xcc_parser *p, const xcc_parser_state *ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope);
 
 /// @brief Manages the parser state so it properly rewinds if the parsing fails.
 /// @param ps The current parser state.

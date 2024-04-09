@@ -20,3 +20,6 @@
 
 ## Input and Output
 
+XUN has no support for raw bitwise input and output. Instead, the XUN architecture mandates that all compatible devices communicate using data packets formatted in accordance with the XERXES(tm) packet specification.
+
+The specification is as follows:

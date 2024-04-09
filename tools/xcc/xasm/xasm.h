@@ -9,7 +9,7 @@
 /// @param sym_capacity The maximum amount of symbols that can be stored at any one given time.
 /// @return Metadata relating to the output assembly.
 /// @sa xasm_lex
-xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity = 128);
+xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity = XCC_DEFAULT_SYM_CAPACITY);
 
 /// @brief Assembles a single statement of extended assembly language in the form of input tokens.
 /// @param ps The parser state.
