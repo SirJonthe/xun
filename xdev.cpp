@@ -216,7 +216,7 @@ std::string Device::GetName( void ) const
 
 U16 Device::GetClock( void ) const
 {
-	return U16(m_clock_ns / 1000000000ULL);
+	return U16(m_clock_ns / 1000000ULL);
 }
 
 bool Device::IsConnected(const Device &device) const

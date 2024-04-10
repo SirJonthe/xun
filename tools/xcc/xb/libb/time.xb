@@ -6,9 +6,8 @@ __cpu_clock()
 {
 	auto c;
 	asm {
-		put &c.
 		clock.
-		movd.
+		mov c.
 	}
 	return c;
 }

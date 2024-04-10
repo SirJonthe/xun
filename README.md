@@ -17,6 +17,7 @@ github.com/SirJonthe
 // [ ] xun:  Instructions and library functions to detect hardware and send and receive data from ports
 // [ ] xb:   Arrays without explicit size
 // [ ] xb:   static (variables stored in binary, RLA used to address)
+// [ ] xcc:  Deprecate HALT
 // [ ] xb:   signed/unsigned
 // [ ] xb:   ++*ptr
 // [ ] xb:   argc, argv

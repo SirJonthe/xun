@@ -146,6 +146,26 @@ const HWID_KB      = 0x0001;
 const HWID_MONITOR = 0x0003;
 const HWID_READER  = 0x0002; 
 
+clock()
+{
+	auto c;
+	asm {
+		clock.
+		mov c.
+	}
+	return c;
+}
+
+sleep(ms)
+{
+	auto now = clock();
+	auto to = now + ms;
+	if (to < now) {
+		while (clock() > 0) {}
+	}
+	while (clock() < to) {}
+}
+
 main(a,b)
 {
 	auto x = 0;
@@ -162,5 +182,8 @@ main(a,b)
 	x = draw_glyph(108, x, 0);
 	x = draw_glyph(100, x, 0);
 	x = draw_glyph( 33, x, 0);
+
+	while (sleep(1000)) {}
+
 	return 0;
 }

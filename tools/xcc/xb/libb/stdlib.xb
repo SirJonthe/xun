@@ -1,8 +1,8 @@
 #include <stdlib>
 
-auto __rand_x = 0;     // Random state variable.
-auto __rand_y = 0;     // Random state variable.
-auto __rand_z = 0;     // Random state variable.
+auto __rand_x     = 0; // Random state variable.
+auto __rand_y     = 0; // Random state variable.
+auto __rand_z     = 0; // Random state variable.
 auto __rand_state = 1; // Random state variable.
 
 rand()

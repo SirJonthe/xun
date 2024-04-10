@@ -22,12 +22,13 @@ public:
 			TYPE_DATA        // Data is found in the payload.
 		};
 		enum {
-			HEADER_ID,
-			HEADER_CLOCK,
-			HEADER_TYPE,
-			HEADER_SEQ,
-			HEADER_SIZE,
-			HEADER_IRQ,
+			HEADER_ID,       // The ID of the sending device.
+			HEADER_CLOCK,    // The clock as reported by the sending device.
+			HEADER_TYPE,     // See TYPE_*.
+			HEADER_SEQ,      // The index of a segmented message.
+			HEADER_SIZE,     // The number of words in the payload.
+			HEADER_IRQ,      // The IRQ to call on the receiving device.
+			HEADER_MID,      // The message ID.
 			HEADER_WORD_SIZE
 		};
 		static constexpr uint32_t PACKET_WORD_SIZE  = 32;

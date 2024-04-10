@@ -12,6 +12,7 @@ cpuid()
 }
 
 const __NUM_HWPORTS = 16; // The number of ports available on this hardware.
+auto __mid_counter = 0; // Message ID counter.
 
 hwpush(port_index, data_ptr, len)
 {
@@ -26,6 +27,7 @@ hwpush(port_index, data_ptr, len)
 	auto seq   = 0;
 	auto size;
 	auto irq   = 0; // We do not use this field.
+	auto mid   = __mid_counter++;
 
 	// Select the port to output the data to.
 	asm {
@@ -74,6 +76,7 @@ hwid(port_index)
 	auto seq;
 	auto size;
 	auto irq;
+	auto mid;
 	auto data[MAX_PAYLOAD_SIZE];
 
 	// First check if there is already an event on the bus we can peek.
@@ -94,7 +97,7 @@ hwid(port_index)
 			put port_index. // Select port.
 			port.
 			put &id, 0.
-			pass.     // Put the address of the header but we send no data, so just point to null.Send the values at the addresses to the selected port.
+			pass. // Put the address of the header but we send no data, so just point to null.Send the values at the addresses to the selected port.
 		}
 
 		// We give a device 1 second to respond, checking every iteration.
@@ -151,8 +154,11 @@ hwpoll(port_index, header_ptr, data_ptr)
 
 sleep(ms)
 {
-	// BUG If 'to' wraps (which it very often will) then the program will not sleep at all.
-	auto to = clock() + ms;
+	auto now = clock();
+	auto to = now + ms;
+	if (to < now) {
+		while (clock() > 0) {}
+	}
 	while (clock() < to) {}
 }
 
