@@ -2324,6 +2324,7 @@ static bool try_global_statements(xcc_parser_state ps);
 static bool try_file(xcc_parser_state ps, const chars::view &wd, const chars::view &source_file, const chars::view &ext)
 {
 	ps.cwd = wd; // BUG: This needs to be more robust
+	// TODO: cwd = wd + dir(source_file)
 
 	xcc_text text;
 	xcc_text full_source_file;

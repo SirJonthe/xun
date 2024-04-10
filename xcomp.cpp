@@ -447,8 +447,8 @@ void Computer::Cycle( void )
 		TOP.u = LST.u;
 		break;
 	case XIS::SVA:
-		// [A][B][C][SP]
-		//         ABC^
+		// ...[A][B][C][SP]
+		//            ABC^
 		PUSH_STACK(1);
 		TOP.u = A.u;
 		PUSH_STACK(1);
@@ -462,8 +462,8 @@ void Computer::Cycle( void )
 		C.u = SP.u;
 		break;
 	case XIS::SVB:
-		// [ ]...[B][C][SP]
-		// A^          BC^
+		// ...[ ]...[B][C][SP]
+		//    A^          BC^
 		PUSH_STACK(1);
 		TOP.u = B.u;
 		PUSH_STACK(1);
@@ -474,8 +474,8 @@ void Computer::Cycle( void )
 		C.u = SP.u;
 		break;
 	case XIS::SVC:
-		// [ ]...[ ]...[C][SP]
-		// A^    B^        C^
+		// ...[ ]...[ ]...[C][SP]
+		//    A^    B^        C^
 		PUSH_STACK(1);
 		TOP.u = C.u;
 		PUSH_STACK(1);
