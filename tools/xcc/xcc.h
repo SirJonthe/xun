@@ -335,6 +335,8 @@ struct xcc_parser_state
 	xcc_parser              restore_point; // The restore point if the current parsing fails.
 	const xcc_parser_state *prev;          // The previous parser state.
 	cc0::sum::md5::sum      filesum;       // The checksum of the currently parsed file.
+	chars::view             cwd;           // The current working directory.
+	chars::view             swd;           // The standard working directory.
 	unsigned                end;           // The end token to know if the parser has reached an end.
 	unsigned                break_ip;      // The relative instruction address of the CNJMP instruction of last entered loop.
 	unsigned                continue_ip;   // The relative instruction address to the first instruction of the test of the last loop.

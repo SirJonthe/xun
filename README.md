@@ -11,6 +11,7 @@ github.com/SirJonthe
 
 ## TODO
 
+// [ ] xb:   Working directory navigation
 // [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 // [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 // [ ] xun:  Instructions and library functions to detect hardware and send and receive data from ports
@@ -21,6 +22,7 @@ github.com/SirJonthe
 // [ ] xb:   argc, argv
 // [ ] xb:   namespace
 // [ ] xcc:  Move file loading to XCC, and implement water-tight logic for preventing including the same file twice
+// [ ] xcc:  Each source file has its own scope unless the symbol was declared in a header - Symbols local to a source file can not be accessed from another source file
 
 ## Design
 

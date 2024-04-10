@@ -2312,7 +2312,7 @@ static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, 
 		ps.p->in = init_lexer(chars::view{ text.txt, text.len, 0 });
 		ps.p->filesum = text.sum;
 	} else {
-		ps.p->in = init_lexer(chars::view{ "", 0, 0 });
+		ps.p->in = init_lexer(chars::view{ NULL, 0, 0 });
 		ps.p->filesum = cc0::sum::md5("", 0);
 	}
 	return true;
@@ -2321,19 +2321,21 @@ static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, 
 static bool try_global_statement(xcc_parser_state ps);
 static bool try_global_statements(xcc_parser_state ps);
 
-static bool try_file(xcc_parser_state ps, const chars::view &source_file, const chars::view &append_ext)
+static bool try_file(xcc_parser_state ps, const chars::view &wd, const chars::view &source_file, const chars::view &ext)
 {
+	ps.cwd = wd; // BUG: This needs to be more robust
+
 	xcc_text text;
 	xcc_text full_source_file;
-	xcc_new_text(full_source_file, source_file.len + (append_ext.len > 0 ? (append_ext.len + 1) : 0));
-	for (uint32_t i = 0; i < source_file.len; ++i) {
-		full_source_file.txt[i] = source_file.str[i];
+	xcc_new_text(full_source_file, (wd.len > 0 ? wd.len : 0) + source_file.len + (ext.len > 0 ? ext.len : 0));
+	for (uint32_t i = 0; i < wd.len; ++i) {
+		full_source_file.txt[i] = wd.str[i];
 	}
-	if (append_ext.len > 0) {
-		full_source_file.txt[source_file.len] = '.';
-		for (uint32_t i = 0; i < append_ext.len; ++i) {
-			full_source_file.txt[source_file.len + 1 + i] = append_ext.str[i];
-		}
+	for (uint32_t i = 0; i < source_file.len; ++i) {
+		full_source_file.txt[wd.len + i] = source_file.str[i];
+	}
+	for (uint32_t i = 0; i < ext.len; ++i) {
+		full_source_file.txt[wd.len + source_file.len + i] = ext.str[i];
 	}
 	lexer l = ps.p->in;
 	if (
@@ -2357,7 +2359,7 @@ static bool try_include_relative_filepath(xcc_parser_state ps)
 			match       (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)          &&
 			try_filepath(new_state(xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE), fp) &&
 			match       (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)          &&
-			try_file    (new_state(ps.end), fp, chars::view{"",0,0})
+			try_file    (new_state(ps.end), ps.cwd, fp, chars::view{NULL,0,0})
 		)
 	) {
 		return true;
@@ -2370,11 +2372,11 @@ static bool try_include_standard_filepath(xcc_parser_state ps)
 	chars::view fp;
 	if (
 		manage_state(
-			match       (ps.p, xbtoken::OPERATOR_LOGICAL_LESS)             &&
-			try_filepath(new_state(xbtoken::OPERATOR_LOGICAL_GREATER), fp) &&
-			match       (ps.p, xbtoken::OPERATOR_LOGICAL_GREATER)          &&
-			try_file    (new_state(ps.end), fp, chars::view{"xh", 2, 0})   &&
-			try_file    (new_state(ps.end), fp, chars::view{"xb", 2, 0})
+			match       (ps.p, xbtoken::OPERATOR_LOGICAL_LESS)                    &&
+			try_filepath(new_state(xbtoken::OPERATOR_LOGICAL_GREATER), fp)        &&
+			match       (ps.p, xbtoken::OPERATOR_LOGICAL_GREATER)                 &&
+			try_file    (new_state(ps.end), ps.swd, fp, chars::view{".xh", 3, 0}) &&
+			try_file    (new_state(ps.end), ps.swd, fp, chars::view{".xb", 3, 0})
 		)
 	) {
 		return true;
@@ -2643,7 +2645,7 @@ static bool try_files(xcc_parser_state ps, const chars::view *source_files, U16 
 	for (uint32_t i = 0; i < num_source_files; ++i) {
 		if (
 			!manage_state(
-				try_file(new_state(ps.end), source_files[i], chars::view{"",0,0})
+				try_file(new_state(ps.end), chars::view{NULL,0,0}, source_files[i], chars::view{NULL,0,0})
 			)
 		) {
 			return false;
@@ -2687,6 +2689,7 @@ xcc_out xb(const chars::view *source_files, U16 num_source_files, const chars::v
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	xcc_parser       p  = xcc_init_parser(init_lexer(chars::view{NULL,0,0}), mem, sym_mem, sym_capacity);
 	xcc_parser_state ps = xcc_new_state(&p, NULL, token::STOP_EOF, 0, 0, 0);
+	ps.swd = std_lib_path;
 
 	if (
 		manage_state(

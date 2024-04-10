@@ -15,7 +15,7 @@ void xcc_new_text(xcc_text &txt, uint32_t len)
 	xcc_clear_text(txt);
 	txt.txt = new char[len + 1];
 	txt.len = len;
-	txt.txt[len + 1] = 0;
+	txt.txt[len] = 0;
 }
 
 void xcc_clear_text(xcc_text &txt)
@@ -355,13 +355,13 @@ bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 
 xcc_parser_state xcc_new_state(const xcc_parser_state &ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
 {
-	xcc_parser_state nps = { ps.p, *ps.p, &ps, ps.p->filesum, end, break_ip, continue_ip, loop_scope };
+	xcc_parser_state nps = { ps.p, *ps.p, &ps, ps.p->filesum, ps.cwd, ps.swd, end, break_ip, continue_ip, loop_scope };
 	return nps;
 }
 
 xcc_parser_state xcc_new_state(xcc_parser *p, const xcc_parser_state *ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
 {
-	xcc_parser_state nps = { p, *p, ps, p->filesum, end, break_ip, continue_ip, loop_scope };
+	xcc_parser_state nps = { p, *p, ps, p->filesum, ps != NULL ? ps->cwd : chars::view{NULL,0,0}, ps != NULL ? ps->swd : chars::view{NULL,0,0}, end, break_ip, continue_ip, loop_scope };
 	return nps;
 }
 
