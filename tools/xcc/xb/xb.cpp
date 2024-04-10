@@ -2323,8 +2323,6 @@ static bool try_global_statements(xcc_parser_state ps);
 
 static bool try_file(xcc_parser_state ps, const chars::view &source_file, const chars::view &append_ext)
 {
-	xcc_parser p = *ps.p;
-	xcc_parser_state nps = xcc_new_state(&p, &ps, token::STOP_EOF, 0, 0, 0);
 	xcc_text text;
 	xcc_text full_source_file;
 	xcc_new_text(full_source_file, source_file.len + (append_ext.len > 0 ? (append_ext.len + 1) : 0));
@@ -2337,16 +2335,17 @@ static bool try_file(xcc_parser_state ps, const chars::view &source_file, const 
 			full_source_file.txt[source_file.len + 1 + i] = append_ext.str[i];
 		}
 	}
+	lexer l = ps.p->in;
 	if (
 		manage_state(
-			try_load_text        (nps, chars::view{full_source_file.txt, full_source_file.len, 0}, text) &&
-			try_global_statements(nps)
+			try_load_text        (ps, chars::view{full_source_file.txt, full_source_file.len, 0}, text) &&
+			try_global_statements(new_state(token::STOP_EOF))
 		)
 	) {
-		ps.p->out = p.out;
+		ps.p->in = l;
 		return true;
 	}
-	ps.p->error = p.error;
+	ps.p->in = l;
 	return false;
 }
 
