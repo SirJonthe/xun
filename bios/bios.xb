@@ -183,7 +183,7 @@ main(a,b)
 	x = draw_glyph(100, x, 0);
 	x = draw_glyph( 33, x, 0);
 
-	while (sleep(1000)) {}
+	while (sleep(10000)) {}
 
 	return 0;
 }
