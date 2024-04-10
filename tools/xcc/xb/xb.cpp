@@ -2622,11 +2622,12 @@ static bool try_single_program(xcc_parser_state ps)
 	return false;
 }
 
-xcc_out xb(lexer l, xcc_binary mem, const U16 sym_capacity)
+xcc_out xb(lexer l, const chars::view &std_lib_path, xcc_binary mem, const U16 sym_capacity)
 {
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
 	xcc_parser       p  = xcc_init_parser(l, mem, sym_mem, sym_capacity);
 	xcc_parser_state ps = xcc_new_state(&p, NULL, token::STOP_EOF, 0, 0, 0);
+	ps.swd = std_lib_path;
 
 	if (
 		manage_state(
