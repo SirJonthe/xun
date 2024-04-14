@@ -1,3 +1,7 @@
+const BIOS_MAJ_VER = 0;
+const BIOS_MIN_VER = 1;
+const BIOS_HOT_VER = 0;
+
 const VIDEO_PX_WIDTH           = 320;
 const VIDEO_PX_HEIGHT          = 240;
 const VIDEO_BITS_PER_PX        =   1;
@@ -86,65 +90,73 @@ const FONT_SIZE_WORDS              = ((FONT_ATLAS_PX_WIDTH * FONT_ATLAS_PX_HEIGH
 const FONT_CHAR_ASCII_START =  33;
 const FONT_CHAR_ASCII_END   = 126;
 
-const VIDEO_CHARS_WIDTH  = VIDEO_PX_WIDTH  / FONT_CHAR_PX_WIDTH;
-const VIDEO_CHARS_HEIGHT = VIDEO_PX_HEIGHT / FONT_CHAR_PX_HEIGHT;
+const TEXTMODE_CHARS_WIDTH  = VIDEO_PX_WIDTH  / FONT_CHAR_PX_WIDTH;
+const TEXTMODE_CHARS_HEIGHT = VIDEO_PX_HEIGHT / FONT_CHAR_PX_HEIGHT;
 
-draw_glyph(ch, x, y)
+auto TXTMODE_SCROLL_OFFSET = 0; // This can allow the text to scroll by a single line without having to redraw the entire map.
+
+const HWID_KB  = 0x0001; // Hardware ID of keyboard.
+const HWID_RDD = 0x0002; // Hardware ID of disk reader.
+const HWID_MON = 0x0003; // Hardware ID of monitor.
+
+// Monitor message types.
+const MON_MSG_PIXMODE              = 0xface; // Sets the monitor mode to direct pixel manipulation.
+const MON_MSG_TXTMODE              = 0xbeef; // Sets the monitor mode to text mode which only requires the computer to send font atlas information to the monitor, and then a text map, allowing the monitor to do the rendering.
+const MON_MSG_TXTMODE_LOADSCANLINE = 0xdef0; // Transfers a single line of text from the text map to the monitor.
+const MON_MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the monitor internal memory for use in text mode.
+const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
+
+const NUM_PORTS = 16;     // The number of ports on this machine.
+auto ___hwids[NUM_PORTS]; // The hardware ID:s of each port.
+
+d_hwscan()
 {
-	if (ch == 32) { return x + 1; }
-	if (ch ==  9) { return x / 4 * 4; }
-	if (ch == 10) { return x; }
-	if (ch == 13) { return 0; }
-
-	auto glyph = FONT_ATLAS;
-	if (ch < FONT_CHAR_ASCII_START || ch > FONT_CHAR_ASCII_END) {
-		glyph = ((FONT_CHAR_ASCII_END + 1) * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD;
-	} else {
-		glyph = (ch * FONT_CHAR_PX_HEIGHT) / FONT_CHAR_SCANLINES_PER_WORD;
+	// [ ] scans though all ports, and initializes __hwids
+	auto pi = 0;
+	while (pi < NUM_PORTS) {
+		// [ ] <sys> has hwid function, but we need to make sure that we can include that file first.
+		++pi;
 	}
-
-	auto video = VIDEO + VIDEO_WORDS_PER_SCANLINE * y * FONT_CHAR_PX_HEIGHT + (x / FONT_CHAR_SCANLINES_PER_WORD);
-	y = 0;
-	if (x % FONT_CHAR_SCANLINES_PER_WORD == 0) {
-		while (y < FONT_CHAR_PX_HEIGHT) {
-			auto mask = 0xff00;
-			*video = *video | (mask & glyph);
-			video = video + VIDEO_WORDS_PER_SCANLINE;
-			mask = mask >> 8;
-			*video = *video | ((mask & glyph) << 8);
-			video = video + VIDEO_WORDS_PER_SCANLINE;
-			glyph = glyph + 1;
-			y = y + 2;
-		}
-	} else {
-		while (y < FONT_CHAR_PX_HEIGHT) {
-			auto mask = 0xff00;
-			*video = *video | ((mask & glyph) >> 8);
-			video = video + VIDEO_WORDS_PER_SCANLINE;
-			mask = mask >> 8;
-			*video = *video | (mask & glyph);
-			video = video + VIDEO_WORDS_PER_SCANLINE;
-			glyph = glyph + 1;
-			y = y + 2;
-		}
-	}
-	
-	return x + 1;
 }
 
-draw_text(text, len, x, y)
+d_init_monitor(mode)
 {
-	auto i = 0;
-	while (i < len) {
-		x = draw_glyph(text[i], x, y);
-		i = i + 1;
-	}
-	return x;
+	// [ ] scan __hwids for monitor
+	// [ ] if not found spinloop, call system bell
+	// [ ] set up monitor with specified mode
 }
 
-const HWID_KB      = 0x0001;
-const HWID_MONITOR = 0x0003;
-const HWID_READER  = 0x0002; 
+i_print_sys_info()
+{
+	auto xerxes_str[39] = "XERXES(tm) Unified Nanocontroller (XUN)";
+	auto bios_str[6] = "BIOS v";
+	auto sep_str[1] = ".";
+	// [ ] print Hz (don't have instructions for this so maybe we can just run a few instructions, time them and calculate it ourselves... lol)
+	// [ ] print available RAM
+}
+
+i_print_connected_devices()
+{
+	// [ ] Print a list of all ports and their connected devices
+}
+
+d_init_keyboard()
+{
+	// [ ] scan __hwids for keyboard
+	// [ ] if not found print error message, spinloop
+}
+
+d_init_diskreader()
+{
+	// [ ] scan __hwids for disk reader
+	// [ ] if not found print error message, spinloop
+}
+
+s_load_bootdisk()
+{
+	// [ ] Load program on the disk
+	// [ ] If no disk present print error message, spinloop
+}
 
 clock()
 {
@@ -166,22 +178,32 @@ sleep(ms)
 	while (clock() < to) {}
 }
 
+print(text, len)
+{
+	if (len == 0) {
+		while (text[len] != 0) {
+			++len;
+		}
+	}
+	auto i = 0;
+	while (i < len) {
+		// [ ] render text to character buffer
+		++i;
+	}
+}
+
 main(a,b)
 {
-	auto x = 0;
-	x = draw_glyph( 72, x, 0);
-	x = draw_glyph(101, x, 0);
-	x = draw_glyph(108, x, 0);
-	x = draw_glyph(108, x, 0);
-	x = draw_glyph(111, x, 0);
-	x = draw_glyph( 44, x, 0);
-	x = draw_glyph( 32, x, 0);
-	x = draw_glyph( 87, x, 0);
-	x = draw_glyph(111, x, 0);
-	x = draw_glyph(114, x, 0);
-	x = draw_glyph(108, x, 0);
-	x = draw_glyph(100, x, 0);
-	x = draw_glyph( 33, x, 0);
+	d_hwscan();
+	d_init_monitor(MON_MSG_TXTMODE);
+	i_print_sys_info();
+	i_print_connected_devices();
+	// d_init_keyboard(); // Not really necessary because BIOS takes no user input
+	d_init_diskreader();
+	s_load_bootdisk();
+
+	auto msg[13] = "Hello, World!";
+	print(msg, 13);
 
 	while (sleep(10000)) {}
 

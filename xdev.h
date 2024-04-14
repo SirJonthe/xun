@@ -11,15 +11,14 @@ class Device
 public:
 	struct Packet
 	{
-		
-
 		enum {
 			TYPE_ERR,        // Error. The payload contains more information about the error.
 			TYPE_CONNECT,    // Send to a device when there is a physical connection to that device. The payload contains the device name.
 			TYPE_DISCONNECT, // Send to a device when the connection has been disrupted.
 			TYPE_PING,       // When sent we expect the receiver to send PONG back.
 			TYPE_PONG,       // Sent back as an acknowledgement of a PING.
-			TYPE_DATA        // Data is found in the payload.
+			TYPE_DATA,       // Raw data is found in the payload.
+			TYPE_KEYVALS     // A series of user-defined keys and values are sent in the payload. The same effect can be achieved sending raw data, but a separate pckat type may help distinguish between situations.
 		};
 		enum {
 			HEADER_ID,       // The ID of the sending device.
@@ -76,31 +75,34 @@ protected:
 		/// @brief Checks if the queue is empty.
 		/// @return True if the queue is empty.
 		bool IsEmpty( void ) const;
+
+		/// @brief Removes all messages from the queue.
+		void Flush( void );
 	};
 
 private:
-	Device       *m_connection;        // The connected device.
-	MessageQueue  m_in_queue;          // The input buffer where the connected device sends input messages.
-	std::string   m_name;              // The name of the device.
-	U16           m_HWID;              // The unique hardware ID of the device (remember that this has to be unique, otherwise computers may not be able to distinguish this device from another device).
-	uint64_t      m_clock_ns;          // The clock in pico seconds.
-	uint64_t      m_exec_ns;           // Internal state representing the remainder of execution time left over after a given time slice.
-	uint64_t      m_ns_per_cycle;      // The number of pico seconds per cycle.
-	uint32_t      m_cycles_per_second; // The number of cycles that can run per second.
-	bool          m_power;             // The power state of the device.
+	Device       *m_connection;         // The connected device.
+	MessageQueue  m_in_queue;           // The input buffer where the connected device sends input messages.
+	std::string   m_name;               // The name of the device.
+	U16           m_HWID;               // The unique hardware ID of the device (remember that this has to be unique, otherwise computers may not be able to distinguish this device from another device).
+	uint64_t      m_clock_ns;           // The clock in pico seconds.
+	uint64_t      m_exec_ns;            // Internal state representing the remainder of execution time left over after a given time slice.
+	uint64_t      m_ns_per_cycle;       // The number of pico seconds per cycle.
+	uint32_t      m_cycles_per_second;  // The number of cycles that can run per second.
+	U16           m_message_id_counter; // A counter to give each message a unique ID. Note that messages split up over several packets carry the same message ID.
+	bool          m_power;              // The power state of the device.
 
 protected:
-	/// @brief Consumes the top message and returns it.
-	/// @warning Make sure there are messages to peek. If there is not, garbage data will be displayed.
+	/// @brief Consumes the top of the in-queue message.
 	void Ack( void );
 
-	/// @brief Peeks at the top message without consuming it from the queue.
-	/// @return The message.
+	/// @brief Peeks at the top message of the in-queue without consuming it from the queue.
+	/// @return The top message.
 	/// @warning Make sure there are messages to peek. If there is not, garbage data will be displayed.
 	Packet Peek( void ) const;
 
-	/// @brief Checks if there are unconsumed messages on the out queue.
-	/// @return True if there are messages on the out queue.
+	/// @brief Checks if there are unconsumed messages on the in-queue.
+	/// @return True if there are messages on the in-queue.
 	bool Pending( void ) const;
 
 	/// @brief Sends a message to the connected device's input queue.
@@ -111,27 +113,39 @@ protected:
 	/// @brief Creates a new packet.
 	/// @param type The message type to attach to the new packet.
 	/// @return The new packet.
-	Packet NewPacket(U16 type) const;
+	Packet NewPacket(U16 type);
 
 	/// @brief Creates a new error packet.
 	/// @return The error packet.
-	Packet ErrorPacket( void ) const;
+	Packet ErrorPacket( void );
 	
 	/// @brief Creates a new ping packet.
 	/// @return The ping packet.
-	Packet PingPacket( void ) const;
+	Packet PingPacket( void );
 
 	/// @brief Creates a new pong packet.
 	/// @return The pong packet.
-	Packet PongPacket( void ) const;
+	Packet PongPacket( void );
 	
 	/// @brief Creates a new connect packet.
 	/// @return The connect packet.
-	Packet ConnectPacket( void ) const;
+	Packet ConnectPacket( void );
 	
 	/// @brief Creates a new disconnect packet.
 	/// @return The disconnect packet.
-	Packet DisconnectPacket( void ) const;
+	Packet DisconnectPacket( void );
+
+	/// @brief Automatically grabs top packet, acknowledges it, then passes the packet to a custom function for handling.
+	/// @return False if the message failed to be handled properly.
+	/// @note Packet types TYPE_PING and TYPE_PONG are handled automatically.
+	/// @sa HandlePacket
+	bool Poll( void );
+
+	/// @brief Abstract function that is intended to handle message types.
+	/// @param msg The incoming message.
+	/// @return False if the custom message is not recognized by the device.
+	/// @note Overload this to handle the incoming packet.
+	virtual bool HandlePacket(const Packet &msg);
 
 public:
 	/// @brief Creates a new Device object.

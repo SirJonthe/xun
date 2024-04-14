@@ -18,7 +18,7 @@
 /// @brief Sets an error in the parser.
 /// @param p The parser.
 /// @param code The error code.
-#define set_error(p, code) xcc_set_error(p, code, __LINE__)
+#define set_error(p, code) xcc_set_error(p, code, p->file, __LINE__)
 
 /// @brief Converts a series of characters representing a human-readable hexadecimal string into a binary number.
 /// @param nums The characters representing the human-readable hexadecimal string.
@@ -2302,6 +2302,26 @@ static bool file_compiled(const xcc_text &text, const xcc_parser_state &ps)
 	return false;
 }
 
+static chars text_to_file(const chars::view &file)
+{
+	static constexpr uint32_t MAXLEN = sizeof(chars::str) - 1;
+	chars c;
+	if (file.len <= MAXLEN) {
+		for (uint32_t i = 0; i < file.len; ++i) {
+			c.str[i] = file.str[i];
+		}
+		for (uint32_t i = file.len; i <= MAXLEN; ++i) {
+			c.str[i] = 0;
+		}
+	} else {
+		for (uint32_t i = file.len; i < MAXLEN; ++i) {
+			c.str[MAXLEN - i - 1] = file.str[file.len - i - 1];
+		}
+		c.str[MAXLEN] = 0;
+	}
+	return c;
+}
+
 static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, xcc_text &text)
 {
 	if (!xcc_load_text(source_file, text)) {
@@ -2315,6 +2335,7 @@ static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, 
 		ps.p->in = init_lexer(chars::view{ NULL, 0, 0 });
 		ps.p->filesum = cc0::sum::md5("", 0);
 	}
+	ps.p->file = text_to_file(source_file);
 	return true;
 }
 

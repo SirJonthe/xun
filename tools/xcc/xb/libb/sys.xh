@@ -1,17 +1,35 @@
+const PACKET_HEADER_ID        = 0; // The ID of the sending device.
+const PACKET_HEADER_CLOCK     = 1; // The clock as reported by the sending device.
+const PACKET_HEADER_TYPE      = 2; // See TYPE_*.
+const PACKET_HEADER_SEQ       = 3; // The index of a segmented message.
+const PACKET_HEADER_SIZE      = 4; // The number of words in the payload.
+const PACKET_HEADER_IRQ       = 5; // The IRQ to call on the receiving device.
+const PACKET_HEADER_MID       = 6; // The message ID.
+const PACKET_HEADER_WORD_SIZE = 7; // The number of words in the packet header.
+
 /// @brief Returns the CPU ID.
 /// @return The CPU ID.
 cpuid();
+
+/// @brief Checks if the input buffer on the device connected at the given port is full.
+/// @return 1 if the device connected on the given port has a full input buffer. 0 otherwise.
+/// @note It is assumed that a device is connected on the given port.
+hwfull(port_index);
 
 /// @brief Sends data to a device at a given port.
 /// @param port_index The port to send the data to.
 /// @param data Pointer to data to send to the port.
 /// @param len The number of data points to send to the port in words. If this is greater than the maximum payload size then several indexed packages will be sent.
-/// @note If the amount of data is greater than the bus bandwidth, then the program will stall until the device consumes enough data to resume execution.
-hwpush(port_index, data_ptr, len);
+/// @param max_ms The maximum number of milliseconds the application will wait for the device at the port to receive the full message before returning 0.
+/// @return 1 if the port received the full message, 0 if it did not.
+/// @note If there is no device connected to the port, the program will stall for the maximum number of time.
+hwpush(port_index, data_ptr, len, max_ms);
 
-/// @brief Checks a given port if its bus has pending messages.
+/// @brief Checks a given port if its input buffer has pending messages for the computer to consume.
 /// @param port_index The port index to check for pending messages.
 /// @return 1 if the given port has pending messages on its bus. 0 otherwise.
+/// @sa hwpeek
+/// @sa hwpoll
 hwpend(port_index);
 
 /// @brief Does a scan of the given port to retrieve the hardware ID of the connected device.

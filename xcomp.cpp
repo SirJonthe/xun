@@ -76,8 +76,8 @@ void Computer::Peek(U16 port_index, U16 header_addr, U16 data_addr)
 
 bool Computer::IsFull(U16 port_index)
 {
-	if (GetPort(port_index) != NULL) {
-		return GetPort(port_index)->IsFull();
+	if (GetPort(port_index) != NULL && GetPort(port_index)->GetConnectedDevice() != NULL) {
+		return GetPort(port_index)->GetConnectedDevice()->IsFull();
 	} else {
 		SetError(ERR_IO);
 	}
@@ -87,7 +87,7 @@ bool Computer::IsFull(U16 port_index)
 bool Computer::IsEmpty(U16 port_index)
 {
 	if (GetPort(port_index) != NULL) {
-		return GetPort(port_index)->IsFull();
+		return !GetPort(port_index)->IsFull();
 	} else {
 		SetError(ERR_IO);
 	}
@@ -354,6 +354,10 @@ void Computer::Cycle( void )
 	case XIS::PEND:
 		PUSH_STACK(1);
 		TOP.u = IsEmpty(P.u) ? 0 : 1;
+		break;
+	case XIS::FULL:
+		PUSH_STACK(1);
+		TOP.u = IsFull(P.u) ? 0 : 1;
 		break;
 	case XIS::ACK:
 		Ack(P.u);

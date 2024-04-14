@@ -14,7 +14,7 @@
 /// @brief Sets an error in the xcc_parser.
 /// @param p The xcc_parser.
 /// @param code The error code.
-#define set_error(p, code) xcc_set_error(p, code, __LINE__)
+#define set_error(p, code) xcc_set_error(p, code, p->file, __LINE__)
 
 /// @brief Converts a human-readable hexadecimal string to a number.
 /// @param nums The characters representing the human-readable hexadecimal number. The input is assumed to be prepended with "0x".
@@ -100,7 +100,7 @@ struct xtoken
 	};
 };
 
-const signed X_TOKEN_COUNT = 95;
+const signed X_TOKEN_COUNT = 96;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, XIS::NOP),
 	new_keyword ("at",                      2, XIS::AT),
@@ -152,6 +152,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword("pend",                     4, XIS::PEND),
 	new_keyword("cpuid",                    5, XIS::CPUID),
 	new_keyword("cerr",                     4, XIS::CERR),
+	new_keyword("full",                     4, XIS::FULL),
 
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),

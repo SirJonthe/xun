@@ -11,8 +11,13 @@ void Monitor::Clear( void )
 void Monitor::Refresh( void ) const
 {}
 
-Monitor::Monitor( void ) : Device("XERXES(tm) High Resolution Display V452", 0x0003)
+Monitor::Monitor( void ) : Device("XERXES(tm) High Resolution Display V452", 0x0003), m_mode(MSG_PIXMODE), m_fontatlas(NULL), m_fontatlas_width(0), m_fontatlas_height(0)
 {}
+
+Monitor::~Monitor( void )
+{
+	delete [] m_fontatlas;
+}
 
 void Monitor::Plot(U16 x, U16 y, U8 color)
 {

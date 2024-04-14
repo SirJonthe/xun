@@ -41,6 +41,12 @@ bool Device::MessageQueue::IsEmpty( void ) const
 	return GetSize() == 0;
 }
 
+void Device::MessageQueue::Flush( void )
+{
+	m_start = 0;
+	m_end = 0;
+}
+
 void Device::Ack( void )
 {
 	return m_in_queue.Ack();
@@ -64,7 +70,7 @@ void Device::Output(const Device::Packet &msg)
 	}
 }
 
-Device::Packet Device::NewPacket(U16 type) const
+Device::Packet Device::NewPacket(U16 type)
 {
 	Device::Packet p = {
 		{
@@ -73,7 +79,8 @@ Device::Packet Device::NewPacket(U16 type) const
 			type,
 			0,
 			0,
-			0
+			0,
+			m_message_id_counter++
 		}
 	};
 	for (uint32_t i = 0; i < sizeof(p.payload) / sizeof(U16); ++i) {
@@ -82,32 +89,58 @@ Device::Packet Device::NewPacket(U16 type) const
 	return p;
 }
 
-Device::Packet Device::ErrorPacket( void ) const
+Device::Packet Device::ErrorPacket( void )
 {
 	return NewPacket(Packet::TYPE_ERR);
 }
 
-Device::Packet Device::PingPacket( void ) const
+Device::Packet Device::PingPacket( void )
 {
 	return NewPacket(Packet::TYPE_PING);
 }
 
-Device::Packet Device::PongPacket( void ) const
+Device::Packet Device::PongPacket( void )
 {
 	return NewPacket(Packet::TYPE_PONG);
 }
 
-Device::Packet Device::ConnectPacket( void ) const
+Device::Packet Device::ConnectPacket( void )
 {
 	return NewPacket(Packet::TYPE_CONNECT);
 }
 
-Device::Packet Device::DisconnectPacket( void ) const
+Device::Packet Device::DisconnectPacket( void )
 {
 	return NewPacket(Packet::TYPE_DISCONNECT);
 }
 
-Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ns(0), m_exec_ns(0), m_power(false)
+bool Device::Poll( void )
+{
+	if (Pending()) {
+		Packet p = Peek();
+		Ack();
+		switch (p.header[Packet::HEADER_TYPE]) {
+		case Packet::TYPE_PING: Output(PongPacket()); return true;
+		case Packet::TYPE_PONG: return true;
+		}
+		return HandlePacket(p);
+	}
+	return false;
+}
+
+bool Device::HandlePacket(const Packet &msg) 
+{
+	switch (msg.header[Packet::HEADER_TYPE]) {
+		case Packet::TYPE_ERR:        return true;
+		case Packet::TYPE_CONNECT:    return true;
+		case Packet::TYPE_DISCONNECT: return true;
+		case Packet::TYPE_DATA:       return true;
+		case Packet::TYPE_KEYVALS:    return true;
+	}
+	return false;
+}
+
+Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ns(0), m_exec_ns(0), m_message_id_counter(0), m_power(false)
 {
 	SetCyclesPerSecond(60);
 }
@@ -123,6 +156,8 @@ void Device::PowerOn( void )
 		m_power = true;
 		m_clock_ns = 0;
 		m_exec_ns = 0;
+		m_message_id_counter = 0;
+		m_in_queue.Flush();
 		Output(ConnectPacket());
 	}
 }
@@ -149,6 +184,8 @@ void Device::PowerOff( void )
 		Output(DisconnectPacket()); // Do not formally call Disconnect since devices may still be physically connected.
 		m_clock_ns = 0;
 		m_exec_ns = 0;
+		m_message_id_counter = 0;
+		m_in_queue.Flush();
 		m_power = false;
 	}
 }

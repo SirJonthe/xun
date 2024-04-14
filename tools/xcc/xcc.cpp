@@ -5,6 +5,27 @@
 xcc_text::xcc_text( void ) : txt(NULL), len(0), sum(cc0::sum::md5())
 {}
 
+xcc_text::xcc_text(const xcc_text &txt) : xcc_text()
+{
+	xcc_new_text(*this, txt.len);
+	for (uint32_t i = 0; i < len; ++i) {
+		this->txt[i] = txt.txt[i];
+	}
+	this->txt[len] = 0;
+}
+
+xcc_text &xcc_text::operator=(const xcc_text &txt)
+{
+	if (this != &txt) {
+		xcc_new_text(*this, txt.len);
+		for (uint32_t i = 0; i < len; ++i) {
+			this->txt[i] = txt.txt[i];
+		}
+		this->txt[len] = 0;
+	}
+	return *this;
+}
+
 xcc_text::~xcc_text( void )
 {
 	xcc_clear_text(*this);
@@ -114,6 +135,15 @@ bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef)
 	return retval;
 }
 
+chars empty_chars( void )
+{
+	chars c;
+	for (uint32_t i = 0; i < sizeof(c.str); ++i) {
+		c.str[i] = 0;
+	}
+	return c;
+}
+
 xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity)
 {
 	xcc_parser p = {
@@ -122,16 +152,17 @@ xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16
 		l.last,
 		xcc_symbol_stack{ sym_mem, sym_capacity, 0, 0 },
 		NULL,
-		xcc_error{ new_eof(), xcc_error::NONE, 0 },
+		xcc_error{ new_eof(), xcc_error::NONE, empty_chars(), 0 },
+		empty_chars(),
 		cc0::sum::md5(l.code.str, l.code.len)
 	};
 	return p;
 }
 
-void xcc_set_error(xcc_parser *p, U16 code, unsigned line)
+void xcc_set_error(xcc_parser *p, U16 code, const chars &file, unsigned line)
 {
 	if (p->error.code == xcc_error::NONE) {
-		p->error = xcc_error{ p->in.last, code, line };
+		p->error = xcc_error{ p->in.last, code, file, line };
 	}
 }
 
@@ -143,7 +174,7 @@ bool xcc_push_scope(xcc_parser *p)
 bool xcc_pop_scope(xcc_parser *p)
 {
 	if (!xcc_pop_scope(p->scopes, &p->in.last)) {
-		xcc_set_error(p, xcc_error::UNDEF, __LINE__);
+		xcc_set_error(p, xcc_error::UNDEF, p->file, __LINE__);
 		return false;
 	}
 	return true;
@@ -152,7 +183,7 @@ bool xcc_pop_scope(xcc_parser *p)
 bool xcc_write_word(xcc_parser *p, XWORD data)
 {
 	if (!xcc_write_word(p->out, data)) {
-		xcc_set_error(p, xcc_error::MEMORY, __LINE__);
+		xcc_set_error(p, xcc_error::MEMORY, p->file, __LINE__);
 		return false;
 	}
 	return true;
@@ -225,14 +256,14 @@ xcc_symbol *xcc_find_lbl(const chars &name, xcc_parser *p)
 xcc_symbol *xcc_add_symbol(const token &tok, unsigned storage, xcc_parser *p, U16 value)
 {
 	if (p->scopes.count >= p->scopes.capacity) {
-		xcc_set_error(p, xcc_error::MEMORY, __LINE__);
+		xcc_set_error(p, xcc_error::MEMORY, p->file, __LINE__);
 		return NULL;
 	}
 	const unsigned name_char_count = xcc_chcount(tok.text.str);
 	if (name_char_count > 0) {
 		for (signed i = p->scopes.count - 1; i >= 0 && p->scopes.symbols[i].scope_index == p->scopes.scope; --i) {
 			if (xcc_strcmp(p->scopes.symbols[i].tok.text.str, xcc_chcount(p->scopes.symbols[i].tok.text.str), tok.text.str, name_char_count)) {
-				xcc_set_error(p, xcc_error::REDEF, __LINE__);
+				xcc_set_error(p, xcc_error::REDEF, p->file, __LINE__);
 				return NULL;
 			}
 		}
@@ -294,14 +325,18 @@ xcc_symbol *xcc_add_lit(const token &tok, U16 value, xcc_parser *p)
 xcc_symbol *xcc_add_fn(const token &tok, xcc_parser *p)
 {
 	xcc_symbol *sym = xcc_add_symbol(tok, xcc_symbol::STORAGE_FN, p, xcc_top_scope_stack_size(p->scopes) + 1);
-	sym->link = p->out.size;
+	if (sym != NULL) {
+		sym->link = p->out.size;
+	}
 	return sym;
 }
 
 xcc_symbol *xcc_add_lbl(const token &tok, xcc_parser *p)
 {
 	xcc_symbol *sym = xcc_add_symbol(tok, xcc_symbol::STORAGE_LBL, p, xcc_top_scope_stack_size(p->scopes) + 1);
-	sym->link = p->out.size;
+	if (sym != NULL) {
+		sym->link = p->out.size;
+	}
 	return sym;
 }
 

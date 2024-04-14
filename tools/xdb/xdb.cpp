@@ -133,6 +133,7 @@ chars decode_instruction(U16 i)
 		case XIS::ACK:    render(c, "ACK   "); break;
 		case XIS::ERR:    render(c, "ERR   "); break;
 		case XIS::CERR:   render(c, "CERR  "); break;
+		case XIS::FULL:   render(c, "FULL  "); break;
 		default:          render(c, "???   "); break;
 	}
 	return c;

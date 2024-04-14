@@ -11,7 +11,9 @@ github.com/SirJonthe
 
 ## TODO
 
+// [ ] xb:   Better error messages across separate files.
 // [ ] xb:   Working directory navigation
+// [ ] xb:   fn("str"); and fn({1, 2, 3});
 // [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 // [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 // [ ] xun:  Instructions and library functions to detect hardware and send and receive data from ports

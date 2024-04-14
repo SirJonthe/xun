@@ -1,4 +1,4 @@
-#include <stdio.xb>
+#include <stdio>
 
 main(argc,argv)
 {

@@ -17,6 +17,13 @@ struct xcc_text
 	/// @brief Creates a new instance.
 	xcc_text( void );
 
+	/// @brief Copies data inside an existing instance.
+	xcc_text(const xcc_text &txt);
+
+	/// @brief Copies data inside an existing instance.
+	/// @return Reference to destination instance.
+	xcc_text &operator=(const xcc_text &txt);
+
 	/// @brief Frees allocated memory.
 	~xcc_text( void );
 };
@@ -73,6 +80,7 @@ struct xcc_error
 	};
 	token    tok;  // The token generating the error.
 	U16      code; // The error code.
+	chars    file; // The name of the file (may be abbreviated to 31) characters.
 	unsigned line; // The location where the error occurred in the compiler.
 };
 
@@ -110,8 +118,7 @@ struct xcc_symbol
 		TYPE_LBL,      // a label
 		TYPE_GROUP     // structs and classes
 	};
-	token       tok;
-	//chars       name;        // The name of the symbol.
+	token       tok;         // The token successfully converted into the symbol. The name of the symbol is in here along with other meta data.
 	XWORD       data;        // The address of a variable/function, or the value of a literal.
 	U16         storage;     // STORAGE_AUTO, STORAGE_STATIC, STORAGE_PARAM, STORAGE_LIT, STORAGE_FN, STORAGE_LBL
 	U16         type;        // TYPE_SIGNED, TYPE_UNSIGNED, TYPE_FLOAT, TYPE_LBL, TYPE_GROUP
@@ -162,6 +169,7 @@ struct xcc_parser
 	xcc_symbol_stack    scopes;  // The symbols ordered into scopes.
 	xcc_symbol         *fn;      // The current function being parsed.
 	xcc_error           error;   // The first fatal error.
+	chars               file;    // The short name of the current file.
 	cc0::sum::md5::sum  filesum; // The checksum of the currently read file.
 };
 
@@ -176,8 +184,9 @@ xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16
 /// @brief Sets an error in the parser.
 /// @param p The parser.
 /// @param code The error code.
+/// @param file The name (including path) of the file the error occurred in (max 31 characters).
 /// @param line The line in which the error occurred in the compiler.
-void xcc_set_error(xcc_parser *p, U16 code, unsigned line);
+void xcc_set_error(xcc_parser *p, U16 code, const chars &file, unsigned line);
 
 /// @brief Adds a new topmost scope to the symbol stack.
 /// @param p The parser.
