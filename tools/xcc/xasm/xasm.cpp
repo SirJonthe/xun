@@ -13,8 +13,9 @@
 
 /// @brief Sets an error in the xcc_parser.
 /// @param p The xcc_parser.
+/// @param t The token causing the error.
 /// @param code The error code.
-#define set_error(p, code) xcc_set_error(p, code, p->file, __LINE__)
+#define set_error(p, t, code) xcc_set_error(p, t, code, p->file, __FILE__, __LINE__)
 
 /// @brief Converts a human-readable hexadecimal string to a number.
 /// @param nums The characters representing the human-readable hexadecimal number. The input is assumed to be prepended with "0x".
@@ -1346,8 +1347,7 @@ xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity)
 	if (manage_state(try_program(new_state(ps.end)))) {
 		return xcc_out{ p.in, p.out, p.max, 0, p.error };
 	}
-	set_error(ps.p, xcc_error::UNEXPECTED);
-	p.error.tok = p.max;
+	set_error(ps.p, p.max, xcc_error::UNEXPECTED);
 	return xcc_out{ p.in, p.out, p.max, 1, p.error };
 }
 
@@ -1360,8 +1360,7 @@ bool xasm_inline(xcc_parser_state ps)
 	) {
 		return true;
 	}
-	set_error(ps.p, xcc_error::UNEXPECTED);
-	ps.p->error.tok = ps.p->max;
+	set_error(ps.p, ps.p->max, xcc_error::UNEXPECTED);
 	return false;
 }
 

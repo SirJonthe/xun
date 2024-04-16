@@ -107,7 +107,7 @@ const MON_MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the 
 const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
 
 const NUM_PORTS = 16;     // The number of ports on this machine.
-auto ___hwids[NUM_PORTS]; // The hardware ID:s of each port.
+auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
 
 d_hwscan()
 {
@@ -133,6 +133,13 @@ i_print_sys_info()
 	auto sep_str[1] = ".";
 	// [ ] print Hz (don't have instructions for this so maybe we can just run a few instructions, time them and calculate it ourselves... lol)
 	// [ ] print available RAM
+	
+	auto ram_remaining;
+	asm {
+		put 0xffff, $top.
+		sub.
+		mov ram_remaining.
+	}
 }
 
 i_print_connected_devices()

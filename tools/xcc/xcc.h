@@ -78,10 +78,11 @@ struct xcc_error
 		UNEXPECTED,
 		MISSING
 	};
-	token    tok;  // The token generating the error.
-	U16      code; // The error code.
-	chars    file; // The name of the file (may be abbreviated to 31) characters.
-	unsigned line; // The location where the error occurred in the compiler.
+	token       tok;  // The token generating the error.
+	U16         code; // The error code.
+	chars       file; // The name of the file (may be abbreviated to 31) characters.
+	const char *ifile;
+	unsigned    iline; // The location where the error occurred in the compiler.
 };
 
 /// @brief Contains metadata about an output XASM binary.
@@ -114,6 +115,7 @@ struct xcc_symbol
 	enum { // This also represents the order in which types are promoted (i.e. to the higher type number).
 		TYPE_SIGNED,   // signed integer
 		TYPE_UNSIGNED, // unsigned integer
+		TYPE_POINTER,  // pointer (unsigned integer)
 		TYPE_FLOAT,    // signed floating-point value
 		TYPE_LBL,      // a label
 		TYPE_GROUP     // structs and classes
@@ -121,7 +123,7 @@ struct xcc_symbol
 	token       tok;         // The token successfully converted into the symbol. The name of the symbol is in here along with other meta data.
 	XWORD       data;        // The address of a variable/function, or the value of a literal.
 	U16         storage;     // STORAGE_AUTO, STORAGE_STATIC, STORAGE_PARAM, STORAGE_LIT, STORAGE_FN, STORAGE_LBL
-	U16         type;        // TYPE_SIGNED, TYPE_UNSIGNED, TYPE_FLOAT, TYPE_LBL, TYPE_GROUP
+	U16         type;        // TYPE_SIGNED, TYPE_UNSIGNED, TYPE_POINTER, TYPE_FLOAT, TYPE_LBL, TYPE_GROUP
 	U16         scope_index; // The scope index this symbol is defined in.
 	U16         param_count; // For functions, the number of parameters a function takes.
 	U16         size;        // 0 for literals and parameters, 1 for functions, 1 or more for variables.
@@ -161,6 +163,8 @@ bool xcc_push_scope(xcc_symbol_stack &ss);
 bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef = NULL);
 
 /// @brief The main data structure used for parsing C code.
+/// @todo All fields which should revert on success should be part of xcc_parser_state, not xcc_parser, such as 'scopes', 'file', 'filesum'.
+/// @todo "Compiled filesums" array.
 struct xcc_parser
 {
 	lexer               in;      // The parser input.
@@ -171,6 +175,8 @@ struct xcc_parser
 	xcc_error           error;   // The first fatal error.
 	chars               file;    // The short name of the current file.
 	cc0::sum::md5::sum  filesum; // The checksum of the currently read file.
+	// [ ] Move scopes, file, filesum to xcc_parser_state
+	// [ ] Compiled filesums
 };
 
 /// @brief Initializes a new parser.
@@ -183,10 +189,12 @@ xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16
 
 /// @brief Sets an error in the parser.
 /// @param p The parser.
+/// @param t The token causing the error.
 /// @param code The error code.
 /// @param file The name (including path) of the file the error occurred in (max 31 characters).
-/// @param line The line in which the error occurred in the compiler.
-void xcc_set_error(xcc_parser *p, U16 code, const chars &file, unsigned line);
+/// @param ifile The filename of the file in the compiler in which the error was triggered.
+/// @param iline The line in which the error occurred in the compiler.
+void xcc_set_error(xcc_parser *p, const token &t, U16 code, const chars &file, const char *ifile, unsigned iline);
 
 /// @brief Adds a new topmost scope to the symbol stack.
 /// @param p The parser.
@@ -334,6 +342,33 @@ token xcc_peek(xcc_parser *p, token (*lexfn)(lexer*));
 /// @return True if the parsed token user type matches the expected type.
 bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*));
 
+/// @brief A structure representing a path to a directory or file.
+struct xcc_path
+{
+	static constexpr uint32_t MAXPATH = 256;
+
+	char     str[MAXPATH]; // The path characters.
+	uint32_t len;          // The length of the path.
+
+	/// @brief Constructs a default object instance.
+	xcc_path( void );
+	
+	/// @brief Copies a path.
+	/// @param NA The object to copy.
+	xcc_path(const xcc_path&) = default;
+	
+	/// @brief Copies a path.
+	/// @param NA The object to copy.
+	/// @return Reference to the destination instance.
+	xcc_path &operator=(const xcc_path&) = default;
+};
+
+/// @brief Takes a path and uses a relative path as a navigation agent to end up with another path.
+/// @param out The current path, and the resulting path.
+/// @param rwd The relative path.
+/// @return False if the resulting path does not fit the path character limits.
+bool xcc_set_path(xcc_path &out, const chars::view &rwd);
+
 /// @brief Manages the parser state so that it can roll back on failure.
 /// @note When matching matterns, use manage_state to and new_state to create a new parser_state.
 /// @sa xcc_manage_state
@@ -344,12 +379,13 @@ struct xcc_parser_state
 	xcc_parser              restore_point; // The restore point if the current parsing fails.
 	const xcc_parser_state *prev;          // The previous parser state.
 	cc0::sum::md5::sum      filesum;       // The checksum of the currently parsed file.
-	chars::view             cwd;           // The current working directory.
-	chars::view             swd;           // The standard working directory.
+	xcc_path                cwd;           // The current working directory.
+	chars::view             swd;           // The standard working directory (never changes).
 	unsigned                end;           // The end token to know if the parser has reached an end.
 	unsigned                break_ip;      // The relative instruction address of the CNJMP instruction of last entered loop.
 	unsigned                continue_ip;   // The relative instruction address to the first instruction of the test of the last loop.
 	unsigned                loop_scope;    // The index of the scope right outside the loop.
+	unsigned                depth;         // The current depth of the parsing.
 };
 
 /// @brief Constructs a new parser state from a current parser state and an end token.

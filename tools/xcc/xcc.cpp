@@ -150,19 +150,30 @@ xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16
 		l,
 		bin_mem,
 		l.last,
-		xcc_symbol_stack{ sym_mem, sym_capacity, 0, 0 },
+		xcc_symbol_stack{
+			sym_mem,
+			sym_capacity,
+			0,
+			0
+		},
 		NULL,
-		xcc_error{ new_eof(), xcc_error::NONE, empty_chars(), 0 },
+		xcc_error{
+			new_eof(),
+			xcc_error::NONE,
+			empty_chars(),
+			NULL,
+			0
+		},
 		empty_chars(),
 		cc0::sum::md5(l.code.str, l.code.len)
 	};
 	return p;
 }
 
-void xcc_set_error(xcc_parser *p, U16 code, const chars &file, unsigned line)
+void xcc_set_error(xcc_parser *p, const token &t, U16 code, const chars &file, const char *ifile, unsigned iline)
 {
 	if (p->error.code == xcc_error::NONE) {
-		p->error = xcc_error{ p->in.last, code, file, line };
+		p->error = xcc_error{ t, code, file, ifile, iline };
 	}
 }
 
@@ -174,7 +185,7 @@ bool xcc_push_scope(xcc_parser *p)
 bool xcc_pop_scope(xcc_parser *p)
 {
 	if (!xcc_pop_scope(p->scopes, &p->in.last)) {
-		xcc_set_error(p, xcc_error::UNDEF, p->file, __LINE__);
+		xcc_set_error(p, p->in.last, xcc_error::UNDEF, p->file, __FILE__, __LINE__);
 		return false;
 	}
 	return true;
@@ -183,7 +194,7 @@ bool xcc_pop_scope(xcc_parser *p)
 bool xcc_write_word(xcc_parser *p, XWORD data)
 {
 	if (!xcc_write_word(p->out, data)) {
-		xcc_set_error(p, xcc_error::MEMORY, p->file, __LINE__);
+		xcc_set_error(p, p->in.last, xcc_error::MEMORY, p->file, __FILE__, __LINE__);
 		return false;
 	}
 	return true;
@@ -256,14 +267,14 @@ xcc_symbol *xcc_find_lbl(const chars &name, xcc_parser *p)
 xcc_symbol *xcc_add_symbol(const token &tok, unsigned storage, xcc_parser *p, U16 value)
 {
 	if (p->scopes.count >= p->scopes.capacity) {
-		xcc_set_error(p, xcc_error::MEMORY, p->file, __LINE__);
+		xcc_set_error(p, tok, xcc_error::MEMORY, p->file, __FILE__, __LINE__);
 		return NULL;
 	}
 	const unsigned name_char_count = xcc_chcount(tok.text.str);
 	if (name_char_count > 0) {
 		for (signed i = p->scopes.count - 1; i >= 0 && p->scopes.symbols[i].scope_index == p->scopes.scope; --i) {
 			if (xcc_strcmp(p->scopes.symbols[i].tok.text.str, xcc_chcount(p->scopes.symbols[i].tok.text.str), tok.text.str, name_char_count)) {
-				xcc_set_error(p, xcc_error::REDEF, p->file, __LINE__);
+				xcc_set_error(p, tok, xcc_error::REDEF, p->file, __FILE__, __LINE__);
 				return NULL;
 			}
 		}
@@ -388,15 +399,88 @@ bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 	return false;
 }
 
+xcc_path::xcc_path( void ) : len(0)
+{
+	for (uint32_t i = 0; i < len; ++i) {
+		str[i] = 0;
+	}
+}
+
+bool xcc_set_path(xcc_path &out, const chars::view &rwd)
+{
+	static const token tokens[] = {
+		new_operator("..", 2, 1)
+	};
+
+	lexer l = init_lexer(rwd);
+
+	// If out points to a file, we back up until it points to the directory.
+	while (out.len > 0 && out.str[out.len - 1] != '/' && out.str[out.len - 1] != '\\') {
+		--out.len;
+	}
+
+	if (rwd.len > 0 && rwd.str != NULL) {
+		lexer t = l;
+		while (lex(&t, tokens, 1).user_type != token::STOP_EOF) {
+			if (t.last.user_type == 1) {
+				while (out.len > 0 && out.str[out.len - 1] != '/' && out.str[out.len - 1] != '\\') {
+					--out.len;
+				}
+			} else {
+				t = l;
+				chlex(&t);
+				const uint32_t len = xcc_chcount(t.last.text.str);
+				for (uint32_t i = 0; i < len; ++i) {
+					out.str[out.len] = t.last.text.str[i];
+					++out.len;
+					if (out.len == xcc_path::MAXPATH) {
+						out.str[out.len - 1] = '\0';
+						return false;
+					}
+				}
+			}
+			l = t;
+		}
+	}
+	for (uint32_t i = out.len; i < xcc_path::MAXPATH; ++i) {
+		out.str[i] = '\0';
+	}
+	return true;
+}
+
 xcc_parser_state xcc_new_state(const xcc_parser_state &ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
 {
-	xcc_parser_state nps = { ps.p, *ps.p, &ps, ps.p->filesum, ps.cwd, ps.swd, end, break_ip, continue_ip, loop_scope };
+	xcc_parser_state nps = {
+		ps.p,
+		*ps.p,
+		&ps,
+		ps.p->filesum,
+		ps.cwd,
+		ps.swd,
+		end,
+		break_ip,
+		continue_ip,
+		loop_scope,
+		ps.depth + 1
+	};
 	return nps;
 }
 
 xcc_parser_state xcc_new_state(xcc_parser *p, const xcc_parser_state *ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
 {
-	xcc_parser_state nps = { p, *p, ps, p->filesum, ps != NULL ? ps->cwd : chars::view{NULL,0,0}, ps != NULL ? ps->swd : chars::view{NULL,0,0}, end, break_ip, continue_ip, loop_scope };
+	xcc_parser_state nps = {
+		p,
+		*p,
+		ps,
+		p->filesum,
+		ps != NULL ? ps->cwd : xcc_path(),
+		ps != NULL ? ps->swd : chars::view{ NULL, 0, 0 },
+		end,
+		break_ip,
+		continue_ip,
+		loop_scope,
+		ps != NULL ? ps->depth + 1 : 0
+	};
 	return nps;
 }
 

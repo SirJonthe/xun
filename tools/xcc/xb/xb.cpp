@@ -17,8 +17,9 @@
 
 /// @brief Sets an error in the parser.
 /// @param p The parser.
+/// @param t The token causing the error.
 /// @param code The error code.
-#define set_error(p, code) xcc_set_error(p, code, p->file, __LINE__)
+#define set_error(p, t, code) xcc_set_error(p, t, code, p->file, __FILE__, __LINE__)
 
 /// @brief Converts a series of characters representing a human-readable hexadecimal string into a binary number.
 /// @param nums The characters representing the human-readable hexadecimal string.
@@ -463,7 +464,7 @@ static bool try_put_opt_fn_params(xcc_parser_state ps, const xcc_symbol *sym)
 		)
 	) {
 		if (sym != NULL && sym->storage == xcc_symbol::STORAGE_FN && sym->param_count != param_count) {
-			set_error(ps.p, xcc_error::VERIFY);
+			set_error(ps.p, sym->tok, xcc_error::VERIFY);
 			return false;
 		}
 		return true;
@@ -498,6 +499,9 @@ static bool try_call_fn(xcc_parser_state ps)
 	) {
 		// TODO Surely we can determine instruction pointer offset without constant 7...
 		return true;
+	}
+	if (t.user_type == token::ALIAS && sym == NULL) {
+		set_error(ps.p, t, xcc_error::UNDEF);
 	}
 	return false;
 }
@@ -1596,7 +1600,7 @@ static bool try_opt_arr_def_expr(xcc_parser_state ps, xcc_symbol *sym)
 			++sym->size; // NOTE: Make room for the implicit null terminator.
 		}
 		if (sym->size - 1 != count) {
-			set_error(ps.p, xcc_error::VERIFY);
+			set_error(ps.p, sym->tok, xcc_error::VERIFY);
 			return false;
 		}
 		return true;
@@ -1810,7 +1814,7 @@ static void set_param_addr(xcc_symbol *fn)
 static bool try_opt_fn_params(xcc_parser_state ps, bool verify_params)
 {
 	if (ps.p->fn == NULL) {
-		set_error(ps.p, xcc_error::INTERNAL);
+		set_error(ps.p, ps.p->in.last, xcc_error::INTERNAL);
 		return false;
 	}
 	const xcc_symbol fn = *ps.p->fn;
@@ -1827,7 +1831,7 @@ static bool try_opt_fn_params(xcc_parser_state ps, bool verify_params)
 			p = p->param;
 		}
 		if (verify_params && ps.p->fn->param_count != fn.param_count) {
-			set_error(ps.p, xcc_error::VERIFY);
+			set_error(ps.p, ps.p->fn->tok, xcc_error::VERIFY);
 			return false;
 		}
 		set_param_addr(ps.p->fn);
@@ -2108,25 +2112,25 @@ static bool try_break_stmt(xcc_parser_state ps)
 	U16 lsp = xcc_loop_stack_size(ps.p, ps.loop_scope);
 	if (
 		manage_state(
-			match         (ps.p, xbtoken::KEYWORD_CONTROL_BREAK)                  &&
-			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)                     &&
+			match         (ps.p, xbtoken::KEYWORD_CONTROL_BREAK) &&
+			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)    &&
 			(
 				lsp > 0 ?
-					xcc_write_word(ps.p, XWORD{XIS::PUT})                         &&
-					xcc_write_word(ps.p, XWORD{lsp})                              &&
+					xcc_write_word(ps.p, XWORD{XIS::PUT})        &&
+					xcc_write_word(ps.p, XWORD{lsp})             &&
 					xcc_write_word(ps.p, XWORD{XIS::POP}) :
 					true
-			)                                                                     &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{0})                                        &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{U16(ps.break_ip)})                         &&
-			xcc_write_word(ps.p, XWORD{XIS::RLA})                                 &&
+			)                                                    &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})                &&
+			xcc_write_word(ps.p, XWORD{0})                       &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})                &&
+			xcc_write_word(ps.p, XWORD{U16(ps.break_ip)})        &&
+			xcc_write_word(ps.p, XWORD{XIS::RLA})                &&
 			xcc_write_word(ps.p, XWORD{XIS::JMP})
 		)
 	) {
 		if (ps.loop_scope == 0) {
-			set_error(ps.p, xcc_error::UNEXPECTED);
+			set_error(ps.p, ps.p->in.last, xcc_error::UNEXPECTED);
 			return false;
 		}
 		return true;
@@ -2139,16 +2143,16 @@ static bool try_continue_stmt(xcc_parser_state ps)
 	U16 lsp = xcc_loop_stack_size(ps.p, ps.loop_scope);
 	if (
 		manage_state(
-			match         (ps.p, xbtoken::KEYWORD_CONTROL_CONTINUE)               &&
-			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)                     &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})                                 &&
-			xcc_write_word(ps.p, XWORD{U16(ps.continue_ip)})                      &&
-			xcc_write_word(ps.p, XWORD{XIS::RLA})                                 &&
+			match         (ps.p, xbtoken::KEYWORD_CONTROL_CONTINUE) &&
+			match         (ps.p, xbtoken::OPERATOR_SEMICOLON)       &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})                   &&
+			xcc_write_word(ps.p, XWORD{U16(ps.continue_ip)})        &&
+			xcc_write_word(ps.p, XWORD{XIS::RLA})                   &&
 			xcc_write_word(ps.p, XWORD{XIS::JMP})
 		)
 	) {
 		if (ps.loop_scope == 0) {
-			set_error(ps.p, xcc_error::UNEXPECTED);
+			set_error(ps.p, ps.p->in.last, xcc_error::UNEXPECTED);
 			return false;
 		}
 		return true;
@@ -2276,7 +2280,7 @@ static bool try_filepath(xcc_parser_state ps, chars::view &fp)
 	token t;
 	while (peek(ps.p).user_type != ps.end) {
 		if (!match1(ps.p, token::CHAR, &t)) {
-			set_error(ps.p, xcc_error::UNEXPECTED);
+			set_error(ps.p, t, xcc_error::UNEXPECTED);
 			return false;
 		}
 		++fp.len;
@@ -2314,7 +2318,8 @@ static chars text_to_file(const chars::view &file)
 			c.str[i] = 0;
 		}
 	} else {
-		for (uint32_t i = file.len; i < MAXLEN; ++i) {
+		c.str[0] = c.str[1] = c.str[2] = '.';
+		for (uint32_t i = 0; i < MAXLEN - 3; ++i) {
 			c.str[MAXLEN - i - 1] = file.str[file.len - i - 1];
 		}
 		c.str[MAXLEN] = 0;
@@ -2325,7 +2330,7 @@ static chars text_to_file(const chars::view &file)
 static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, xcc_text &text)
 {
 	if (!xcc_load_text(source_file, text)) {
-		set_error(ps.p, xcc_error::MISSING);
+		set_error(ps.p, ps.p->in.last, xcc_error::MISSING);
 		return false;
 	}
 	if (!file_compiled(text, ps)) {
@@ -2335,6 +2340,7 @@ static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, 
 		ps.p->in = init_lexer(chars::view{ NULL, 0, 0 });
 		ps.p->filesum = cc0::sum::md5("", 0);
 	}
+	ps.p->max = ps.p->in.last;
 	ps.p->file = text_to_file(source_file);
 	return true;
 }
@@ -2344,32 +2350,38 @@ static bool try_global_statements(xcc_parser_state ps);
 
 static bool try_file(xcc_parser_state ps, const chars::view &wd, const chars::view &source_file, const chars::view &ext)
 {
-	ps.cwd = wd; // BUG: This needs to be more robust
-	// TODO: cwd = wd + dir(source_file)
+	for (uint32_t i = 0; i < wd.len; ++i) {
+		ps.cwd.str[i] = wd.str[i];
+	}
+	ps.cwd.len = wd.len;
+	if (!xcc_set_path(ps.cwd, source_file)) {
+		set_error(ps.p, ps.p->in.last, xcc_error::MEMORY);
+		return false;
+	}
+	for (unsigned i = 0; i < ext.len; ++i) {
+		if (ps.cwd.len == xcc_path::MAXPATH - 1) {
+			set_error(ps.p, ps.p->in.last, xcc_error::MEMORY);
+			return false;
+		}
+		ps.cwd.str[ps.cwd.len] = ext.str[i];
+		++ps.cwd.len;
+	}
 
 	xcc_text text;
-	xcc_text full_source_file;
-	xcc_new_text(full_source_file, (wd.len > 0 ? wd.len : 0) + source_file.len + (ext.len > 0 ? ext.len : 0));
-	for (uint32_t i = 0; i < wd.len; ++i) {
-		full_source_file.txt[i] = wd.str[i];
-	}
-	for (uint32_t i = 0; i < source_file.len; ++i) {
-		full_source_file.txt[wd.len + i] = source_file.str[i];
-	}
-	for (uint32_t i = 0; i < ext.len; ++i) {
-		full_source_file.txt[wd.len + source_file.len + i] = ext.str[i];
-	}
 	lexer l = ps.p->in;
 	if (
 		manage_state(
-			try_load_text        (ps, chars::view{full_source_file.txt, full_source_file.len, 0}, text) &&
+			try_load_text        (ps, chars::view{ps.cwd.str, ps.cwd.len, 0}, text) &&
 			try_global_statements(new_state(token::STOP_EOF))
 		)
 	) {
-		ps.p->in = l;
+		// BUG: We need to restore more state inside the parser than just the lexer. We can probably use ps.restore_point for that. If we do not, then file tracking with be wrong.
+		ps.p->fn      = ps.restore_point.fn;
+		ps.p->file    = ps.restore_point.file;
+		ps.p->filesum = ps.restore_point.filesum;
+		ps.p->in      = l;
 		return true;
 	}
-	ps.p->in = l;
 	return false;
 }
 
@@ -2381,7 +2393,7 @@ static bool try_include_relative_filepath(xcc_parser_state ps)
 			match       (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)          &&
 			try_filepath(new_state(xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE), fp) &&
 			match       (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)          &&
-			try_file    (new_state(ps.end), ps.cwd, fp, chars::view{NULL,0,0})
+			try_file    (new_state(ps.end), chars::view{ ps.cwd.str, ps.cwd.len, 0 }, fp, chars::view{ NULL, 0, 0 })
 		)
 	) {
 		return true;
@@ -2656,10 +2668,9 @@ xcc_out xb(lexer l, const chars::view &std_lib_path, xcc_binary mem, const U16 s
 			try_single_program(new_state(ps.end))
 		)
 	) {
-		return xcc_out{ p.in, p.out, p.max, 0, xcc_error{ p.max, xcc_error::NONE, 0 } };
+		return xcc_out{ p.in, p.out, p.max, 0, p.error };
 	}
-	set_error(ps.p, xcc_error::UNEXPECTED);
-	p.error.tok = p.max;
+	set_error(ps.p, p.max, xcc_error::UNEXPECTED);
 	return xcc_out{ p.in, p.out, p.max, 1, p.error };
 }
 
@@ -2668,7 +2679,7 @@ static bool try_files(xcc_parser_state ps, const chars::view *source_files, U16 
 	for (uint32_t i = 0; i < num_source_files; ++i) {
 		if (
 			!manage_state(
-				try_file(new_state(ps.end), chars::view{NULL,0,0}, source_files[i], chars::view{NULL,0,0})
+				try_file(new_state(ps.end), chars::view{ NULL, 0, 0 }, source_files[i], chars::view{ NULL, 0, 0 })
 			)
 		) {
 			return false;
@@ -2719,10 +2730,9 @@ xcc_out xb(const chars::view *source_files, U16 num_source_files, const chars::v
 			try_program(new_state(ps.end), source_files, num_source_files)
 		)
 	) {
-		return xcc_out{ p.in, p.out, p.max, 0, xcc_error{ p.max, xcc_error::NONE, 0 } };
+		return xcc_out{ p.in, p.out, p.max, 0, p.error };
 	}
-	set_error(ps.p, xcc_error::UNEXPECTED);
-	p.error.tok = p.max;
+	set_error(ps.p, p.max, xcc_error::UNEXPECTED);
 	return xcc_out{ p.in, p.out, p.max, 1, p.error };
 }
 
