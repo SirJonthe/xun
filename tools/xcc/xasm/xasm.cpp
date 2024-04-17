@@ -1,18 +1,18 @@
 #include <cstddef>
 #include "xasm.h"
 
-/// @brief Constructs a new xcc_parser state from an end token.
+/// @brief Constructs a new parser state from an end token.
 /// @param end A token user type representing the end of the token stream.
-/// @return A new xcc_parser state.
+/// @return A new parser state.
 #define new_state(end) xcc_new_state(ps, end, ps.break_ip, ps.continue_ip, ps.loop_scope)
 
-/// @brief Manages the xcc_parser state so it properly rewinds if the parsing fails.
+/// @brief Manages the parser state so it properly rewinds if the parsing fails.
 /// @param success The success of the parsing.
 /// @return The success of the parsing.
 #define manage_state(success) xcc_manage_state(ps, ps.p->error.code == xcc_error::NONE && (success))
 
-/// @brief Sets an error in the xcc_parser.
-/// @param p The xcc_parser.
+/// @brief Sets an error in the parser.
+/// @param p The parser.
 /// @param t The token causing the error.
 /// @param code The error code.
 #define set_error(p, t, code) xcc_set_error(p, t, code, p->file, __FILE__, __LINE__)

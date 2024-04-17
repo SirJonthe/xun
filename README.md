@@ -12,7 +12,7 @@ github.com/SirJonthe
 ## TODO
 
 // [ ] xb:   Better error messages across separate files.
-// [ ] xb:   Create translation units by pushing a scope when compiling an .xb file and popping at exit (no push/pop instructions).
+// [ ] xb:   Create translation units by pushing a scope when compiling an .xb file and popping at exit (no push/pop instructions). Need to increment some pointer on previous scope so that new symbols on that scope does not overwrite symbols on next scope.
 // [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 // [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 // [ ] xb:   Arrays without explicit size
