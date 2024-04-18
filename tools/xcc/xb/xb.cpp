@@ -63,6 +63,7 @@ struct xbtoken
 		KEYWORD_INTRINSIC_ASM,
 		KEYWORD_NAMESPACE,
 		KEYWORD_INCLUDE,
+		KEYWORD_ENUM,
 		OPERATOR_ARITHMETIC_ADD,
 		OPERATOR_ARITHMETIC_SUB,
 		OPERATOR_ARITHMETIC_MUL,
@@ -114,7 +115,7 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 65; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 66; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -131,6 +132,7 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_keyword ("signed",                  6, xbtoken::KEYWORD_TYPE_SIGNED),
 	new_keyword ("namespace",               9, xbtoken::KEYWORD_NAMESPACE),
 	new_keyword ("include",                 7, xbtoken::KEYWORD_INCLUDE),
+	new_keyword ("enum",                    4, xbtoken::KEYWORD_ENUM),
 	new_operator("#",                       1, xbtoken::OPERATOR_HASH),
 	new_operator("+=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_ADD),
 	new_operator("-=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_SUB),
@@ -2222,11 +2224,67 @@ static bool try_asm_stmt(xcc_parser_state ps)
 	return false;
 }
 
+static bool try_enum_val(xcc_parser_state ps, U16 &val)
+{
+	token t;
+	U16 new_val = 0;
+	bool set_val = false;
+	if (
+		match(ps.p, token::ALIAS, &t) &&
+		(
+			(set_val = match(ps.p, xbtoken::OPERATOR_LOGICAL_EQUAL)) ? try_lit_expr(new_state(ps.end), new_val) : true
+		) &&
+		xcc_add_lit(t, set_val ? new_val : val, ps.p)
+	) {
+		if (set_val) {
+			val = new_val;
+		}
+		return true;
+	}
+	return false;
+}
+
+static bool try_enum_vals(xcc_parser_state ps, U16 val)
+{
+	if (
+		manage_state(
+			try_enum_val(new_state(ps.end), val) &&
+			(
+				peek(ps.p).user_type == ps.end ||
+				(
+					match(ps.p, xbtoken::OPERATOR_COMMA) &&
+					try_enum_vals(new_state(ps.end), val + 1)
+				)
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_enum(xcc_parser_state ps)
+{
+	if (
+		manage_state(
+			match        (ps.p, xbtoken::KEYWORD_ENUM)                     &&
+			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)         &&
+			try_enum_vals(new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R), 0) &&
+			match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)         &&
+			match        (ps.p, xbtoken::OPERATOR_SEMICOLON)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_statement(xcc_parser_state ps)
 {
 	if (
 		manage_state(
 			match             (ps.p, xbtoken::OPERATOR_SEMICOLON) ||
+			try_enum          (new_state(ps.end))                 ||
 			try_new_vars      (new_state(ps.end))                 ||
 			try_new_consts    (new_state(ps.end))                 ||
 			try_if            (new_state(ps.end))                 ||
@@ -2288,43 +2346,31 @@ static bool try_filepath(xcc_parser_state ps, chars::view &fp)
 	return true;
 }
 
-/// @brief Determines if a file has already been compiled.
-/// @param text The text to test.
-/// @param ps The current parser state.
-/// @return True if the given text has already been compiled.
-static bool file_compiled(const xcc_text &text, const xcc_parser_state &ps)
+#include <iostream>
+static void print_sum(const xcc_filesum &s)
 {
-	// BUG:  This will not work for sibling nodes (source files) in the dependency tree that both include the same source file.
-	// TODO: Carry a full state that logs compiled files and never removes them.
-	const xcc_parser_state *p = &ps;
-	while (p != NULL) {
-		if (p->filesum == text.sum) {
-			return true;
-		}
-		p = p->prev;
-	}
-	return false;
+	char hex[33];
+	s.sprint_hex(hex);
+	hex[32] = 0;
+	std::cout << hex;
 }
 
-static chars text_to_file(const chars::view &file)
+static void print_sums(const xcc_filesums &s)
 {
-	static constexpr uint32_t MAXLEN = sizeof(chars::str) - 1;
-	chars c;
-	if (file.len <= MAXLEN) {
-		for (uint32_t i = 0; i < file.len; ++i) {
-			c.str[i] = file.str[i];
-		}
-		for (uint32_t i = file.len; i <= MAXLEN; ++i) {
-			c.str[i] = 0;
-		}
-	} else {
-		c.str[0] = c.str[1] = c.str[2] = '.';
-		for (uint32_t i = 0; i < MAXLEN - 3; ++i) {
-			c.str[MAXLEN - i - 1] = file.str[file.len - i - 1];
-		}
-		c.str[MAXLEN] = 0;
+	std::cout << "[" << std::endl;
+	for (unsigned i = 0; i < s.count; ++i) {
+		std::cout << "  ";
+		print_sum(s.sums[i]);
+		std::cout << std::endl;
 	}
-	return c;
+	std::cout << "]" << std::endl;
+}
+
+static void print_sums(const xcc_filesum &s, const xcc_filesums &f)
+{
+	print_sum(s);
+	std::cout << std::endl << "---" << std::endl;
+	print_sums(f);
 }
 
 static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, xcc_text &text)
@@ -2333,15 +2379,15 @@ static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, 
 		set_error(ps.p, ps.p->in.last, xcc_error::MISSING);
 		return false;
 	}
-	if (!file_compiled(text, ps)) {
+	std::cout << ps.p->file.str << " ";
+	print_sums(text.sum, ps.p->fsums);
+	std::cout << std::endl;
+	if (xcc_add_filesum(ps.p->fsums, text.sum)) {
 		ps.p->in = init_lexer(chars::view{ text.txt, text.len, 0 });
-		ps.p->filesum = text.sum;
 	} else {
-		ps.p->in = init_lexer(chars::view{ NULL, 0, 0 });
-		ps.p->filesum = cc0::sum::md5("", 0);
+		ps.p->in = init_lexer(chars::view{ "", 0, 0 });
 	}
 	ps.p->max = ps.p->in.last;
-	ps.p->file = text_to_file(source_file);
 	return true;
 }
 
@@ -2376,10 +2422,8 @@ static bool try_file(xcc_parser_state ps, const chars::view &wd, const chars::vi
 		)
 	) {
 		// BUG: We need to restore more state inside the parser than just the lexer. We can probably use ps.restore_point for that. If we do not, then file tracking with be wrong.
-		ps.p->fn      = ps.restore_point.fn;
-		ps.p->file    = ps.restore_point.file;
-		ps.p->filesum = ps.restore_point.filesum;
-		ps.p->in      = l;
+		ps.p->fn = ps.restore_point.fn;
+		ps.p->in = l;
 		return true;
 	}
 	return false;
@@ -2452,13 +2496,6 @@ static bool try_fn_def(xcc_parser_state ps)
 					xcc_write_word(ps.p, XWORD{XIS::RLA})
 				)
 			)                                                                                    &&
-//			xcc_write_rel    (ps.p, ps.p->fn)                                                    &&
-//			xcc_write_word   (ps.p, XWORD{XIS::PUTI})                                            &&
-//			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             &&
-//			xcc_write_word   (ps.p, XWORD{10})                                                   && // NOTE: 10 is the offset to get to SVC (the first instruction of the function body).
-//			xcc_write_word   (ps.p, XWORD{XIS::ADD})                                             &&
-//			xcc_write_word   (ps.p, XWORD{XIS::RLA})                                             &&
-//			xcc_write_word   (ps.p, XWORD{XIS::MOVD})                                            &&
 			xcc_write_word   (ps.p, XWORD{XIS::PUT})                                             && // 1/5 Set up function guard to jump over function body.
 			(guard_jmp_idx = ps.p->out.size)                                                     && // 2/5 Record jump constant index so it can be modified later.
 			xcc_write_word   (ps.p, XWORD{0})                                                    && // 3/5 The jump-to address. Insert any value temporarily. This will be changed later.
@@ -2559,12 +2596,15 @@ static bool try_fn_decl(xcc_parser_state ps)
 	return false;
 }
 
+// TODO asd
+
 static bool try_global_statement(xcc_parser_state ps)
 {
 	if (
 		manage_state(
 			match         (ps.p, xbtoken::OPERATOR_SEMICOLON) ||
 			try_include   (new_state(ps.end))                 ||
+			try_enum      (new_state(ps.end))                 ||
 			try_fn_def    (new_state(ps.end))                 ||
 			try_fn_decl   (new_state(ps.end))                 ||
 			try_new_vars  (new_state(ps.end))                 ||
@@ -2656,10 +2696,11 @@ static bool try_single_program(xcc_parser_state ps)
 	return false;
 }
 
-xcc_out xb(lexer l, const chars::view &std_lib_path, xcc_binary mem, const U16 sym_capacity)
+xcc_out xb(lexer l, const chars::view &std_lib_path, xcc_binary mem, const U16 sym_capacity, const unsigned file_capacity)
 {
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
-	xcc_parser       p  = xcc_init_parser(l, mem, sym_mem, sym_capacity);
+	xcc_filesum      sum_mem[file_capacity];
+	xcc_parser       p  = xcc_init_parser(l, mem, sym_mem, sym_capacity, sum_mem, file_capacity);
 	xcc_parser_state ps = xcc_new_state(&p, NULL, token::STOP_EOF, 0, 0, 0);
 	ps.swd = std_lib_path;
 
@@ -2718,10 +2759,11 @@ static bool try_program(xcc_parser_state ps, const chars::view *source_files, U1
 	return false;
 }
 
-xcc_out xb(const chars::view *source_files, U16 num_source_files, const chars::view &std_lib_path, xcc_binary mem, const U16 sym_capacity)
+xcc_out xb(const chars::view *source_files, U16 num_source_files, const chars::view &std_lib_path, xcc_binary mem, const U16 sym_capacity, const unsigned file_capacity)
 {
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
-	xcc_parser       p  = xcc_init_parser(init_lexer(chars::view{NULL,0,0}), mem, sym_mem, sym_capacity);
+	xcc_filesum      sum_mem[file_capacity];
+	xcc_parser       p  = xcc_init_parser(init_lexer(chars::view{NULL,0,0}), mem, sym_mem, sym_capacity, sum_mem, file_capacity);
 	xcc_parser_state ps = xcc_new_state(&p, NULL, token::STOP_EOF, 0, 0, 0);
 	ps.swd = std_lib_path;
 

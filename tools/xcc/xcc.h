@@ -6,6 +6,7 @@
 #include "../../lib/sum/sum.h"
 
 static constexpr unsigned XCC_DEFAULT_SYM_CAPACITY = 128; // The default symbol capacity to use when compiling.
+static constexpr unsigned XCC_DEFAULT_FILE_CAPACITY = 1024; // The default maximum number of files that can be compiled in a single compiler call.
 
 /// @brief Contains the text of a single file.
 struct xcc_text
@@ -162,6 +163,26 @@ bool xcc_push_scope(xcc_symbol_stack &ss);
 /// @return False if the symbol stack that is being popped contains unlinked symbols. True otherwise.
 bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef = NULL);
 
+/// @brief The file hashing function.
+typedef cc0::sum::md5 xcc_filehasher;
+
+/// @brief The checksum type from the file hashing function.
+typedef xcc_filehasher::sum xcc_filesum;
+
+/// @brief A structure to hold an array of checksums from files. Its main intended use is to keep track of all compiled files, and prevent compiling an already compiled file.
+struct xcc_filesums
+{
+	xcc_filesum *sums;     // The array of file checksums.
+	unsigned     capacity; // The capacity of the file checksum array.
+	unsigned     count;    // The current count of file checksums in the file checksums array.
+};
+
+/// @brief Attempts to add a file checksum to a file checksum array.
+/// @param fs The file checksum array.
+/// @param s The checksum to add.
+/// @return False if the file checksum array is full, or if the checksum already exists in the checksum array. True otherwise.
+bool xcc_add_filesum(xcc_filesums &fs, const xcc_filesum &s);
+
 /// @brief The main data structure used for parsing C code.
 /// @todo All fields which should revert on success should be part of xcc_parser_state, not xcc_parser, such as 'scopes', 'file', 'filesum'.
 /// @todo "Compiled filesums" array.
@@ -174,7 +195,7 @@ struct xcc_parser
 	xcc_symbol         *fn;      // The current function being parsed.
 	xcc_error           error;   // The first fatal error.
 	chars               file;    // The short name of the current file.
-	cc0::sum::md5::sum  filesum; // The checksum of the currently read file.
+	xcc_filesums        fsums;   // The checksum of the currently read file.
 	// [ ] Move scopes, file, filesum to xcc_parser_state
 	// [ ] Compiled filesums
 };
@@ -184,8 +205,10 @@ struct xcc_parser
 /// @param bin_mem The memory used for generated code (binary).
 /// @param sym_mem The memory used by the compiler to store symbol information.
 /// @param sym_capacity The capacity of the symbol memory.
+/// @param file_mem The memory used by the compiler to keep track of compiled files.
+/// @param file_capacity The capacity of the file memory.
 /// @return The constructed parser.
-xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity);
+xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity, xcc_filesum *file_mem, unsigned file_capacity);
 
 /// @brief Sets an error in the parser.
 /// @param p The parser.
@@ -369,23 +392,25 @@ struct xcc_path
 /// @return False if the resulting path does not fit the path character limits.
 bool xcc_set_path(xcc_path &out, const chars::view &rwd);
 
+/// @brief Returns the path in a short form (max 31 characters).
+/// @param path The path.
+/// @return The short form of the path.
+chars xcc_short_path(const chars::view &path);
+
 /// @brief Manages the parser state so that it can roll back on failure.
 /// @note When matching matterns, use manage_state to and new_state to create a new parser_state.
 /// @sa xcc_manage_state
 /// @sa xcc_new_state
 struct xcc_parser_state
 {
-	xcc_parser             *p;             // The main parser.
-	xcc_parser              restore_point; // The restore point if the current parsing fails.
-	const xcc_parser_state *prev;          // The previous parser state.
-	cc0::sum::md5::sum      filesum;       // The checksum of the currently parsed file.
-	xcc_path                cwd;           // The current working directory.
-	chars::view             swd;           // The standard working directory (never changes).
-	unsigned                end;           // The end token to know if the parser has reached an end.
-	unsigned                break_ip;      // The relative instruction address of the CNJMP instruction of last entered loop.
-	unsigned                continue_ip;   // The relative instruction address to the first instruction of the test of the last loop.
-	unsigned                loop_scope;    // The index of the scope right outside the loop.
-	unsigned                depth;         // The current depth of the parsing.
+	xcc_parser  *p;             // The main parser.
+	xcc_parser   restore_point; // The restore point if the current parsing fails.
+	xcc_path     cwd;           // The current working directory.
+	chars::view  swd;           // The standard working directory (never changes).
+	unsigned     end;           // The end token to know if the parser has reached an end.
+	unsigned     break_ip;      // The relative instruction address of the CNJMP instruction of last entered loop.
+	unsigned     continue_ip;   // The relative instruction address to the first instruction of the test of the last loop.
+	unsigned     loop_scope;    // The index of the scope right outside the loop.
 };
 
 /// @brief Constructs a new parser state from a current parser state and an end token.

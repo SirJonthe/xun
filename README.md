@@ -11,8 +11,9 @@ github.com/SirJonthe
 
 ## TODO
 
+// [ ] xcc:  Move file loading to XCC, and implement water-tight logic for preventing including the same file twice (xcc_parser carries array of compiled filesums)
 // [ ] xb:   Better error messages across separate files.
-// [ ] xb:   Create translation units by pushing a scope when compiling an .xb file and popping at exit (no push/pop instructions). Need to increment some pointer on previous scope so that new symbols on that scope does not overwrite symbols on next scope.
+// [ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
 // [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 // [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 // [ ] xb:   Arrays without explicit size
@@ -23,7 +24,6 @@ github.com/SirJonthe
 // [ ] xb:   ++*ptr
 // [ ] xb:   argc, argv
 // [ ] xb:   namespace
-// [ ] xcc:  Move file loading to XCC, and implement water-tight logic for preventing including the same file twice (xcc_parser carries array of compiled filesums)
 // [ ] xcc:  All fields in xcc_parser that reverts on success should really be part of xcc_parser_state, such as 'scopes', 'file', 'filesum'.
 
 ## Design

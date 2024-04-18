@@ -1339,10 +1339,11 @@ static bool try_program(xcc_parser_state ps)
 	return false;
 }
 
-xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity)
+xcc_out xasm(lexer l, xcc_binary memory, const U16 sym_capacity, const unsigned file_capacity)
 {
 	xcc_symbol       sym_mem[sym_capacity]; // NOTE: There is a risk that many compilers will not allow declaring an array of a size not known at compile-time.
-	xcc_parser       p  = xcc_init_parser(l, memory, sym_mem, sym_capacity);
+	xcc_filesum      sum_mem[file_capacity];
+	xcc_parser       p  = xcc_init_parser(l, memory, sym_mem, sym_capacity, sum_mem, file_capacity);
 	xcc_parser_state ps = xcc_new_state(&p, NULL, token::STOP_EOF, 0, 0, 0);
 	if (manage_state(try_program(new_state(ps.end)))) {
 		return xcc_out{ p.in, p.out, p.max, 0, p.error };

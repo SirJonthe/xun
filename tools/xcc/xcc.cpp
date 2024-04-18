@@ -135,6 +135,20 @@ bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef)
 	return retval;
 }
 
+bool xcc_add_filesum(xcc_filesums &fs, const xcc_filesum &s)
+{
+	if (fs.count >= fs.capacity) {
+		return false;
+	}
+	for (unsigned i = 0; i < fs.count; ++i) {
+		if (fs.sums[i] == s) {
+			return false;
+		}
+	}
+	fs.sums[fs.count++] = s;
+	return true;
+}
+
 chars empty_chars( void )
 {
 	chars c;
@@ -144,7 +158,7 @@ chars empty_chars( void )
 	return c;
 }
 
-xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity)
+xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16 sym_capacity, xcc_filesum *file_mem, unsigned file_capacity)
 {
 	xcc_parser p = {
 		l,
@@ -165,7 +179,11 @@ xcc_parser xcc_init_parser(lexer l, xcc_binary bin_mem, xcc_symbol *sym_mem, U16
 			0
 		},
 		empty_chars(),
-		cc0::sum::md5(l.code.str, l.code.len)
+		xcc_filesums{
+			file_mem,
+			file_capacity,
+			0
+		}
 	};
 	return p;
 }
@@ -448,21 +466,40 @@ bool xcc_set_path(xcc_path &out, const chars::view &rwd)
 	return true;
 }
 
+chars xcc_short_path(const chars::view &path)
+{
+	static constexpr uint32_t MAXLEN = sizeof(chars::str) - 1;
+	chars c;
+	if (path.len <= MAXLEN) {
+		for (uint32_t i = 0; i < path.len; ++i) {
+			c.str[i] = path.str[i];
+		}
+		for (uint32_t i = path.len; i <= MAXLEN; ++i) {
+			c.str[i] = 0;
+		}
+	} else {
+		c.str[0] = c.str[1] = c.str[2] = '.';
+		for (uint32_t i = 0; i < MAXLEN - 3; ++i) {
+			c.str[MAXLEN - i - 1] = path.str[path.len - i - 1];
+		}
+		c.str[MAXLEN] = 0;
+	}
+	return c;
+}
+
 xcc_parser_state xcc_new_state(const xcc_parser_state &ps, unsigned end, unsigned break_ip, unsigned continue_ip, unsigned loop_scope)
 {
 	xcc_parser_state nps = {
 		ps.p,
 		*ps.p,
-		&ps,
-		ps.p->filesum,
 		ps.cwd,
 		ps.swd,
 		end,
 		break_ip,
 		continue_ip,
-		loop_scope,
-		ps.depth + 1
+		loop_scope
 	};
+	nps.p->file = xcc_short_path(chars::view{ nps.cwd.str, nps.cwd.len, 0 });
 	return nps;
 }
 
@@ -471,16 +508,14 @@ xcc_parser_state xcc_new_state(xcc_parser *p, const xcc_parser_state *ps, unsign
 	xcc_parser_state nps = {
 		p,
 		*p,
-		ps,
-		p->filesum,
 		ps != NULL ? ps->cwd : xcc_path(),
-		ps != NULL ? ps->swd : chars::view{ NULL, 0, 0 },
+		ps != NULL ? ps->swd : chars::view{ "", 0, 0 },
 		end,
 		break_ip,
 		continue_ip,
-		loop_scope,
-		ps != NULL ? ps->depth + 1 : 0
+		loop_scope
 	};
+	nps.p->file = xcc_short_path(chars::view{ nps.cwd.str, nps.cwd.len, 0 });
 	return nps;
 }
 
@@ -490,6 +525,8 @@ bool xcc_manage_state(xcc_parser_state &ps, bool success)
 		ps.restore_point.error = ps.p->error;
 		ps.restore_point.max = ps.p->max.index >= ps.restore_point.max.index ? ps.p->max : ps.restore_point.max;
 		*ps.p = ps.restore_point;
+	} else {
+		ps.p->file = ps.restore_point.file;
 	}
 	return success;
 }
