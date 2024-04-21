@@ -4,6 +4,10 @@
 
 ## The XUN Instruction Set Architecture (XIS)
 
+## Memory layout
+
+Memory allocated on the stack is ordered to higher memory addresses in sequence of order.
+
 ## Registers
 
 ### Stack pointer register

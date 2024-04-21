@@ -135,22 +135,22 @@ i_print_sys_info()
 
 	auto cycles = 8;
 	asm {
-		$scope: start {          // 2
-			clock.               // 1
-			mov start.           // 3
-			calc_cycles:         // 0
-				put 18.          // 1
-				put cycles.      // 3
-				add.             // 1
-				mov cycles.      // 2
-				clock.           // 1
-				put start.       // 3
-				sub.             // 1
-				put 10.          // 1
-				lt.              // 1
-				put calc_cycles. // 3
-				cjmp.            // 1
-		}                        // 2
+		$scope: start {           // 2 (PUT PUSH)
+			clock.                // 1 (CLOCK)
+			mov start.            // 3 (PUT RLB MOVU)
+			%calc_cycles:         // 1 (PUT)
+				put 19.           // 1 (PUT)
+				put cycles.       // 3 (PUT RLB AT)
+				add.              // 1 (ADD)
+				mov cycles.       // 2 (PUT RLB)
+				clock.            // 1 (CLOCK)
+				put start.        // 3 (PUT RLB AT)
+				sub.              // 1 (SUB)
+				put 10.           // 1 (PUT)
+				lt.               // 1 (LT)
+				put %calc_cycles. // 3 (PUT RLA AT)
+				cjmp.             // 1 (CJMP)
+		}                         // 2 (PUT POP)
 	}
 	// hz = cycles * 10000;
 	// [ ] print Hz (don't have instructions for this so maybe we can just run a few instructions, time them and calculate it ourselves... lol)

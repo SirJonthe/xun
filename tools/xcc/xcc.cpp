@@ -308,6 +308,7 @@ xcc_symbol *xcc_add_symbol(const token &tok, unsigned storage, xcc_parser *p, U1
 	sym.param       = NULL;
 	sym.data.u      = value;
 	sym.link        = 0;
+	sym.file        = p->file;
 	switch (storage) {
 	case xcc_symbol::STORAGE_PARAM:
 	case xcc_symbol::STORAGE_LIT:

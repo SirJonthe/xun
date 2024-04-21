@@ -110,12 +110,13 @@ struct xbtoken
 		OPERATOR_COLON,
 		OPERATOR_COMMA,
 		OPERATOR_HASH,
+		OPERATOR_GLOBAL_ACCESS,
 		LITERAL_INT
 		// LITERAL_FLOAT
 	};
 };
 
-const signed XB_TOKEN_COUNT = 66; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 67; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -154,6 +155,7 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_operator(">>",                      2, xbtoken::OPERATOR_BITWISE_RSHIFT),
 	new_operator("++",                      2, xbtoken::OPERATOR_ARITHMETIC_INC),
 	new_operator("--",                      2, xbtoken::OPERATOR_ARITHMETIC_DEC),
+	new_operator("::",                      2, xbtoken::OPERATOR_GLOBAL_ACCESS),
 	new_comment ("//",                      2),
 	new_operator("!",                       1, xbtoken::OPERATOR_LOGICAL_NOT),
 	new_operator("#",                       1, xbtoken::OPERATOR_MACRO),
@@ -2379,13 +2381,16 @@ static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, 
 		set_error(ps.p, ps.p->in.last, xcc_error::MISSING);
 		return false;
 	}
-	std::cout << ps.p->file.str << " ";
-	print_sums(text.sum, ps.p->fsums);
-	std::cout << std::endl;
+	
+//	std::cout << xcc_short_path(source_file).str << " ";
+//	print_sums(text.sum, ps.p->fsums);
+	
 	if (xcc_add_filesum(ps.p->fsums, text.sum)) {
 		ps.p->in = init_lexer(chars::view{ text.txt, text.len, 0 });
+//		std::cout << "COMPILE" << std::endl << std::endl;
 	} else {
 		ps.p->in = init_lexer(chars::view{ "", 0, 0 });
+//		std::cout << "SKIP" << std::endl << std::endl;
 	}
 	ps.p->max = ps.p->in.last;
 	return true;
@@ -2414,7 +2419,6 @@ static bool try_file(xcc_parser_state ps, const chars::view &wd, const chars::vi
 	}
 
 	xcc_text text;
-	lexer l = ps.p->in;
 	if (
 		manage_state(
 			try_load_text        (ps, chars::view{ps.cwd.str, ps.cwd.len, 0}, text) &&
@@ -2422,8 +2426,8 @@ static bool try_file(xcc_parser_state ps, const chars::view &wd, const chars::vi
 		)
 	) {
 		// BUG: We need to restore more state inside the parser than just the lexer. We can probably use ps.restore_point for that. If we do not, then file tracking with be wrong.
-		ps.p->fn = ps.restore_point.fn;
-		ps.p->in = l;
+		ps.p->fn   = ps.restore_point.fn;
+		ps.p->in   = ps.restore_point.in;
 		return true;
 	}
 	return false;

@@ -21,6 +21,7 @@ github.com/SirJonthe
 // [ ] xcc:  Deprecate HALT, and use LDA
 // [ ] xasm: Deprecate HALT
 // [ ] xb:   signed/unsigned
+// [ ] xb:   ::name
 // [ ] xb:   ++*ptr
 // [ ] xb:   argc, argv
 // [ ] xb:   namespace
@@ -30,7 +31,7 @@ github.com/SirJonthe
 
 `XUN` (XERXES Unified Nanocontroller) is a 16-bit fictional computing platform, meaning that it is a virtual machine, or emulator, for the XUN instruction set architecture. The user can write programs, compile them, and run them inside the virtual machine under, admittedly, arbitrary constraints.
 
-`XUN` comes with necessary tools, such as compilers, standard libraries, and debuggers, to build programs. There are two programming languates available; XASM, and XB. XASM is an assembly language which assembles into the XUN instruction set and closely mirrors how the XUN processor works (with some syntactic sugar). XB is a variant of Ken Thompson's B programming language (the typeless predecessor to C) with some improvements from C (such as the ability to declare variables wherever needed) and some omissions (such as `goto` and `switch-case`).
+`XUN` comes with necessary tools, such as compilers, standard libraries, and debuggers, to build programs. There are two programming languates available; XASM, and XB. XASM is an assembly language which assembles into the XUN instruction set and closely mirrors how the XUN processor works (with some syntactic sugar). XB is a variant of Ken Thompson's B programming language with some omissions from the spec and additions from C.
 
 `XUN` does not include platform-specific input/output integrations to keep the core portable. As such, the user will need to implement this themselves (extending `Device` is a good idea for this purpose).
 

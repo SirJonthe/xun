@@ -60,7 +60,6 @@ struct xtoken
 
 		OPERATOR_DIRECTIVE_AT,
 		OPERATOR_DIRECTIVE_ADDR,
-		OPERATOR_DIRECTIVE_LABEL,
 		OPERATOR_DIRECTIVE_DOLLAR,
 	
 		OPERATOR_ENCLOSE_PARENTHESIS_L,
@@ -101,7 +100,7 @@ struct xtoken
 	};
 };
 
-const signed X_TOKEN_COUNT = 96;
+const signed X_TOKEN_COUNT = 97;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, XIS::NOP),
 	new_keyword ("at",                      2, XIS::AT),
@@ -151,6 +150,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword("poll",                     4, XIS::POLL),
 	new_keyword("pass",                     4, XIS::PASS),
 	new_keyword("pend",                     4, XIS::PEND),
+	new_keyword("ack",                      3, XIS::ACK),
 	new_keyword("cpuid",                    5, XIS::CPUID),
 	new_keyword("cerr",                     4, XIS::CERR),
 	new_keyword("full",                     4, XIS::FULL),
@@ -1016,7 +1016,7 @@ static bool try_put_lbl(xcc_parser_state ps)
 	xcc_symbol *sym;
 	if (
 		manage_state(
-			match(ps.p, xtoken::OPERATOR_DIRECTIVE_LABEL)  &&
+			match(ps.p, xtoken::OPERATOR_ARITHMETIC_MOD)  &&
 			match(ps.p, token::ALIAS, &t)                  &&
 			(
 				(sym = xcc_find_lbl(t.text, ps.p)) != NULL ||
@@ -1213,6 +1213,7 @@ static bool try_instruction_all(xcc_parser_state ps)
 	) {
 		return true;
 	}
+	set_error(ps.p, i, xcc_error::UNDEF);
 	return false;
 }
 
@@ -1276,14 +1277,15 @@ static bool try_lbl_def_stmt(xcc_parser_state ps)
 	xcc_symbol *sym;
 	if (
 		manage_state(
-			match(ps.p, token::ALIAS, &t)       &&
-			match(ps.p, xtoken::OPERATOR_COMMA) &&
+			match(ps.p, xtoken::OPERATOR_ARITHMETIC_MOD)   &&
+			match(ps.p, token::ALIAS, &t)                  &&
+			match(ps.p, xtoken::OPERATOR_COLON)            &&
 			(
 				(sym = xcc_find_lbl(t.text, ps.p)) != NULL ||
 				(
-					(sym = xcc_add_lbl(t, ps.p)) != NULL  &&
-					emit_empty_symbol_storage(ps.p, sym)  &&
-					(sym->link = ps.p->out.size - 1)      &&
+					(sym = xcc_add_lbl(t, ps.p)) != NULL   &&
+					emit_empty_symbol_storage(ps.p, sym)   &&
+					(sym->link = ps.p->out.size - 1)       &&
 					xcc_write_word(ps.p, XWORD{XIS::RLA})
 				)
 			 ) &&
@@ -1300,9 +1302,10 @@ static bool try_statement(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_directive_stmt  (new_state(ps.end)) ||
-			try_instruction_stmt(new_state(ps.end)) ||
-			try_lbl_def_stmt    (new_state(ps.end))
+			match               (ps.p, xtoken::OPERATOR_STOP) ||
+			try_directive_stmt  (new_state(ps.end))           ||
+			try_lbl_def_stmt    (new_state(ps.end))           ||
+			try_instruction_stmt(new_state(ps.end))
 		)
 	) {
 		return true;

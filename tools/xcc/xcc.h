@@ -102,6 +102,12 @@ struct xcc_out
 /// @return False if the buffer is full. True otherwise.
 bool xcc_write_word(xcc_binary &buf, XWORD data);
 
+/// @brief The file hashing function.
+typedef cc0::sum::md5 xcc_filehasher;
+
+/// @brief The checksum type from the file hashing function.
+typedef xcc_filehasher::sum xcc_filesum;
+
 /// @brief The data structure containing meta data about a declared symbol in code, e.g. variables, constants, functions, structures, etc.
 struct xcc_symbol
 {
@@ -128,8 +134,9 @@ struct xcc_symbol
 	U16         scope_index; // The scope index this symbol is defined in.
 	U16         param_count; // For functions, the number of parameters a function takes.
 	U16         size;        // 0 for literals and parameters, 1 for functions, 1 or more for variables.
-	U16         link;        // Indicates that the symbol is declared, but not defined and requires linkage between ASDASD
+	U16         link;        // Indicates that the symbol is declared, but not defined and requires linkage between definition and a later declaration.
 	xcc_symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter. For groups, this points to the first member. For members this points to the next member.
+	chars       file;        // The short name of the file this symbol was declared in.
 };
 
 /// @brief The data structure containing the current state of declared and defined symbols in the compiler.
@@ -163,12 +170,6 @@ bool xcc_push_scope(xcc_symbol_stack &ss);
 /// @return False if the symbol stack that is being popped contains unlinked symbols. True otherwise.
 bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef = NULL);
 
-/// @brief The file hashing function.
-typedef cc0::sum::md5 xcc_filehasher;
-
-/// @brief The checksum type from the file hashing function.
-typedef xcc_filehasher::sum xcc_filesum;
-
 /// @brief A structure to hold an array of checksums from files. Its main intended use is to keep track of all compiled files, and prevent compiling an already compiled file.
 struct xcc_filesums
 {
@@ -184,20 +185,16 @@ struct xcc_filesums
 bool xcc_add_filesum(xcc_filesums &fs, const xcc_filesum &s);
 
 /// @brief The main data structure used for parsing C code.
-/// @todo All fields which should revert on success should be part of xcc_parser_state, not xcc_parser, such as 'scopes', 'file', 'filesum'.
-/// @todo "Compiled filesums" array.
 struct xcc_parser
 {
-	lexer               in;      // The parser input.
-	xcc_binary          out;     // The parser output.
-	token               max;     // The maximally reached token.
-	xcc_symbol_stack    scopes;  // The symbols ordered into scopes.
-	xcc_symbol         *fn;      // The current function being parsed.
-	xcc_error           error;   // The first fatal error.
-	chars               file;    // The short name of the current file.
-	xcc_filesums        fsums;   // The checksum of the currently read file.
-	// [ ] Move scopes, file, filesum to xcc_parser_state
-	// [ ] Compiled filesums
+	lexer             in;      // The parser input.
+	xcc_binary        out;     // The parser output.
+	token             max;     // The maximally reached token.
+	xcc_symbol_stack  scopes;  // The symbols ordered into scopes.
+	xcc_symbol       *fn;      // The current function being parsed.
+	xcc_error         error;   // The first fatal error.
+	chars             file;    // The short name of the current file.
+	xcc_filesums      fsums;   // The checksum of the currently read file.
 };
 
 /// @brief Initializes a new parser.
