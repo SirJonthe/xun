@@ -161,7 +161,8 @@ hwpoll(port_index, header_ptr, data_ptr)
 		asm ack.
 		auto irq = header_ptr[PACKET_HEADER_IRQ];
 		if (irq < __IRQ_TABLE_SIZE && __irq_table[irq]) {
-			__irq_table[irq](header_ptr, data_ptr);
+			auto fn = __irq_table[irq];
+			fn(header_ptr, data_ptr);
 		}
 	}
 	return pending;

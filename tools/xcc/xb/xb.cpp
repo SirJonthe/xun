@@ -327,6 +327,22 @@ static bool try_put_var_addr(xcc_parser_state ps)
 	return false;
 }
 
+static bool try_put_fn_addr(xcc_parser_state ps)
+{
+	token t;
+	xcc_symbol *sym;
+	if (
+		manage_state(
+			match(ps.p, token::ALIAS, &t)             &&
+			(sym = xcc_find_fn(t.text, ps.p)) != NULL &&
+			xcc_write_rel(ps.p, sym)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_rval(xcc_parser_state ps);
 
 /// @brief Emits instructions to perform a redirect on a value to get the value at the address of the value.
@@ -365,10 +381,26 @@ static bool try_put_var(xcc_parser_state ps)
 	return false;
 }
 
+static bool try_put_fn(xcc_parser_state ps)
+{
+	if (
+		manage_state(
+			try_redir_val(new_state(ps.end)) ||
+			(
+				try_put_fn_addr(new_state(ps.end)) &&
+				xcc_write_word(ps.p, XWORD{XIS::AT})
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 /// @brief Emits instructions to increment or decrement a token matching against a variable.
 /// @param ps The parser state.
 /// @return True if successful.
-static bool try_incdec_var(xcc_parser_state ps)
+static bool try_post_incdec_var(xcc_parser_state ps)
 {
 	token t, op;
 	xcc_symbol *sym;
@@ -395,7 +427,15 @@ static bool try_incdec_var(xcc_parser_state ps)
 		)
 	) {
 		return true;
-	} else if ( // NOTE: ++var --var
+	}
+	return false;
+}
+
+static bool try_pre_incdec_var(xcc_parser_state ps)
+{
+	token t, op;
+	xcc_symbol *sym;
+	if ( // NOTE: ++var --var
 		manage_state(
 			(
 				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_INC, &op) ||
@@ -583,7 +623,7 @@ template < typename type_t >
 static bool try_lit_rval(xcc_parser_state ps, type_t &l);
 
 template < typename type_t >
-static bool try_lit_bwnot_val(xcc_parser_state ps, type_t &l)
+static bool try_lit_uni_bnot_val(xcc_parser_state ps, type_t &l)
 {
 	token t;
 	if (
@@ -599,7 +639,7 @@ static bool try_lit_bwnot_val(xcc_parser_state ps, type_t &l)
 }
 
 template < typename type_t >
-static bool try_lit_lnot_val(xcc_parser_state ps, type_t &l)
+static bool try_lit_uni_lnot_val(xcc_parser_state ps, type_t &l)
 {
 	token t;
 	if (
@@ -620,9 +660,7 @@ static bool try_lit_rval(xcc_parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			try_lit_bwnot_val(new_state(ps.end), l) ||
-			try_lit_lnot_val (new_state(ps.end), l) ||
-			try_read_lit     (new_state(ps.end), l) ||
+			try_read_lit(new_state(ps.end), l) ||
 			(
 				(
 					match       (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)         &&
@@ -672,9 +710,11 @@ static bool try_lit_factor(xcc_parser_state ps, type_t &l)
 {
 	if (
 		manage_state(
-			try_lit_uni_pos (new_state(ps.end), l) ||
-			try_lit_uni_neg (new_state(ps.end), l) ||
-			try_lit_rval    (new_state(ps.end), l)
+			try_lit_uni_pos     (new_state(ps.end), l) ||
+			try_lit_uni_neg     (new_state(ps.end), l) ||
+			try_lit_uni_bnot_val(new_state(ps.end), l) ||
+			try_lit_uni_lnot_val(new_state(ps.end), l) ||
+			try_lit_rval        (new_state(ps.end), l)
 		)
 	) {
 		return true;
@@ -1109,7 +1149,7 @@ static bool try_put_index(xcc_parser_state ps)
 	return false;
 }
 
-static bool try_bwnot_val(xcc_parser_state ps)
+static bool try_uni_bnot_val(xcc_parser_state ps)
 {
 	token t;
 	if (
@@ -1124,7 +1164,7 @@ static bool try_bwnot_val(xcc_parser_state ps)
 	return false;
 }
 
-static bool try_lnot_val(xcc_parser_state ps)
+static bool try_uni_lnot_val(xcc_parser_state ps)
 {
 	token t;
 	if (
@@ -1144,13 +1184,13 @@ static bool try_rval(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_bwnot_val (new_state(ps.end)) ||
-			try_lnot_val  (new_state(ps.end)) ||
-			try_call_fn   (new_state(ps.end)) ||
-			try_put_lit   (new_state(ps.end)) ||
-			try_put_index (new_state(ps.end)) ||
-			try_incdec_var(new_state(ps.end)) ||
-			try_put_var   (new_state(ps.end)) ||
+			
+			try_call_fn        (new_state(ps.end)) ||
+			try_put_lit        (new_state(ps.end)) ||
+			try_put_index      (new_state(ps.end)) ||
+			try_post_incdec_var(new_state(ps.end)) ||
+			try_put_var        (new_state(ps.end)) ||
+			try_put_fn         (new_state(ps.end)) ||
 			(
 				(
 					match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
@@ -1160,7 +1200,7 @@ static bool try_rval(xcc_parser_state ps)
 			)
 		)
 	) {
-		return true;
+		return true; // if the next symbol is parenthesis, then try calling this as function...
 	}
 	return false;
 }
@@ -1210,10 +1250,13 @@ static bool try_factor(xcc_parser_state ps)
 {
 	if (
 		manage_state(
-			try_uni_addr(new_state(ps.end)) ||
-			try_uni_pos (new_state(ps.end)) ||
-			try_uni_neg (new_state(ps.end)) ||
-			try_rval    (new_state(ps.end))
+			try_uni_addr      (new_state(ps.end)) ||
+			try_uni_pos       (new_state(ps.end)) ||
+			try_uni_neg       (new_state(ps.end)) ||
+			try_uni_bnot_val  (new_state(ps.end)) ||
+			try_uni_lnot_val  (new_state(ps.end)) ||
+			try_pre_incdec_var(new_state(ps.end)) ||
+			try_rval          (new_state(ps.end))
 		)
 	) {
 		return true;
