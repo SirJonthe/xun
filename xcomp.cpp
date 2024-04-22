@@ -99,8 +99,15 @@ Computer::Computer(bool debug) : Device(XUN_NAME, XUN_HWID), m_storage(1<<21), m
 	SetCyclesPerSecond(10000000U);
 
 	Device::Connect(m_ports[0], m_power_controller);
-	// Device::Connect(m_ports[1], m_internal_reader);
-	// Device::Connect(m_ports[1], m_external_reader);
+	Device::Connect(m_ports[1], m_bell);
+	Device::Connect(m_ports[2], m_term);
+
+	m_power_controller.PowerOn();
+	m_bell.PowerOn();
+	m_term.PowerOn();
+
+	// Device::Connect(m_ports[2], m_internal_reader);
+	// Device::Connect(m_ports[3], m_external_reader);
 	// Device::Connect(m_internal_reader, m_storage);
 }
 

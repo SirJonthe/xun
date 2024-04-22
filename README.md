@@ -11,21 +11,21 @@ github.com/SirJonthe
 
 ## TODO
 
-// [ ] xcc:  Move file loading to XCC, and implement water-tight logic for preventing including the same file twice (xcc_parser carries array of compiled filesums)
-// [ ] xb:   Better error messages across separate files.
-// [ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
-// [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
-// [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
-// [ ] xb:   Arrays without explicit size
-// [ ] xb:   static (variables stored in binary, RLA used to address)
-// [ ] xcc:  Deprecate HALT, and use LDA
-// [ ] xasm: Deprecate HALT
-// [ ] xb:   signed/unsigned
-// [ ] xb:   ::name
-// [ ] xb:   ++*ptr
-// [ ] xb:   argc, argv
-// [ ] xb:   namespace
-// [ ] xcc:  All fields in xcc_parser that reverts on success should really be part of xcc_parser_state, such as 'scopes', 'file', 'filesum'.
+[ ] xun:  Internal devices need to cycle so that they can react and clear message queue
+[ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
+[ ] xb:   Better error messages across separate files.
+[ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
+[ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
+[ ] xb:   Arrays without explicit size
+[ ] xb:   ::name
+[ ] xb:   static (variables stored in binary, RLA used to address)
+[ ] xcc:  Deprecate HALT, and use LDA
+[ ] xasm: Deprecate HALT
+[ ] xb:   signed/unsigned
+[ ] xb:   ++*ptr
+[ ] xb:   argc, argv
+[ ] xb:   robust function call: fn[index1](param1, param2)[index2](param2, param3) etc...
+[ ] xb:   namespace
 
 ## Design
 

@@ -109,16 +109,16 @@ hwid(port_index)
 		asm {
 			put port_index. // Select port.
 			port.
-			put &id, 0.
-			pass. // Put the address of the header but we send no data, so just point to null.Send the values at the addresses to the selected port.
+			put &id, 0.     // Put the address of the header but we send no data, so just point to null.
+			pass.           // Send the values at the addresses to the selected port.
 		}
 
 		// We give a device 1 second to respond, checking every iteration.
-		auto poll_until = clock() + 1;
+		auto poll_until = clock() + 1000;
 		while (hwpeek(port_index, &id, data) == 0) {
-			if (clock() > poll_until) {
-				id = 0;
-				break;
+			auto now = clock();
+			if (now > poll_until) { // BUG: Always evaluates to 0
+				return 0;
 			}
 		}
 	}
@@ -170,12 +170,26 @@ hwpoll(port_index, header_ptr, data_ptr)
 
 sleep(ms)
 {
-	auto now = clock();
+	auto now;
+	asm {
+		clock.
+		mov now.
+	}
 	auto to = now + ms;
 	if (to < now) {
-		while (clock() > 0) {}
+		while (now > 0) {
+			asm {
+				clock.
+				mov now.
+			}
+		}
 	}
-	while (clock() < to) {}
+	while (now < to) {
+		asm {
+			clock.
+			mov now.
+		}
+	}
 }
 
 run(bin)

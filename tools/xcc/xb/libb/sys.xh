@@ -67,6 +67,6 @@ sleep(ms);
 run(bin);
 
 /// @brief Turns the computer off.
-/// @note The processor has no control to turn the computer off, so it relies on a circuit breaker being connected to the machine which it can communicate with.
+/// @note The processor has no control to turn the computer off, so it relies on a specific type of circuit breaker being connected to the machine which it can communicate with.
 /// @warning Use this sparingly.
 shutdown();

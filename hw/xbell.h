@@ -7,9 +7,17 @@
 class Bell : public Device
 {
 public:
+	enum {
+		TYPE_BEEP = Device::Packet::TYPE_COUNT
+	};
+
+protected:
+	bool HandlePacket(const Device::Packet &msg);
+
+public:
 	Bell( void );
 
-	void Alarm( void ) const;
+	void Sound( void ) const;
 };
 
 #endif

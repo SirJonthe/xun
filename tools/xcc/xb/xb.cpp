@@ -521,10 +521,14 @@ static bool try_call_fn(xcc_parser_state ps)
 	xcc_symbol *sym;
 	U16 off_index = 0;
 	token t;
+	U16 result = 0;
 	if (
 		manage_state(
 			match                (ps.p, token::ALIAS, &t)                                  && // TODO Replace this with any value (can be alias, literal, indirection etc.)
-			(sym = xcc_find_symbol(t.text, ps.p)) != NULL                                  && // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
+			(
+				(sym = xcc_find_symbol(t.text, ps.p)) != NULL                              || // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
+				try_read_lit(new_state(ps.end), result)
+			)                                                                              &&
 			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)           &&
 			xcc_write_word       (ps.p, XWORD{XIS::PUT})                                   &&
 			xcc_write_word       (ps.p, XWORD{0})                                          && // NOTE: Put return value memory on stack.
@@ -536,7 +540,11 @@ static bool try_call_fn(xcc_parser_state ps)
 			try_put_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
 			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)           &&
 			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)             && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
-			xcc_write_rel        (ps.p, sym)                                               &&
+			(
+				sym != NULL ?
+					xcc_write_rel(ps.p, sym) :
+					xcc_write_word(ps.p, XWORD{result})
+			)                                                                              &&
 			xcc_write_word       (ps.p, XWORD{XIS::AT})                                    &&
 			xcc_write_word       (ps.p, XWORD{XIS::JMP})
 		)
@@ -1107,6 +1115,7 @@ static bool try_index_src(xcc_parser_state ps)
 	if (
 		manage_state(
 			try_put_var_addr(new_state(ps.end)) ||
+			try_put_lit     (new_state(ps.end)) ||
 			(
 				match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)      &&
 				try_expr(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)) &&
@@ -1115,6 +1124,26 @@ static bool try_index_src(xcc_parser_state ps)
 		)
 	) {
 		return true;
+	}
+	return false;
+}
+
+static bool try_opt_index(xcc_parser_state ps)
+{
+	if (peek(ps.p).user_type != xbtoken::OPERATOR_ENCLOSE_BRACKET_L) {
+		return true;
+	}
+	if (
+		manage_state(
+			xcc_write_word(ps.p, XWORD{XIS::AT})                           &&
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)      &&
+			try_expr      (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)      &&
+			xcc_write_word(ps.p, XWORD{XIS::ADD})                          &&
+			try_opt_index (new_state(ps.end))
+		)
+	) {
+			return true;
 	}
 	return false;
 }
@@ -1128,7 +1157,8 @@ static bool try_put_index_addr(xcc_parser_state ps)
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)      &&
 			try_expr      (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R)) &&
 			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)      &&
-			xcc_write_word(ps.p, XWORD{XIS::ADD})
+			xcc_write_word(ps.p, XWORD{XIS::ADD})                          &&
+			try_opt_index (new_state(ps.end))
 		)
 	) {
 		return true;
@@ -1200,7 +1230,7 @@ static bool try_rval(xcc_parser_state ps)
 			)
 		)
 	) {
-		return true; // if the next symbol is parenthesis, then try calling this as function...
+		return true;
 	}
 	return false;
 }

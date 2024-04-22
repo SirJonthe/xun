@@ -18,7 +18,8 @@ public:
 			TYPE_PING,       // When sent we expect the receiver to send PONG back.
 			TYPE_PONG,       // Sent back as an acknowledgement of a PING.
 			TYPE_DATA,       // Raw data is found in the payload.
-			TYPE_KEYVALS     // A series of user-defined keys and values are sent in the payload. The same effect can be achieved sending raw data, but a separate pckat type may help distinguish between situations.
+			TYPE_KEYVALS,    // A series of user-defined keys and values are sent in the payload. The same effect can be achieved sending raw data, but a separate pckat type may help distinguish between situations.
+			TYPE_COUNT
 		};
 		enum {
 			HEADER_ID,       // The ID of the sending device.

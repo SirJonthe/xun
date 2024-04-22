@@ -1,3 +1,5 @@
+//#include <sys>
+
 const BIOS_MAJ_VER = 0;
 const BIOS_MIN_VER = 1;
 const BIOS_HOT_VER = 0;
@@ -95,9 +97,12 @@ const TEXTMODE_CHARS_HEIGHT = VIDEO_PX_HEIGHT / FONT_CHAR_PX_HEIGHT;
 
 auto TXTMODE_SCROLL_OFFSET = 0; // This can allow the text to scroll by a single line without having to redraw the entire map.
 
-const HWID_KB  = 0x0001; // Hardware ID of keyboard.
-const HWID_RDD = 0x0002; // Hardware ID of disk reader.
-const HWID_MON = 0x0003; // Hardware ID of monitor.
+const HWID_KB   = 0x0001; // Hardware ID of keyboard.
+const HWID_RDD  = 0x0002; // Hardware ID of disk reader.
+const HWID_MON  = 0x0003; // Hardware ID of monitor.
+const HWID_DISK = 0x0004; // Hardware ID of disk reader.
+const HWID_BELL = 0x0005; // Hardware ID of on-board bell.
+const HWID_TERM = 0x0006; // Hardware ID of integrated terminal.
 
 // Monitor message types.
 const MON_MSG_PIXMODE              = 0xface; // Sets the monitor mode to direct pixel manipulation.
@@ -111,19 +116,57 @@ auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
 
 d_hwscan()
 {
-	// [ ] scans though all ports, and initializes __hwids
-	auto pi = 0;
-	while (pi < NUM_PORTS) {
-		// [ ] <sys> has hwid function, but we need to make sure that we can include that file first.
-		++pi;
+	auto i = 0;
+	while (i < NUM_PORTS) {
+//		__hwids[i] = hwid(i);
+		++i;
 	}
 }
 
+const PORT_UNDEF = 0xffff; // The port index of an unfound device.
+
+d_find_hw(id)
+{
+	auto i = 0;
+	while (i < NUM_PORTS && __hwids[i] != HWID_MON) {
+		++i;
+	}
+	if (i == NUM_PORTS) {
+		return PORT_UNDEF;
+	}
+	return i;
+}
+
+d_require_hw(id)
+{
+	auto port = d_find_hw(id);
+	if (port == PORT_UNDEF) {
+		// [ ] Print message if possible
+		while (1) {
+			// [ ] call bell with type=7
+		}
+	}
+	return port;
+}
+
+auto __port_bell = PORT_UNDEF; // The port index where the system bell is connected.
+
+d_init_bell()
+{
+	__port_bell = d_find_hw(HWID_BELL);
+	if (__port_bell == PORT_UNDEF) {
+		return 0;
+	}
+	return 1;
+}
+
+auto __port_mon = PORT_UNDEF; // The port index where the monitor is connected.
+
 d_init_monitor(mode)
 {
-	// [ ] scan __hwids for monitor
-	// [ ] if not found spinloop, call system bell
+	__port_mon = d_require_hw(HWID_MON);
 	// [ ] set up monitor with specified mode
+	return 1;
 }
 
 i_print_sys_info()
@@ -134,24 +177,25 @@ i_print_sys_info()
 	// [ ] print general info
 
 	auto cycles = 8;
-	asm {
-		$scope: start {           // 2 (PUT PUSH)
-			clock.                // 1 (CLOCK)
-			mov start.            // 3 (PUT RLB MOVU)
-			%calc_cycles:         // 1 (PUT)
-				put 19.           // 1 (PUT)
-				put cycles.       // 3 (PUT RLB AT)
-				add.              // 1 (ADD)
-				mov cycles.       // 2 (PUT RLB)
-				clock.            // 1 (CLOCK)
-				put start.        // 3 (PUT RLB AT)
-				sub.              // 1 (SUB)
-				put 10.           // 1 (PUT)
-				lt.               // 1 (LT)
-				put %calc_cycles. // 3 (PUT RLA AT)
-				cjmp.             // 1 (CJMP)
-		}                         // 2 (PUT POP)
-	}
+//	asm { // BUG: Something is wrong with this assembly (stack corruption?). Re-write in C?
+//		$scope: start {           // 2 (PUT PUSH)
+//			clock.                // 1 (CLOCK)
+//			mov start.            // 3 (PUT RLB MOVU)
+//			%calc_cycles:         // 1 (PUT)
+//				put 19.           // 1 (PUT)
+//				put cycles.       // 3 (PUT RLB AT)
+//				add.              // 1 (ADD)
+//				mov cycles.       // 2 (PUT RLB)
+//				clock.            // 1 (CLOCK)
+//				put start.        // 3 (PUT RLB AT)
+//				sub.              // 1 (SUB)
+//				put 10.           // 1 (PUT)
+//				lt.               // 1 (LT)
+//				put %calc_cycles. // 3 (PUT RLA AT)
+//				cjmp.             // 1 (CJMP)
+//		}                         // 2 (PUT POP)
+//
+//	}
 	// hz = cycles * 10000;
 	// [ ] print Hz (don't have instructions for this so maybe we can just run a few instructions, time them and calculate it ourselves... lol)
 	
@@ -166,19 +210,27 @@ i_print_sys_info()
 
 i_print_connected_devices()
 {
-	// [ ] Print a list of all ports and their connected devices
+	auto i = 0;
+	while (i < NUM_PORTS) {
+		// [ ] print(i);
+		// [ ] print(": ");
+		// [ ] print(__hwids[i]);
+		++i;
+	}
 }
+
+auto __port_kb = PORT_UNDEF; // The port index here the keyboard is connected.
 
 d_init_keyboard()
 {
-	// [ ] scan __hwids for keyboard
-	// [ ] if not found print error message, spinloop
+	__port_kb = d_require_hw(HWID_KB);
 }
+
+auto __port_disk = PORT_UNDEF; // The port index where the disk reader is connected.
 
 d_init_diskreader()
 {
-	// [ ] scan __hwids for disk reader
-	// [ ] if not found print error message, spinloop
+	__port_disk = d_require_hw(HWID_DISK);
 }
 
 s_load_bootdisk()
@@ -187,54 +239,45 @@ s_load_bootdisk()
 	// [ ] If no disk present print error message, spinloop
 }
 
-clock()
-{
-	auto c;
-	asm {
-		clock.
-		mov c.
-	}
-	return c;
-}
-
 sleep(ms)
 {
-	auto now = clock();
+	auto now;
+	asm {
+		clock.
+		mov now.
+	}
 	auto to = now + ms;
 	if (to < now) {
-		while (clock() > 0) {}
-	}
-	while (clock() < to) {}
-}
-
-print(text, len)
-{
-	if (len == 0) {
-		while (text[len] != 0) {
-			++len;
+		while (now > 0) {
+			asm {
+				clock.
+				mov now.
+			}
 		}
 	}
-	auto i = 0;
-	while (i < len) {
-		// [ ] render text to character buffer
-		++i;
+	while (now < to) {
+		asm {
+			clock.
+			mov now.
+		}
 	}
 }
 
 main(a,b)
 {
 	d_hwscan();
+	d_init_bell();
 	d_init_monitor(MON_MSG_TXTMODE);
-	i_print_sys_info();
-	i_print_connected_devices();
-	// d_init_keyboard(); // Not really necessary because BIOS takes no user input
-	d_init_diskreader();
-	s_load_bootdisk();
+//	i_print_sys_info();
+//	d_init_diskreader();
+//	i_print_connected_devices();
+//	// d_init_keyboard(); // Not really necessary because BIOS takes no user input
+//	s_load_bootdisk();
 
-	auto msg[13] = "Hello, World!";
-	print(msg, 13);
+	//auto msg[13] = "Hello, World!";
+	//print(msg, 13);
 
-	while (sleep(10000)) {}
+	sleep(2000);
 
 	return 0;
 }
