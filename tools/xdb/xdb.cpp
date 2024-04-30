@@ -70,6 +70,8 @@ chars decode_instruction(U16 i)
 		case XIS::PUT:    render(c, "PUT   "); break;
 		case XIS::PUTS:   render(c, "PUTS  "); break;
 		case XIS::PUTI:   render(c, "PUTI  "); break;
+		case XIS::CLOCK:  render(c, "CLOCK "); break;
+		case XIS::BIN:    render(c, "BIN   "); break;
 		case XIS::AT:     render(c, "AT    "); break;
 		case XIS::JMP:    render(c, "JMP   "); break;
 		case XIS::SKIP:   render(c, "SKIP  "); break;
@@ -102,6 +104,11 @@ chars decode_instruction(U16 i)
 		case XIS::IGE:    render(c, "IGE   "); break;
 		case XIS::ILT:    render(c, "ILT   "); break;
 		case XIS::IGT:    render(c, "IGT   "); break;
+		case XIS::PORT:   render(c, "PORT  "); break;
+		case XIS::POLL:   render(c, "POLL  "); break;
+		case XIS::PASS:   render(c, "PASS  "); break;
+		case XIS::CPUID:  render(c, "CPUID "); break;
+		case XIS::PEND:   render(c, "PEND  "); break;
 		case XIS::PUSH:   render(c, "PUSH  "); break;
 		case XIS::POP:    render(c, "POP   "); break;
 		case XIS::TOSS:   render(c, "TOSS  "); break;
@@ -109,6 +116,10 @@ chars decode_instruction(U16 i)
 		case XIS::MOVU:   render(c, "MOVU  "); break;
 		case XIS::PEEK:   render(c, "PEEK  "); break;
 		case XIS::HALT:   render(c, "HALT  "); break;
+		case XIS::ACK:    render(c, "ACK   "); break;
+		case XIS::ERR:    render(c, "ERR   "); break;
+		case XIS::CERR:   render(c, "CERR  "); break;
+		case XIS::FULL:   render(c, "FULL  "); break;
 		case XIS::CJMP:   render(c, "CJMP  "); break;
 		case XIS::CSKIP:  render(c, "CSKIP "); break;
 		case XIS::CNJMP:  render(c, "CNJMP "); break;
@@ -123,17 +134,14 @@ chars decode_instruction(U16 i)
 		case XIS::RLA:    render(c, "RLA   "); break;
 		case XIS::RLB:    render(c, "RLB   "); break;
 		case XIS::RLC:    render(c, "RLC   "); break;
-		case XIS::CLOCK:  render(c, "CLOCK "); break;
-		case XIS::BIN:    render(c, "BIN   "); break;
-		case XIS::PORT:   render(c, "PORT  "); break;
-		case XIS::POLL:   render(c, "POLL  "); break;
-		case XIS::PASS:   render(c, "PASS  "); break;
-		case XIS::CPUID:  render(c, "CPUID "); break;
-		case XIS::PEND:   render(c, "PEND  "); break;
-		case XIS::ACK:    render(c, "ACK   "); break;
-		case XIS::ERR:    render(c, "ERR   "); break;
-		case XIS::CERR:   render(c, "CERR  "); break;
-		case XIS::FULL:   render(c, "FULL  "); break;
+		case XIS::TNS:    render(c, "TNS   "); break;
+		case XIS::TUS:    render(c, "TUS   "); break;
+		case XIS::TMS:    render(c, "TMS   "); break;
+		case XIS::TS:     render(c, "TS    "); break;
+		case XIS::TM:     render(c, "TM    "); break;
+		case XIS::TH:     render(c, "TH    "); break;
+		case XIS::TD:     render(c, "TD    "); break;
+		case XIS::TW:     render(c, "TW    "); break;
 		default:          render(c, "???   "); break;
 	}
 	return c;
@@ -162,22 +170,36 @@ void xdebugger::ui(unsigned rows) const
 	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC();
 	if (stack_size < 0) { stack_size = 0; }
 
-    std::cout << "                                            ";
-	print_padded_hex(stack_size);
-	std::cout << std::endl;
-	std::cout << " LIST   PROG                    INST    STK=";
-	print_padded_hex(m_computer.StackPointer());
-	std::cout << "  " << "A=";
+	std::cout << "╔════════════════════════════════════════════════════════════════════════╗" << std::endl;
+	std::cout << "║                                        A=";
 	print_padded_hex(m_computer.StackOffsetA());
-	std::cout << "  " << "B=";
+	std::cout << "         NS=";
+	print_padded_hex(m_computer.GetHighPrecisionClock() % 1000ULL);
+	std::cout << "          ║" << std::endl;
+	std::cout << "║                                        B=";
 	print_padded_hex(m_computer.StackOffsetB());
-	std::cout << "  " << "C=";
+	std::cout << "         US=";
+	print_padded_hex((m_computer.GetHighPrecisionClock() / 1000ULL) % 1000ULL);
+	std::cout << "          ║" << std::endl;
+	std::cout << "║                                        C=";
 	print_padded_hex(m_computer.StackOffsetC());
-	std::cout << std::endl;
+	std::cout << "         MS=";
+	print_padded_hex((m_computer.GetHighPrecisionClock() / 1000000ULL) % 1000ULL);
+	std::cout << "          ║" << std::endl;
+	std::cout << "║ LIST   PROG                    INST    S=";
+	print_padded_hex(m_computer.StackPointer());
+	std::cout << " (";
+	print_padded_hex(stack_size);
+	std::cout << ")";
+	std::cout << "  CLK=";
+	print_padded_hex(m_computer.GetClock());
+	std::cout << "  P=";
+	print_padded_hex(m_computer.GetPortIndex());
+	std::cout << " ║" << std::endl;
 	for (int y = 0; y < i_page_height; ++y) {
 		const U16 o = start_i + y * i_page_width;
 		
-		std::cout << " ";
+		std::cout << "║ ";
 		print_padded_hex(o);
 		std::cout << ":";
 		for (int x = 0; x < i_page_width; ++x) {
@@ -196,7 +218,6 @@ void xdebugger::ui(unsigned rows) const
 			std::cout << "        ";
 		}
 
-//		if (stack_size < i_page_height) {
 		const int display_offset = stack_size < i_page_height ? i_page_height - stack_size : 0;
 		if (y - display_offset >= 0) {
 			if (y - display_offset == 0) {
@@ -208,12 +229,7 @@ void xdebugger::ui(unsigned rows) const
 		} else {
 			std::cout << "      ";
 		}
-//		}
-//		else {
-//			std::cout << "  ";
-//			print_padded_hex(m_computer.PeekTop(-y).u);
-//		}
-
-		std::cout << std::endl;
+		std::cout << "                            ║" << std::endl;
 	}
+	std::cout << "╚════════════════════════════════════════════════════════════════════════╝";
 }

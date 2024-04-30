@@ -17,7 +17,6 @@ github.com/SirJonthe
 [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 [ ] xb:   Arrays without explicit size
-[ ] xb:   ::name
 [ ] xb:   static (variables stored in binary, RLA used to address)
 [ ] xcc:  Deprecate HALT, and use LDA
 [ ] xasm: Deprecate HALT

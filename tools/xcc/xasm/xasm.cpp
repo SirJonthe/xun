@@ -96,11 +96,13 @@ struct xtoken
 		OPERATOR_COMMA,
 		OPERATOR_COLON,
 
+		OPERATOR_REVERSE_SEARCH,
+
 		LITERAL_INT
 	};
 };
 
-const signed X_TOKEN_COUNT = 97;
+const signed X_TOKEN_COUNT = 98;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, XIS::NOP),
 	new_keyword ("at",                      2, XIS::AT),
@@ -200,6 +202,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_operator(",",                       1, xtoken::OPERATOR_COMMA),
 	new_operator(".",                       1, xtoken::OPERATOR_STOP),
 	new_comment ("//",                      2),
+	new_operator("::",                      2, xtoken::OPERATOR_REVERSE_SEARCH),
 	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,  token::ALIAS),
 	new_literal ("[0-9]+",                  6, xtoken::LITERAL_INT),
 	new_literal ("0[xX][0-9a-fA-F]+",      17, xtoken::LITERAL_INT, hex2u)
@@ -266,6 +269,28 @@ static bool eval_operation(xcc_parser *p, unsigned user_type, type_t &l, type_t 
 	return false;
 }
 
+/// @brief Tries to read an alias and determine if the search should be reversed depending on preceding operator.
+/// @param ps The parser state.
+/// @param t The token that was read.
+/// @param reverse_search The state of the search mode.
+/// @return True if successful.
+static bool try_alias(xcc_parser_state ps, token &t, bool &reverse_search)
+{
+	reverse_search = false;
+	if (
+		manage_state(
+			(
+				reverse_search = match(ps.p, xtoken::OPERATOR_REVERSE_SEARCH) &&
+				match(ps.p, token::ALIAS, &t)
+			) ||
+			match(ps.p, token::ALIAS, &t)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 template < typename type_t >
 static bool try_lit_factor(xcc_parser_state ps, type_t &l);
 
@@ -273,11 +298,12 @@ template < typename type_t >
 static bool try_read_lit(xcc_parser_state ps, type_t &result)
 {
 	token t;
+	bool rs;
 	if (match(ps.p, xtoken::LITERAL_INT, &t)) {
 		result = t.hash;
 		return true;
-	} else if (match(ps.p, token::ALIAS, &t)) {
-		const xcc_symbol *sym = xcc_find_lit(t.text, ps.p);
+	} else if (try_alias(new_state(ps.end), t, rs)) {
+		const xcc_symbol *sym = xcc_find_lit(t.text, ps.p, rs);
 		if (sym != NULL) {
 			result = sym->data.u;
 			return true;
@@ -796,7 +822,7 @@ static bool try_directive_scope(xcc_parser_state ps)
 		manage_state(
 			match         (ps.p, xtoken::KEYWORD_DIRECTIVE_SCOPE)       &&
 			match         (ps.p, xtoken::OPERATOR_COLON)                &&
-			xcc_push_scope(ps.p)                                        &&
+			xcc_push_scope(ps.p, false)                                 &&
 			try_decl_list (new_state(xtoken::OPERATOR_ENCLOSE_BRACE_L)) &&
 			(
 				(stack_size = xcc_top_scope_stack_size(ps.p)) == 0 ||
@@ -901,11 +927,12 @@ static bool try_put_var(xcc_parser_state ps)
 	token t;
 	xcc_symbol *sym;
 	bool skip_redir = match(ps.p, xtoken::OPERATOR_DIRECTIVE_ADDR);
+	bool rs;
 	if (
 		manage_state(
-			match        (ps.p, token::ALIAS, &t)      &&
-			(sym = xcc_find_var(t.text, ps.p)) != NULL &&
-			xcc_write_rel(ps.p, sym)                   &&
+			try_alias(new_state(ps.end), t, rs)            &&
+			(sym = xcc_find_var(t.text, ps.p, rs)) != NULL &&
+			xcc_write_rel(ps.p, sym)                       &&
 			(
 				skip_redir ||
 				xcc_write_word(ps.p, XWORD{XIS::AT})
@@ -1073,10 +1100,11 @@ static bool try_put_lvar(xcc_parser_state ps)
 {
 	token t;
 	xcc_symbol *sym;
+	bool rs;
 	if (
 		manage_state(
-			match        (ps.p, token::ALIAS, &t)      &&
-			(sym = xcc_find_var(t.text, ps.p)) != NULL &&
+			try_alias(new_state(ps.end), t, rs)            &&
+			(sym = xcc_find_var(t.text, ps.p, rs)) != NULL &&
 			xcc_write_rel(ps.p, sym)
 		)
 	) {

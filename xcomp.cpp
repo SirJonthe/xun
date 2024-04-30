@@ -26,7 +26,7 @@ Computer::IOPort *Computer::GetPort(U16 index)
 void Computer::SetError(U16 code)
 {
 	ERR.u |= U16(1 << code);
-	// IRQ here maybe?
+	// TODO: IRQ here maybe?
 }
 
 void Computer::ClearError(U16 code)
@@ -212,7 +212,7 @@ XWORD Computer::PeekTop(U16 addr) const
 {
 	return RAM[U16(addr + SP.u)];
 }
-
+#include <iostream>
 void Computer::Cycle( void )
 {
 	I.u = READI;
@@ -410,6 +410,39 @@ void Computer::Cycle( void )
 	case XIS::CLOCK:
 		PUSH_STACK(1);
 		TOP.u = GetClock();
+		std::cout << TOP.u << std::endl;
+		break;
+	case XIS::TNS:
+		PUSH_STACK(1);
+		TOP.u = U16(GetHighPrecisionClock() % 1000ULL);
+		break;
+	case XIS::TUS:
+		PUSH_STACK(1);
+		TOP.u = U16((GetHighPrecisionClock() / 1000ULL) % 1000ULL);
+		break;
+	case XIS::TMS:
+		PUSH_STACK(1);
+		TOP.u = U16((GetHighPrecisionClock() / 1000000ULL) % 1000ULL);
+		break;
+	case XIS::TS:
+		PUSH_STACK(1);
+		TOP.u = U16((GetHighPrecisionClock() / 1000000000ULL) % 60ULL);
+		break;
+	case XIS::TM:
+		PUSH_STACK(1);
+		TOP.u = U16((GetHighPrecisionClock() / 60000000000ULL) % 60ULL);
+		break;
+	case XIS::TH:
+		PUSH_STACK(1);
+		TOP.u = U16((GetHighPrecisionClock() / 3600000000000ULL) % 24ULL);
+		break;
+	case XIS::TD:
+		PUSH_STACK(1);
+		TOP.u = U16((GetHighPrecisionClock() / 86400000000000ULL) % 7ULL);
+		break;
+	case XIS::TW:
+		PUSH_STACK(1);
+		TOP.u = U16(GetHighPrecisionClock() / 604800000000000ULL);
 		break;
 	case XIS::BIN:
 		READI;
@@ -544,6 +577,11 @@ void Computer::Connect(Device &device, U8 port)
 void Computer::Disconnect(U8 port)
 {
 	m_ports[port % NUM_PORTS].Disconnect();
+}
+
+U16 Computer::GetPortIndex( void ) const
+{
+	return P.u;
 }
 
 U16 Computer::InstructionPointer( void ) const

@@ -176,6 +176,7 @@ public:
 	/// @param port The port number.
 	void Disconnect(U8 port);
 
+	U16 GetPortIndex( void ) const;
 	U16 InstructionPointer( void ) const;
 	U16 Instruction( void ) const;
 	U16 StackPointer( void ) const;

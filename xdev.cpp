@@ -256,6 +256,11 @@ U16 Device::GetClock( void ) const
 	return U16(m_clock_ns / 1000000ULL);
 }
 
+uint64_t Device::GetHighPrecisionClock( void ) const
+{
+	return m_clock_ns;
+}
+
 bool Device::IsConnected(const Device &device) const
 {
 	return m_connection != &device;

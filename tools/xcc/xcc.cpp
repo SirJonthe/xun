@@ -100,6 +100,17 @@ U16 xcc_top_scope_stack_size(const xcc_symbol_stack &s)
 	return size;
 }
 
+static U16 next_mem_addr(const xcc_symbol_stack &s)
+{
+	for (signed i = s.count - 1; i >= 0; --i) {
+		if (s.symbols[i].storage == xcc_symbol::STORAGE_AUTO || s.symbols[i].storage == xcc_symbol::STORAGE_FN || s.symbols[i].storage == xcc_symbol::STORAGE_LBL) {
+			const U16 next = s.symbols[i].data.u + s.symbols[i].size;
+			return next > 0 ? next : 1;
+		}
+	}
+	return 1;
+}
+
 U16 xcc_loop_stack_size(const xcc_symbol_stack &s, U16 scope_index)
 {
 	U16 size = 0;
@@ -107,32 +118,6 @@ U16 xcc_loop_stack_size(const xcc_symbol_stack &s, U16 scope_index)
 		size += s.symbols[i].size;
 	}
 	return size;
-}
-
-bool xcc_push_scope(xcc_symbol_stack &ss)
-{
-	++ss.scope;
-	return true;
-}
-
-bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef)
-{
-	bool retval = true;
-	if (ss.scope >= 1) {
-		while (ss.count > 0 && ss.symbols[ss.count - 1].scope_index == ss.scope) {
-			--ss.count;
-			if (ss.symbols[ss.count].link > 0) {
-				if (undef != NULL) {
-					*undef = ss.symbols[ss.count].tok;
-				}
-				retval = false;
-			}
-		}
-	} else {
-		ss.count = 0;
-	}
-	--ss.scope;
-	return retval;
 }
 
 bool xcc_add_filesum(xcc_filesums &fs, const xcc_filesum &s)
@@ -195,18 +180,33 @@ void xcc_set_error(xcc_parser *p, const token &t, U16 code, const chars &file, c
 	}
 }
 
-bool xcc_push_scope(xcc_parser *p)
+bool xcc_push_scope(xcc_parser *p, bool reset_lsp)
 {
-	return xcc_push_scope(p->scopes);
+	++p->scopes.scope;
+	if (reset_lsp) {
+		xcc_symbol *sym = xcc_add_symbol(new_alias("", 0, token::ALIAS), xcc_symbol::STORAGE_AUTO, p, 0);
+		sym->size = 0;
+		return sym != NULL;
+	}
+	return true;
 }
 
 bool xcc_pop_scope(xcc_parser *p)
 {
-	if (!xcc_pop_scope(p->scopes, &p->in.last)) {
-		xcc_set_error(p, p->in.last, xcc_error::UNDEF, p->file, __FILE__, __LINE__);
-		return false;
+	bool retval = true;
+	if (p->scopes.scope >= 1) {
+		while (p->scopes.count > 0 && p->scopes.symbols[p->scopes.count - 1].scope_index == p->scopes.scope) {
+			--p->scopes.count;
+			if (p->scopes.symbols[p->scopes.count].link > 0) {
+				xcc_set_error(p, p->scopes.symbols[p->scopes.count].tok, xcc_error::UNDEF, p->file, __FILE__, __LINE__);
+				retval = false;
+			}
+		}
+	} else {
+		p->scopes.count = 0;
 	}
-	return true;
+	--p->scopes.scope;
+	return retval;
 }
 
 bool xcc_write_word(xcc_parser *p, XWORD data)
@@ -235,47 +235,55 @@ bool xcc_write_rel(xcc_parser *p, const xcc_symbol *sym, U16 offset)
 		);
 }
 
-xcc_symbol *xcc_find_symbol(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_find_symbol(const chars &name, xcc_parser *p, bool reverse_search)
 {
 	const unsigned name_char_count = xcc_chcount(name.str);
-	for (signed i = p->scopes.count - 1; i >= 0; --i) {
-		if (xcc_strcmp(name.str, name_char_count, p->scopes.symbols[i].tok.text.str, xcc_chcount(p->scopes.symbols[i].tok.text.str))) {
-			return p->scopes.symbols + i;
+	if (!reverse_search) {
+		for (signed i = p->scopes.count - 1; i >= 0; --i) {
+			if (xcc_strcmp(name.str, name_char_count, p->scopes.symbols[i].tok.text.str, xcc_chcount(p->scopes.symbols[i].tok.text.str))) {
+				return p->scopes.symbols + i;
+			}
+		}
+	} else {
+		for (signed i = 0; i < p->scopes.count; ++i) {
+			if (xcc_strcmp(name.str, name_char_count, p->scopes.symbols[i].tok.text.str, xcc_chcount(p->scopes.symbols[i].tok.text.str))) {
+				return p->scopes.symbols + i;
+			}
 		}
 	}
 	return NULL;
 }
 
-xcc_symbol *xcc_find_var(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_find_var(const chars &name, xcc_parser *p, bool reverse_search)
 {
-	xcc_symbol *sym = xcc_find_symbol(name, p);
+	xcc_symbol *sym = xcc_find_symbol(name, p, reverse_search);
 	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_AUTO && sym->storage != xcc_symbol::STORAGE_STATIC && sym->storage != xcc_symbol::STORAGE_PARAM) {
 		return NULL;
 	}
 	return sym;
 }
 
-xcc_symbol *xcc_find_lit(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_find_lit(const chars &name, xcc_parser *p, bool reverse_search)
 {
-	xcc_symbol *sym = xcc_find_symbol(name, p);
+	xcc_symbol *sym = xcc_find_symbol(name, p, reverse_search);
 	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_LIT) {
 		return NULL;
 	}
 	return sym;
 }
 
-xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p, bool reverse_search)
 {
-	xcc_symbol *sym = xcc_find_symbol(name, p);
+	xcc_symbol *sym = xcc_find_symbol(name, p, reverse_search);
 	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_FN) {
 		return NULL;
 	}
 	return sym;
 }
 
-xcc_symbol *xcc_find_lbl(const chars &name, xcc_parser *p)
+xcc_symbol *xcc_find_lbl(const chars &name, xcc_parser *p, bool reverse_search)
 {
-	xcc_symbol *sym = xcc_find_symbol(name, p);
+	xcc_symbol *sym = xcc_find_symbol(name, p, reverse_search);
 	if (sym != NULL && sym->storage != xcc_symbol::STORAGE_LBL && sym->scope_index != p->scopes.scope) {
 		return NULL;
 	}
@@ -317,6 +325,7 @@ xcc_symbol *xcc_add_symbol(const token &tok, unsigned storage, xcc_parser *p, U1
 		break;
 	case xcc_symbol::STORAGE_AUTO:
 	case xcc_symbol::STORAGE_FN:
+	case xcc_symbol::STORAGE_LBL:
 		sym.size = 1;
 		break;
 	}
@@ -327,14 +336,14 @@ xcc_symbol *xcc_add_symbol(const token &tok, unsigned storage, xcc_parser *p, U1
 bool xcc_add_memory(xcc_parser *p, U16 size)
 {
 	token empty = new_token("", 0, token::NONE, token::NONE);
-	xcc_symbol *sym = xcc_add_symbol(empty, xcc_symbol::STORAGE_AUTO, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	xcc_symbol *sym = xcc_add_symbol(empty, xcc_symbol::STORAGE_AUTO, p, next_mem_addr(p->scopes));
 	sym->size = size;
 	return sym != NULL;
 }
 
 xcc_symbol *xcc_add_var(const token &tok, xcc_parser *p)
 {
-	return xcc_add_symbol(tok, xcc_symbol::STORAGE_AUTO, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	return xcc_add_symbol(tok, xcc_symbol::STORAGE_AUTO, p, next_mem_addr(p->scopes));
 }
 
 xcc_symbol *xcc_add_svar(const token &tok, xcc_parser *p)
@@ -354,7 +363,7 @@ xcc_symbol *xcc_add_lit(const token &tok, U16 value, xcc_parser *p)
 
 xcc_symbol *xcc_add_fn(const token &tok, xcc_parser *p)
 {
-	xcc_symbol *sym = xcc_add_symbol(tok, xcc_symbol::STORAGE_FN, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	xcc_symbol *sym = xcc_add_symbol(tok, xcc_symbol::STORAGE_FN, p, next_mem_addr(p->scopes));
 	if (sym != NULL) {
 		sym->link = p->out.size;
 	}
@@ -363,7 +372,7 @@ xcc_symbol *xcc_add_fn(const token &tok, xcc_parser *p)
 
 xcc_symbol *xcc_add_lbl(const token &tok, xcc_parser *p)
 {
-	xcc_symbol *sym = xcc_add_symbol(tok, xcc_symbol::STORAGE_LBL, p, xcc_top_scope_stack_size(p->scopes) + 1);
+	xcc_symbol *sym = xcc_add_symbol(tok, xcc_symbol::STORAGE_LBL, p, next_mem_addr(p->scopes));
 	if (sym != NULL) {
 		sym->link = p->out.size;
 	}

@@ -17,11 +17,11 @@ struct XIS
 		// #6 Signed
 		// #7 Register access
 		// #8 I/O
-		NOP    = 0,  // nothing
+		NOP    = 0,                    // nothing
 		PUT    = 0b10000000 + ( 1<<8), // put a constant on the stack (use RLA/RLB/RLC + AT if you want to transform a constant address to a value)
 		PUTS   = 0b10000010 + ( 2<<8), // put the absolute address of the top stack element on the stack
 		PUTI   = 0b10000010 + ( 3<<8), // put the absolute address of the current instruction on the stack
-		CLOCK  = 0b10000000 + ( 4<<8), // put the processor clock value on top of the stack.
+		CLOCK  = 0b10000000 + ( 4<<8), // put the processor clock value on top of the stack. Expand stack by 1.
 		BIN    = 0b00000000 + ( 5<<8), // skips reading the next instruction
 		AT     = 0b00100000 + ( 6<<8), // dereference top value on the stack as an absolute address (use RLA/RLB/RLC to transform relative address to absolute)
 		JMP    = 0b01000000 + ( 7<<8), // jump to top value (absolute address) on stack (use RLA/RLB/RLC to transform relative address to absolute), collapse stack by 1
@@ -94,7 +94,16 @@ struct XIS
 		RLB    = 0b00100000 + (70<<8), // transform constant on stack to address relative to B
 		RLC    = 0b00100000 + (71<<8), // transform constant on stack to address relative to C
 
-		COUNT = 72 // The number of instructions in the instruction set.
+		TNS    = 0b10000000 + (72<<8), // Get nanoseconds (0-999). Expand stack by 1.
+		TUS    = 0b10000000 + (73<<8), // Get microseconds (0-999). Expand stack by 1.
+		TMS    = 0b10000000 + (74<<8), // Get milliseconds (0-999). Expand stack by 1.
+		TS     = 0b10000000 + (75<<8), // Get seconds (0-59). Expand stack by 1.
+		TM     = 0b10000000 + (76<<8), // Get minutes (0-59). Expand stack by 1.
+		TH     = 0b10000000 + (77<<8), // Get hours (0-23). Expand stack by 1.
+		TD     = 0b10000000 + (78<<8), // Get days (0-6). Expand stack by 1.
+		TW     = 0b10000000 + (79<<8), // Get absolute number of weeks (0-30500 before wrap, approx. 600 years). Expans stack by 1.
+
+		COUNT = 80                       // The number of instructions in the instruction set.
 	};
 };
 

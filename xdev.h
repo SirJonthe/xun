@@ -9,6 +9,7 @@
 class Device
 {
 public:
+	/// @brief Contains a fixed-length part of a message sent over device ports.
 	struct Packet
 	{
 		enum {
@@ -209,9 +210,13 @@ public:
 	/// @return The hardware name of the device.
 	std::string GetName( void ) const;
 
-	/// @brief Returns the local time of the device.
-	/// @return The local time of the device.
+	/// @brief Returns the local time of the device in milliseconds.
+	/// @return The local time of the device in milliseconds.
 	U16 GetClock( void ) const;
+
+	/// @brief Returns the local time of the device in nanoseconds.
+	/// @return The local time of the device in nanoseconds.
+	uint64_t GetHighPrecisionClock( void ) const;
 
 	/// @brief Checks if a given device is connected to this device.
 	/// @param device The device to check connectivity to.

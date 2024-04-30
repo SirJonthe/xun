@@ -5,7 +5,7 @@
 #include "../../lib/parsec/lex.h"
 #include "../../lib/sum/sum.h"
 
-static constexpr unsigned XCC_DEFAULT_SYM_CAPACITY = 128; // The default symbol capacity to use when compiling.
+static constexpr unsigned XCC_DEFAULT_SYM_CAPACITY  =  128; // The default symbol capacity to use when compiling.
 static constexpr unsigned XCC_DEFAULT_FILE_CAPACITY = 1024; // The default maximum number of files that can be compiled in a single compiler call.
 
 /// @brief Contains the text of a single file.
@@ -159,17 +159,6 @@ U16 xcc_top_scope_stack_size(const xcc_symbol_stack &s);
 /// @return The stack size (in words) of the scopes from top to specified index.
 U16 xcc_loop_stack_size(const xcc_symbol_stack &s, U16 scope_index);
 
-/// @brief Adds a new topmost scope to the symbol stack.
-/// @param ss The symbol stack.
-/// @return Always true.
-bool xcc_push_scope(xcc_symbol_stack &ss);
-
-/// @brief Removes the topmost scope, and all its symbols, from the symbol stack.
-/// @param ss The symbol stack.
-/// @param undef If there are unlinked symbols on the scope being popped, returns the first instance. Returns nothing if null.
-/// @return False if the symbol stack that is being popped contains unlinked symbols. True otherwise.
-bool xcc_pop_scope(xcc_symbol_stack &ss, token *undef = NULL);
-
 /// @brief A structure to hold an array of checksums from files. Its main intended use is to keep track of all compiled files, and prevent compiling an already compiled file.
 struct xcc_filesums
 {
@@ -218,9 +207,10 @@ void xcc_set_error(xcc_parser *p, const token &t, U16 code, const chars &file, c
 
 /// @brief Adds a new topmost scope to the symbol stack.
 /// @param p The parser.
+/// @param reset_lsp True (default) if local stack pointer should be reset to 0. This is used when transitioning from code space to global space, and global space to function space (since we have A, B, C relative offset registers), but not when adding scopes to the stack within functions.
 /// @return False if the symbol stack is full. True otherwise.
 /// @note 
-bool xcc_push_scope(xcc_parser *p);
+bool xcc_push_scope(xcc_parser *p, bool reset_lsp = true);
 
 /// @brief Removes the topmost scope, and all its symbols, from the symbol stack.
 /// @param p The parser.
@@ -243,33 +233,38 @@ bool xcc_write_rel(xcc_parser *p, const xcc_symbol *sym, U16 offset = 0);
 /// @brief Does a search for a given symbol.
 /// @param name The name of the symbol.
 /// @param p The parser containing the symbol stack to search.
+/// @param reverse_search If true, starts symbol search from stack 0 to n, rather than n to 0 (which is default).
 /// @return The found symbol. Null if no symbol was found.
-xcc_symbol *xcc_find_symbol(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_find_symbol(const chars &name, xcc_parser *p, bool reverse_search = false);
 
 /// @brief Does a search for a given variable symbol.
 /// @param name The name of the symbol.
 /// @param p The parser containing the symbol stack to search.
+/// @param reverse_search If true, starts symbol search from stack 0 to n, rather than n to 0 (which is default).
 /// @return The found symbol. Null if no symbol was found.
-xcc_symbol *xcc_find_var(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_find_var(const chars &name, xcc_parser *p, bool reverse_search = false);
 
 /// @brief Does a search for a given literal symbol.
 /// @param name The name of the symbol.
 /// @param p The parser containing the symbol stack to search.
+/// @param reverse_search If true, starts symbol search from stack 0 to n, rather than n to 0 (which is default).
 /// @return The found symbol. Null if no symbol was found.
-xcc_symbol *xcc_find_lit(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_find_lit(const chars &name, xcc_parser *p, bool reverse_search = false);
 
 /// @brief Does a search for a given function symbol.
 /// @param name The name of the symbol.
 /// @param p The parser containing the symbol stack to search.
+/// @param reverse_search If true, starts symbol search from stack 0 to n, rather than n to 0 (which is default).
 /// @return The found symbol. Null if no symbol was found.
-xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_find_fn(const chars &name, xcc_parser *p, bool reverse_seach = false);
 
 /// @brief Does a search for a given label symbol.
 /// @param name The name of the symbol.
 /// @param p The parser containing the symbol stack to search.
 /// @return The found symbol. Null if no symbol was found.
+/// @param reverse_search If true, starts symbol search from stack 0 to n, rather than n to 0 (which is default).
 /// @note Due to the dangers of jumping, only the top scope is searched.
-xcc_symbol *xcc_find_lbl(const chars &name, xcc_parser *p);
+xcc_symbol *xcc_find_lbl(const chars &name, xcc_parser *p, bool reverse_search = false);
 
 /// @brief Adds a symbol to the topmost symbol scope.
 /// @param tok The token containing the name of the symbol to be added.
