@@ -212,7 +212,7 @@ XWORD Computer::PeekTop(U16 addr) const
 {
 	return RAM[U16(addr + SP.u)];
 }
-#include <iostream>
+
 void Computer::Cycle( void )
 {
 	I.u = READI;
@@ -410,7 +410,6 @@ void Computer::Cycle( void )
 	case XIS::CLOCK:
 		PUSH_STACK(1);
 		TOP.u = GetClock();
-		std::cout << TOP.u << std::endl;
 		break;
 	case XIS::TNS:
 		PUSH_STACK(1);

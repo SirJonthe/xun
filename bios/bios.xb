@@ -1,4 +1,4 @@
-//#include <sys>
+#include <sys>
 
 const BIOS_MAJ_VER = 0;
 const BIOS_MIN_VER = 1;
@@ -111,14 +111,14 @@ const MON_MSG_TXTMODE_LOADSCANLINE = 0xdef0; // Transfers a single line of text 
 const MON_MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the monitor internal memory for use in text mode.
 const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
 
-const NUM_PORTS = 16;     // The number of ports on this machine.
+const NUM_PORTS = 16;    // The number of ports on this machine.
 auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
 
 d_hwscan()
 {
 	auto i = 0;
 	while (i < NUM_PORTS) {
-//		__hwids[i] = hwid(i);
+		__hwids[i] = hwid(i);
 		++i;
 	}
 }
@@ -128,7 +128,7 @@ const PORT_UNDEF = 0xffff; // The port index of an unfound device.
 d_find_hw(id)
 {
 	auto i = 0;
-	while (i < NUM_PORTS && __hwids[i] != HWID_MON) {
+	while (i < NUM_PORTS && __hwids[i] != id) {
 		++i;
 	}
 	if (i == NUM_PORTS) {
@@ -142,9 +142,10 @@ d_require_hw(id)
 	auto port = d_find_hw(id);
 	if (port == PORT_UNDEF) {
 		// [ ] Print message if possible
-		while (1) {
-			// [ ] call bell with type=7
-		}
+//		while (1) {
+//			// [ ] call bell with type=7
+//			hwpush(__port_bell);
+//		}
 	}
 	return port;
 }
@@ -237,30 +238,6 @@ s_load_bootdisk()
 {
 	// [ ] Load program on the disk
 	// [ ] If no disk present print error message, spinloop
-}
-
-sleep(ms)
-{
-	auto now;
-	asm {
-		clock.
-		mov now.
-	}
-	auto to = now + ms;
-	if (to < now) {
-		while (now > 0) {
-			asm {
-				clock.
-				mov now.
-			}
-		}
-	}
-	while (now < to) {
-		asm {
-			clock.
-			mov now.
-		}
-	}
 }
 
 main(a,b)

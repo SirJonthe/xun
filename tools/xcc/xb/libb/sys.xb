@@ -35,7 +35,7 @@ hwpush(port_index, data_ptr, len, max_ms)
 	// The packet data.
 	auto id    = cpuid();
 	auto clck  = clock();
-	auto type  = PACKET_TYPE_DATA; 
+	auto type  = PACKET_TYPE_DATA;
 	auto seq   = 0;
 	auto size;
 	auto irq   = 0; // We do not use this field.
@@ -117,7 +117,7 @@ hwid(port_index)
 		auto poll_until = clock() + 1000;
 		while (hwpeek(port_index, &id, data) == 0) {
 			auto now = clock();
-			if (now > poll_until) { // BUG: Always evaluates to 0
+			if (now > poll_until) {
 				return 0;
 			}
 		}
