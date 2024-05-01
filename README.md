@@ -11,16 +11,15 @@ github.com/SirJonthe
 
 ## TODO
 
-[ ] xun:  Internal devices need to cycle so that they can react and clear message queue
 [ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
 [ ] xb:   Better error messages across separate files.
 [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 [ ] xb:   Arrays without explicit size
 [ ] xb:   static (variables stored in binary, RLA used to address)
-[ ] xcc:  Deprecate HALT, and use LDA
-[ ] xasm: Deprecate HALT
-[ ] xb:   Variadic param fn(...)
+[ ] xcc:  Deprecate HALT, and use LDA for program end.
+[ ] xasm: Deprecate HALT instruction.
+[ ] xb:   Variadic param fn(x, ...) (syntax for access: ...[index])
 [ ] xb:   signed/unsigned
 [ ] xb:   ++*ptr
 [ ] xb:   argc, argv

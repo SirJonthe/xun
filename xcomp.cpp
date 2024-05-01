@@ -23,6 +23,11 @@ Computer::IOPort *Computer::GetPort(U16 index)
 	return index < NUM_PORTS ? &m_ports[index] : NULL;
 }
 
+const Computer::IOPort *Computer::GetPort(U16 index) const
+{
+	return index < NUM_PORTS ? &m_ports[index] : NULL;
+}
+
 void Computer::SetError(U16 code)
 {
 	ERR.u |= U16(1 << code);
@@ -564,18 +569,27 @@ void Computer::Cycle( void )
 
 bool Computer::IsAvailablePort(U8 port) const
 {
-	return m_ports[port % NUM_PORTS].GetConnectedDevice() == nullptr;
+	return port < NUM_PORTS ? (m_ports[port % NUM_PORTS].GetConnectedDevice() == nullptr) : false;
 }
 
 void Computer::Connect(Device &device, U8 port)
 {
-	Disconnect(port);
-	Device::Connect(m_ports[port % NUM_PORTS], device);
+	if (port < NUM_PORTS) {
+		Disconnect(port);
+		Device::Connect(m_ports[port % NUM_PORTS], device);
+	}
 }
 
 void Computer::Disconnect(U8 port)
 {
-	m_ports[port % NUM_PORTS].Disconnect();
+	if (port < NUM_PORTS) {
+		m_ports[port % NUM_PORTS].Disconnect();
+	}
+}
+
+const Device *Computer::GetDeviceAtPort(U8 port) const
+{
+	return port < NUM_PORTS && GetPort(port) != nullptr ? GetPort(port)->GetConnectedDevice() : nullptr;
 }
 
 U16 Computer::GetPortIndex( void ) const

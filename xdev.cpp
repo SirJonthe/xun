@@ -64,9 +64,8 @@ bool Device::Pending( void ) const
 
 void Device::Output(const Device::Packet &msg)
 {
-	Device *dev = m_connection;
-	if (dev != nullptr) {
-		dev->Input(msg);
+	if (m_connection != nullptr) {
+		m_connection->Input(msg);
 	}
 }
 

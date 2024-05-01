@@ -41,7 +41,108 @@ void print_padded_hex(U16 num)
 	}
 }
 
-chars decode_instruction(U16 i)
+xdebugger::xdebugger(const xcc_binary &program) : m_computer(true)
+{
+	m_computer.PowerOn();
+	m_computer.BootDisk(program.buffer, program.size);
+}
+
+bool xdebugger::step( void )
+{
+	m_computer.Cycle();
+	return m_computer.IsPoweredOn();
+}
+
+void xdebugger::ui(unsigned rows) const
+{
+	const int i_page_width  = 4;
+	const int i_page_height = rows;
+	const int i_page_size   = i_page_width * i_page_height;
+	
+	const int start_i = (m_computer.InstructionPointer() / i_page_size) * i_page_size;
+	
+	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC();
+	if (stack_size < 0) { stack_size = 0; }
+
+	std::cout << "╔════════════════════════════════════════════════════════════════════════╗" << std::endl;
+	std::cout << "║                                        A=";
+	print_padded_hex(m_computer.StackOffsetA());
+	std::cout << "         NS=";
+	print_padded_hex(m_computer.GetHighPrecisionClock() % 1000ULL);
+	std::cout << "          ║" << std::endl;
+	std::cout << "║                                        B=";
+	print_padded_hex(m_computer.StackOffsetB());
+	std::cout << "         US=";
+	print_padded_hex((m_computer.GetHighPrecisionClock() / 1000ULL) % 1000ULL);
+	std::cout << "          ║" << std::endl;
+	std::cout << "║                                        C=";
+	print_padded_hex(m_computer.StackOffsetC());
+	std::cout << "         MS=";
+	print_padded_hex((m_computer.GetHighPrecisionClock() / 1000000ULL) % 1000ULL);
+	std::cout << "          ║" << std::endl;
+	std::cout << "║ LIST   PROG                    INST    S=";
+	print_padded_hex(m_computer.StackPointer());
+	std::cout << " (";
+	print_padded_hex(stack_size);
+	std::cout << ")";
+	std::cout << "  CLK=";
+	print_padded_hex(m_computer.GetClock());
+	std::cout << "  P=";
+	print_padded_hex(m_computer.GetPortIndex());
+	std::cout << " ║" << std::endl;
+	for (int y = 0; y < i_page_height; ++y) {
+		const U16 o = start_i + y * i_page_width;
+		
+		std::cout << "║ ";
+		print_padded_hex(o);
+		std::cout << ":";
+		for (int x = 0; x < i_page_width; ++x) {
+			const XWORD i = m_computer.Peek(o + x);
+			if (o + x == m_computer.InstructionPointer()) {
+				std::cout << " >";
+			} else {
+				std::cout << "  ";
+			}
+			print_padded_hex(i.u);
+		}
+		
+		if (m_computer.InstructionPointer() >= o && m_computer.InstructionPointer() < o + i_page_width) {
+			std::cout << "  " << decode(XIS::Enum(m_computer.Peek(m_computer.InstructionPointer()).u)).str;
+		} else {
+			std::cout << "        ";
+		}
+
+		const int display_offset = stack_size < i_page_height ? i_page_height - stack_size : 0;
+		if (y - display_offset >= 0) {
+			if (y - display_offset == 0) {
+				std::cout << " >";
+			} else {
+				std::cout << "  ";
+			}
+			print_padded_hex(m_computer.PeekTop(-(y - display_offset)).u);
+		} else {
+			std::cout << "      ";
+		}
+		if (y < Computer::NUM_PORTS) {
+			if (y == m_computer.GetPortIndex()) {
+				std::cout << "                    >";
+			} else {
+				std::cout << "                     ";
+			}
+			if (m_computer.GetDeviceAtPort(y) != nullptr) {
+				print_padded_hex(m_computer.GetDeviceAtPort(y)->GetHWID());
+			} else {
+				std::cout << "----";
+			}
+			std::cout << "   ║" << std::endl;
+		} else {
+			std::cout << "                            ║" << std::endl;
+		}
+	}
+	std::cout << "╚════════════════════════════════════════════════════════════════════════╝";
+}
+
+chars xdebugger::decode(U16 i)
 {
 	class RenderChars
 	{
@@ -145,91 +246,4 @@ chars decode_instruction(U16 i)
 		default:          render(c, "???   "); break;
 	}
 	return c;
-}
-
-xdebugger::xdebugger(const xcc_binary &program) : m_computer(true)
-{
-	m_computer.PowerOn();
-	m_computer.BootDisk(program.buffer, program.size);
-}
-
-bool xdebugger::step( void )
-{
-	m_computer.Cycle();
-	return m_computer.IsPoweredOn();
-}
-
-void xdebugger::ui(unsigned rows) const
-{
-	const int i_page_width  = 4;
-	const int i_page_height = rows;
-	const int i_page_size   = i_page_width * i_page_height;
-	
-	const int start_i = (m_computer.InstructionPointer() / i_page_size) * i_page_size;
-	
-	int stack_size = signed(m_computer.StackPointer()) - m_computer.StackOffsetC();
-	if (stack_size < 0) { stack_size = 0; }
-
-	std::cout << "╔════════════════════════════════════════════════════════════════════════╗" << std::endl;
-	std::cout << "║                                        A=";
-	print_padded_hex(m_computer.StackOffsetA());
-	std::cout << "         NS=";
-	print_padded_hex(m_computer.GetHighPrecisionClock() % 1000ULL);
-	std::cout << "          ║" << std::endl;
-	std::cout << "║                                        B=";
-	print_padded_hex(m_computer.StackOffsetB());
-	std::cout << "         US=";
-	print_padded_hex((m_computer.GetHighPrecisionClock() / 1000ULL) % 1000ULL);
-	std::cout << "          ║" << std::endl;
-	std::cout << "║                                        C=";
-	print_padded_hex(m_computer.StackOffsetC());
-	std::cout << "         MS=";
-	print_padded_hex((m_computer.GetHighPrecisionClock() / 1000000ULL) % 1000ULL);
-	std::cout << "          ║" << std::endl;
-	std::cout << "║ LIST   PROG                    INST    S=";
-	print_padded_hex(m_computer.StackPointer());
-	std::cout << " (";
-	print_padded_hex(stack_size);
-	std::cout << ")";
-	std::cout << "  CLK=";
-	print_padded_hex(m_computer.GetClock());
-	std::cout << "  P=";
-	print_padded_hex(m_computer.GetPortIndex());
-	std::cout << " ║" << std::endl;
-	for (int y = 0; y < i_page_height; ++y) {
-		const U16 o = start_i + y * i_page_width;
-		
-		std::cout << "║ ";
-		print_padded_hex(o);
-		std::cout << ":";
-		for (int x = 0; x < i_page_width; ++x) {
-			const XWORD i = m_computer.Peek(o + x);
-			if (o + x == m_computer.InstructionPointer()) {
-				std::cout << " >";
-			} else {
-				std::cout << "  ";
-			}
-			print_padded_hex(i.u);
-		}
-		
-		if (m_computer.InstructionPointer() >= o && m_computer.InstructionPointer() < o + i_page_width) {
-			std::cout << "  " << decode_instruction(XIS::Enum(m_computer.Peek(m_computer.InstructionPointer()).u)).str;
-		} else {
-			std::cout << "        ";
-		}
-
-		const int display_offset = stack_size < i_page_height ? i_page_height - stack_size : 0;
-		if (y - display_offset >= 0) {
-			if (y - display_offset == 0) {
-				std::cout << " >";
-			} else {
-				std::cout << "  ";
-			}
-			print_padded_hex(m_computer.PeekTop(-(y - display_offset)).u);
-		} else {
-			std::cout << "      ";
-		}
-		std::cout << "                            ║" << std::endl;
-	}
-	std::cout << "╚════════════════════════════════════════════════════════════════════════╝";
 }

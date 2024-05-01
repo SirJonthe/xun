@@ -15,6 +15,9 @@
 /// @sa xasm
 class Computer : public Device
 {
+public:
+	static constexpr uint32_t NUM_PORTS = 16; // The number of I/O ports on the computer.
+
 private:
 	/// @brief An I/O port with its own input buffer.
 	class IOPort : public Device
@@ -31,6 +34,12 @@ private:
 	/// @return The port at the given index.
 	/// @note Returns NULL if the index is out of the valid bounds.
 	IOPort *GetPort(U16 index);
+
+	/// @brief Returns the port at the given index.
+	/// @param index The port index.
+	/// @return The port at the given index.
+	/// @note Returns NULL if the index is out of the valid bounds.
+	const IOPort *GetPort(U16 index) const;
 
 	/// @brief Flips the error register flag as indicated by the error code.
 	/// @param code The error code.
@@ -103,7 +112,6 @@ private:
 	// DataStorageReader     m_external_reader;                      // 
 	// DataStorageReader     m_internal_reader;
 
-	static constexpr uint32_t NUM_PORTS = 16;      // The number of I/O ports on the computer.
 	IOPort                    m_ports[NUM_PORTS];  // The I/O ports of the computer.
 	bool                      m_debug;
 
@@ -175,6 +183,11 @@ public:
 	/// @brief Disconnects a device from the given port.
 	/// @param port The port number.
 	void Disconnect(U8 port);
+
+	/// @brief Gets the device connected to a specific port index.
+	/// @param port The index of the port to get the connected device.
+	/// @return A pointer to the connected device. Returns null if there is no connected device.
+	const Device *GetDeviceAtPort(U8 port) const;
 
 	U16 GetPortIndex( void ) const;
 	U16 InstructionPointer( void ) const;
