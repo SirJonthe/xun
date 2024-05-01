@@ -1,3 +1,4 @@
+#include "hw/xhwids.h"
 #include "xcomp.h"
 
 #define AT(x)         RAM[x.u]
@@ -13,9 +14,8 @@
 #define PUSH_STACK(n) SP.u += (n)
 
 #define XUN_NAME "XERXES(tm) Unified Nanocontroller [XUN(tm)]"
-#define XUN_HWID 0xffff
 
-Computer::IOPort::IOPort( void ) : Device(XUN_NAME, XUN_HWID)
+Computer::IOPort::IOPort( void ) : Device(XUN_NAME, XHWID_XUN)
 {}
 
 Computer::IOPort *Computer::GetPort(U16 index)
@@ -94,20 +94,20 @@ bool Computer::IsEmpty(U16 port_index)
 	return true;
 }
 
-Computer::Computer(bool debug) : Device(XUN_NAME, XUN_HWID), m_storage(1<<21), m_debug(debug)
+Computer::Computer(bool debug) : Device(XUN_NAME, XHWID_XUN), m_storage(1<<21), m_debug(debug)
 {
 	SetCyclesPerSecond(10000000U);
 
 	Device::Connect(m_ports[0], m_power_controller);
 	Device::Connect(m_ports[1], m_bell);
-	Device::Connect(m_ports[2], m_term);
+	Device::Connect(m_ports[2], m_tty);
 
 	m_power_controller.PowerOn();
 	m_bell.PowerOn();
-	m_term.PowerOn();
+	m_tty.PowerOn();
 
-	// Device::Connect(m_ports[2], m_internal_reader);
-	// Device::Connect(m_ports[3], m_external_reader);
+	// Device::Connect(m_ports[3], m_internal_reader);
+	// Device::Connect(m_ports[4], m_external_reader);
 	// Device::Connect(m_internal_reader, m_storage);
 }
 

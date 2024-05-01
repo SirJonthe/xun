@@ -20,6 +20,7 @@ github.com/SirJonthe
 [ ] xb:   static (variables stored in binary, RLA used to address)
 [ ] xcc:  Deprecate HALT, and use LDA
 [ ] xasm: Deprecate HALT
+[ ] xb:   Variadic param fn(...)
 [ ] xb:   signed/unsigned
 [ ] xb:   ++*ptr
 [ ] xb:   argc, argv

@@ -7,7 +7,7 @@
 #include "hw/xdisk.h"
 #include "hw/xpwr.h"
 #include "hw/xbell.h"
-#include "hw/xterm.h"
+#include "hw/xtty.h"
 
 /// @brief A programmable computer.
 /// @note Use XASM or XB to generate binaries of custom software.
@@ -98,7 +98,7 @@ private:
 	DataStorage               m_storage;           // Built-in, small persistent memory bank.
 	PowerController           m_power_controller;  // Can physically turn power off.
 	Bell                      m_bell;
-	Terminal                  m_term;
+	Teletypewriter            m_tty;
 	
 	// DataStorageReader     m_external_reader;                      // 
 	// DataStorageReader     m_internal_reader;

@@ -90,7 +90,7 @@ private:
 	uint64_t      m_clock_ns;           // The clock in pico seconds.
 	uint64_t      m_exec_ns;            // Internal state representing the remainder of execution time left over after a given time slice.
 	uint64_t      m_ns_per_cycle;       // The number of pico seconds per cycle.
-	uint32_t      m_cycles_per_second;  // The number of cycles that can run per second.
+	uint32_t      m_cycles_per_second;  // The number of cycles that can run per second. If 0, then the device will poll automatically when there is a message in the queue.
 	U16           m_message_id_counter; // A counter to give each message a unique ID. Note that messages split up over several packets carry the same message ID.
 	bool          m_power;              // The power state of the device.
 
@@ -189,6 +189,10 @@ public:
 	/// @brief Sets the number of cycles to perform per second.
 	/// @param hz The number of cycles per second.
 	void SetCyclesPerSecond(uint32_t hz);
+
+	/// @brief Returns the number of cycles to perform per second.
+	/// @return The number of cycles to perform per second.
+	uint32_t GetCyclesPerSecond( void ) const;
 
 	/// @brief Returns the local time relative to device power on in picoseconds.
 	/// @return The local time.

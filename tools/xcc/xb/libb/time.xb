@@ -2,7 +2,7 @@
 
 /// @brief Returns the raw clock state of the CPU clock.
 /// @return The raw clock state of the CPU clock.
-__cpu_clock()
+__cpu_clock( void )
 {
 	auto c;
 	asm {
@@ -14,7 +14,7 @@ __cpu_clock()
 
 auto __clock_appstart = __cpu_clock(); // The state of the clock when the application started.
 
-clock()
+clock( void )
 {
 	return __cpu_clock() - __clock_appstart;
 }

@@ -9,16 +9,26 @@ const PACKET_HEADER_WORD_SIZE = 7; // The number of words in the packet header.
 
 /// @brief Returns the CPU ID.
 /// @return The CPU ID.
-cpuid();
+cpuid( void );
 
 /// @brief Checks if the input buffer on the device connected at the given port is full.
 /// @return 1 if the device connected on the given port has a full input buffer. 0 otherwise.
 /// @note It is assumed that a device is connected on the given port.
 hwfull(port_index);
 
-/// @brief Sends data to a device at a given port.
+/// @brief Sends data to a device at a given port with a user-defined message type.
 /// @param port_index The port to send the data to.
-/// @param data Pointer to data to send to the port.
+/// @param msg_type The type of the message.
+/// @param data_ptr Pointer to data to send to the port.
+/// @param len The number of data points to send to the port in words. If this is greater than the maximum payload size then several indexed packages will be sent.
+/// @param max_ms The maximum number of milliseconds the application will wait for the device at the port to receive the full message before returning 0.
+/// @return 1 if the port received the full message, 0 if it did not.
+/// @note If there is no device connected to the port, the program will stall for the maximum number of time.
+hwpusht(port_index, msg_type, data_ptr, len, max_ms);
+
+/// @brief Sends data to a device at a given port, with the DATA message type.
+/// @param port_index The port to send the data to.
+/// @param data_ptr Pointer to data to send to the port.
 /// @param len The number of data points to send to the port in words. If this is greater than the maximum payload size then several indexed packages will be sent.
 /// @param max_ms The maximum number of milliseconds the application will wait for the device at the port to receive the full message before returning 0.
 /// @return 1 if the port received the full message, 0 if it did not.
@@ -69,4 +79,4 @@ run(bin);
 /// @brief Turns the computer off.
 /// @note The processor has no control to turn the computer off, so it relies on a specific type of circuit breaker being connected to the machine which it can communicate with.
 /// @warning Use this sparingly.
-shutdown();
+shutdown( void );

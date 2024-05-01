@@ -60,6 +60,86 @@ Constants may be defined as any complex expression using only any operand that c
 
 Arrays can not be constants, but variable arrays can still be defined using constants.
 
+## Functions
+
+### Definitions
+
+Optionally, for functions taking no arguments the programmer may specify that the function takes a single `void` parameter (this can aid reading, especially for function declarations).
+```
+fn1() // OK: Function takes no parameters.
+{
+	return 1;
+}
+
+fn2(void) // OK: Function takes no parameters.
+{
+	return 1;
+}
+```
+
+### Declarations
+
+Since functions can be called from other functions before they have been formally defined the compiler needs a way to know if the symbol used as a function makes up formally correct code.
+```
+fn2()
+{
+	return fn1(); // Error: The compiler does not know what 'fn1' is.
+}
+
+fn2()
+{
+	return 1;
+}
+```
+
+This error can be solved via function declarations. As long as a function is declared before first use, the code is formally correct.
+```
+fn1(); // Declare function.
+
+fn2()
+{
+	return fn1(); // OK: 'fn1' has already been declared
+}
+
+fn1() // Define function.
+{
+	return 1;
+}
+```
+
+Take note that a function declaration and definition must align in name and number of parameters. However, there is no need for parameter names to match; Only their number must match.
+
+It is a good idea to declare globally accessable functions inside header files rather than define them. That way the entire code is not exposed to other translation units, and also makes it possible to statically or dynamically link a binary against another binary containing the function definition.
+
+Optionally, for functions taking no arguments the programmer may specify that the function takes a single `void` parameter. This also serves the purpose of making it clear that the programmer is referring to a function declaration and not a function call.
+```
+fn1();     // OK: Function takes no parameters, but looks the same as a function call.
+fn2(void); // OK: Function takes no parameters, and can not be mistaken for a function call.
+```
+
+### Calls
+Arrays can not be passed as parameters. Instead, pointers to arrays are passed to be dereferenced inside the function. This makes for a functionally similar way of accessing arrays as would passing arrays directly with the exception that the original data is accessable from within the function taking the array pointer as an argument, meaning the original array may be modified from within a function.
+
+Any symbol may be used as a basis for a function call; Literals, constants, and variables may be used together with the function notation to call a function pointed to by the same.
+```
+fn() {
+	return 1;
+}
+
+auto fnptr = fn;
+const FNPTR = 0x1000;
+
+...
+
+fn();     // OK: The function is being called normally using the original function pointer.
+fnptr();  // OK: Calls the function since 'fnptr' points to the same data as 'fn'. Not type safe.
+FNPTR();  // OK: Uses the data at 0x1000 as the basis for a function call. Not type safe.
+0x1000(); // OK: Uses the data at 0x1000 as the basis for a function call. Not type safe.
+
+```
+
+Note that calling functions using anything but the original function pointer loses the ability for the compiler to verify the correct number of input parameters at compile-time, so great care must be taken so that the stack is not corrupted by supplying the wrong number of parameters to a function pointer. Also, programmers must take very good care calling constants and literals as functions; The address supplied is absolute, so the programmer must be able to know for certain that a valid function is pointed to by the specified contant/literal.
+
 ## Shadowing
 XB allows the programmer to declare aliases with the same name as aliases declared in previous scopes (not in the same scope). This results in alias shadowing, meaning that the following code is valid:
 ```

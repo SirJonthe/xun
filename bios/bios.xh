@@ -1,15 +1,15 @@
 
 /// @brief Performs a scan of all ports to populate a hardware ID table.
-d_hwscan();
+d_hwscan( void );
 
-/// @brief Scans hardware ID table for the given ID and returns the index in the table correlating to the port index of the connected device.
+/// @brief Scans hardware ID table for the given ID and returns the index in the table corresponding to the port index of the connected device.
 /// @param id The ID to scan for.
 /// @return The port index of the device with the given ID.
 /// @note Requires that d_hwscan has been run before call.
 /// @sa d_hwscan
 d_find_hw(id);
 
-/// @brief Scans hardware ID table for the given ID and returns the index in the table correlating to the port index of the connected device. If the device is not found, execution locks.
+/// @brief Scans hardware ID table for the given ID and returns the index in the table corresponding to the port index of the connected device. If the device is not found, execution locks.
 /// @param id The ID to scan for.
 /// @return The port index of the device with the given ID.
 /// @note Completely locks execution if the ID is not found, requiring a physical reboot.
@@ -17,7 +17,11 @@ d_require_hw(id);
 
 /// @brief Initializes the on-board bell.
 /// @return 1 if the bell was found, 0 otherwise.
-d_init_bell();
+d_init_bell( void );
+
+/// @brief Initialized the on-board TTY console.
+/// @return 1 if the TTY was found, 0 otherwise.
+d_init_tty( void );
 
 /// @brief Initializes a connected monitor.
 /// @param mode Sets the monitor to a specified mode.
@@ -25,18 +29,18 @@ d_init_bell();
 d_init_monitor(mode);
 
 /// @brief Prints some handy information about the computer.
-i_print_sys_info();
+i_print_sys_info( void );
 
 /// @brief Prints a list of all devices connected to the computer.
-i_print_connected_devices();
+i_print_connected_devices( void );
 
 /// @brief Initializes a connected keyboard.
 /// @note A keyboard is required to be connected, so execution will lock if there is no keyboard connected.
-d_init_keyboard();
+d_init_keyboard( void );
 
 /// @brief Initializes a connected disk reader.
 /// @note A disk reader is required to be connected, so execution will lock if there is no disk reader connected.
-d_init_diskreader();
+d_init_diskreader( void );
 
 /// @brief Checks if there is a connected disk in the disk reader and loads it into memory and tries to execute it as a program.
-s_load_bootdisk();
+s_load_bootdisk( void );

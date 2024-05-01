@@ -102,7 +102,10 @@ const HWID_RDD  = 0x0002; // Hardware ID of disk reader.
 const HWID_MON  = 0x0003; // Hardware ID of monitor.
 const HWID_DISK = 0x0004; // Hardware ID of disk reader.
 const HWID_BELL = 0x0005; // Hardware ID of on-board bell.
-const HWID_TERM = 0x0006; // Hardware ID of integrated terminal.
+const HWID_TTY  = 0x0006; // Hardware ID of integrated TTY.
+
+// Bell message types.
+const BELL_MSG_BEEP = 7; // The message type to ring the on-board bell.
 
 // Monitor message types.
 const MON_MSG_PIXMODE              = 0xface; // Sets the monitor mode to direct pixel manipulation.
@@ -114,7 +117,7 @@ const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfon
 const NUM_PORTS = 16;    // The number of ports on this machine.
 auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
 
-d_hwscan()
+d_hwscan( void )
 {
 	auto i = 0;
 	while (i < NUM_PORTS) {
@@ -152,12 +155,26 @@ d_require_hw(id)
 
 auto __port_bell = PORT_UNDEF; // The port index where the system bell is connected.
 
-d_init_bell()
+d_init_bell( void )
 {
 	__port_bell = d_find_hw(HWID_BELL);
 	if (__port_bell == PORT_UNDEF) {
 		return 0;
 	}
+	hwpusht(__port_bell, BELL_MSG_BEEP, 0, 0, CLOCKS_PER_SEC);
+	return 1;
+}
+
+auto __port_tty = PORT_UNDEF; // The port index where the TTY device is connected.
+
+d_init_tty( void )
+{
+	__port_tty = d_find_hw(HWID_TTY);
+	if (__port_tty == PORT_UNDEF) {
+		return 0;
+	}
+	auto msg[11] = "Hello, TTY!";
+	hwpush(__port_tty, msg, 11, CLOCKS_PER_SEC);
 	return 1;
 }
 
@@ -170,7 +187,7 @@ d_init_monitor(mode)
 	return 1;
 }
 
-i_print_sys_info()
+i_print_sys_info( void )
 {
 	auto xerxes_str[39] = "XERXES(tm) Unified Nanocontroller (XUN)";
 	auto bios_str[6] = "BIOS v";
@@ -197,7 +214,7 @@ i_print_sys_info()
 //		}                         // 2 (PUT POP)
 //
 //	}
-	// hz = cycles * 10000;
+	// hz = cycles * 10000; // WARNING: This overflows *very* easily.
 	// [ ] print Hz (don't have instructions for this so maybe we can just run a few instructions, time them and calculate it ourselves... lol)
 	
 	auto ram_remaining;
@@ -209,7 +226,7 @@ i_print_sys_info()
 	// [ ] print available RAM
 }
 
-i_print_connected_devices()
+i_print_connected_devices( void )
 {
 	auto i = 0;
 	while (i < NUM_PORTS) {
@@ -222,19 +239,19 @@ i_print_connected_devices()
 
 auto __port_kb = PORT_UNDEF; // The port index here the keyboard is connected.
 
-d_init_keyboard()
+d_init_keyboard( void )
 {
 	__port_kb = d_require_hw(HWID_KB);
 }
 
 auto __port_disk = PORT_UNDEF; // The port index where the disk reader is connected.
 
-d_init_diskreader()
+d_init_diskreader( void )
 {
 	__port_disk = d_require_hw(HWID_DISK);
 }
 
-s_load_bootdisk()
+s_load_bootdisk( void )
 {
 	// [ ] Load program on the disk
 	// [ ] If no disk present print error message, spinloop
@@ -244,11 +261,12 @@ main(a,b)
 {
 	d_hwscan();
 	d_init_bell();
+	d_init_tty();
 	d_init_monitor(MON_MSG_TXTMODE);
 //	i_print_sys_info();
 //	d_init_diskreader();
 //	i_print_connected_devices();
-//	// d_init_keyboard(); // Not really necessary because BIOS takes no user input
+//	d_init_keyboard(); // Not really necessary because BIOS takes no user input
 //	s_load_bootdisk();
 
 	//auto msg[13] = "Hello, World!";

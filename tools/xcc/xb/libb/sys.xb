@@ -2,7 +2,7 @@
 #include <time>
 #include <stdlib>
 
-cpuid()
+cpuid( void )
 {
 	auto id;
 	asm {
@@ -30,12 +30,12 @@ hwfull(port_index)
 	return f;
 }
 
-hwpush(port_index, data_ptr, len, max_ms)
+hwpusht(port_index, msg_type, data_ptr, len, max_ms)
 {
 	// The packet data.
 	auto id    = cpuid();
 	auto clck  = clock();
-	auto type  = PACKET_TYPE_DATA;
+	auto type  = msg_type;
 	auto seq   = 0;
 	auto size;
 	auto irq   = 0; // We do not use this field.
@@ -69,6 +69,11 @@ hwpush(port_index, data_ptr, len, max_ms)
 		++seq;
 	}
 	return 1;
+}
+
+hwpush(port_index, data_ptr, len, max_ms)
+{
+	return hwpusht(port_index, PACKET_TYPE_DATA, data_ptr, len, max_ms);
 }
 
 hwpend(port_index)
@@ -114,7 +119,7 @@ hwid(port_index)
 		}
 
 		// We give a device 1 second to respond, checking every iteration.
-		auto poll_until = clock() + 1000;
+		auto poll_until = clock() + (CLOCKS_PER_SEC * 1);
 		while (hwpeek(port_index, &id, data) == 0) {
 			auto now = clock();
 			if (now > poll_until) {
@@ -200,7 +205,7 @@ run(bin)
 
 auto __hw_power = hwscan(0x0004); // The port index of the power controller circuit.
 
-shutdown()
+shutdown( void )
 {
 	// TODO IMPL
 }

@@ -5,7 +5,7 @@ const EXIT_SUCCESS =  0; // Program return value representing success.
 
 /// @brief Generates a pseudo-random number.
 /// @return The pseudo-random number.
-rand();
+rand( void );
 
 /// @brief Initializes the state of the pseudo-random number generator.
 /// @param seed The initialization value.

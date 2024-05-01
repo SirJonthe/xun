@@ -1,4 +1,5 @@
 #include <iostream>
+#include "xhwids.h"
 #include "xout.h"
 
 void Monitor::Clear( void )
@@ -11,8 +12,10 @@ void Monitor::Clear( void )
 void Monitor::Refresh( void ) const
 {}
 
-Monitor::Monitor( void ) : Device("XERXES(tm) High Resolution Display V452", 0x0003), m_mode(MSG_PIXMODE), m_fontatlas(NULL), m_fontatlas_width(0), m_fontatlas_height(0)
-{}
+Monitor::Monitor( void ) : Device("XERXES(tm) High Resolution Display V452", XHWID_MON), m_mode(MSG_PIXMODE), m_fontatlas(NULL), m_fontatlas_width(0), m_fontatlas_height(0)
+{
+	SetCyclesPerSecond(60);
+}
 
 Monitor::~Monitor( void )
 {

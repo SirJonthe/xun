@@ -111,12 +111,13 @@ struct xbtoken
 		OPERATOR_COMMA,
 		OPERATOR_HASH,
 		OPERATOR_REVERSE_SEARCH,
+		OPERATOR_PARAM_VARIADIC,
 		LITERAL_INT
 		// LITERAL_FLOAT
 	};
 };
 
-const signed XB_TOKEN_COUNT = 67; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 68; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -156,6 +157,7 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_operator("++",                      2, xbtoken::OPERATOR_ARITHMETIC_INC),
 	new_operator("--",                      2, xbtoken::OPERATOR_ARITHMETIC_DEC),
 	new_operator("::",                      2, xbtoken::OPERATOR_REVERSE_SEARCH),
+	new_operator("...",                     3, xbtoken::OPERATOR_PARAM_VARIADIC),
 	new_comment ("//",                      2),
 	new_operator("!",                       1, xbtoken::OPERATOR_LOGICAL_NOT),
 	new_operator("#",                       1, xbtoken::OPERATOR_MACRO),
@@ -1893,16 +1895,33 @@ static bool try_fn_param(xcc_parser_state ps, xcc_symbol *param)
 	return false;
 }
 
+static bool try_param_vari(xcc_parser_state ps)
+{
+	if (
+		manage_state(
+			match(ps.p, xbtoken::OPERATOR_PARAM_VARIADIC) &&
+			peek(ps.p).user_type == ps.end
+		)
+	) {
+		ps.p->fn->variadic = true;
+		return true;
+	}
+	return false;
+}
+
 static bool try_fn_params(xcc_parser_state ps, xcc_symbol *param)
 {
 	if (
 		manage_state(
-			try_fn_param(new_state(ps.end), param) &&
+			try_fn_param(new_state(ps.end), param)                      &&
 			(
-				peek(ps.p).user_type == ps.end ||
+				peek(ps.p).user_type == ps.end                          ||
 				(
-					match(ps.p, xbtoken::OPERATOR_COMMA) &&
-					try_fn_params(new_state(ps.end), param->param)
+					match(ps.p, xbtoken::OPERATOR_COMMA)                &&
+					(
+						try_param_vari(new_state(ps.end))               ||
+						try_fn_params (new_state(ps.end), param->param)
+					)
 				)
 			)
 		)
@@ -1923,6 +1942,22 @@ static void set_param_addr(xcc_symbol *fn)
 	}
 }
 
+static bool try_fn_noparam(xcc_parser_state ps)
+{
+	if (
+		manage_state(
+			(peek(ps.p).user_type == ps.end)            ||
+			(
+				match(ps.p, xbtoken::KEYWORD_TYPE_VOID) &&
+				peek(ps.p).user_type == ps.end
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_opt_fn_params(xcc_parser_state ps, bool verify_params)
 {
 	if (ps.p->fn == NULL) {
@@ -1932,8 +1967,8 @@ static bool try_opt_fn_params(xcc_parser_state ps, bool verify_params)
 	const xcc_symbol fn = *ps.p->fn;
 	if (
 		manage_state(
-			peek(ps.p).user_type == ps.end ||
-			try_fn_params(new_state(ps.end), ps.p->fn)
+			try_fn_noparam(new_state(ps.end))           ||
+			try_fn_params (new_state(ps.end), ps.p->fn)
 		)
 	) {
 		ps.p->fn->param_count = 0;
@@ -2676,7 +2711,7 @@ static bool try_count_opt_fn_params(xcc_parser_state ps)
 	ps.p->fn->param_count = 0;
 	if (
 		manage_state(
-			peek(ps.p).user_type == ps.end ||
+			try_fn_noparam     (new_state(ps.end)) ||
 			try_count_fn_params(new_state(ps.end))
 		)
 	) {

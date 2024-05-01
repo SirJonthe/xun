@@ -1,4 +1,7 @@
+#include "xhwids.h"
 #include "xkb.h"
 
-Keyboard::Keyboard( void ) : Device("XERXES(tm) Keyboard Model N", 0x0001)
-{}
+Keyboard::Keyboard( void ) : Device("XERXES(tm) Keyboard Model N", XHWID_KB)
+{
+	SetCyclesPerSecond(100);
+}

@@ -1,9 +1,11 @@
+#include "xhwids.h"
 #include "xdisk.h"
 
-DataStorage::DataStorage(uint32_t size) : Device("XERXES(tm) Persistent Data Storage Solid-State Drive", 0x0002)
+DataStorage::DataStorage(uint32_t size) : Device("XERXES(tm) Persistent Data Storage Solid-State Drive", XHWID_DISK)
 {
 	m_word_count = size;
 	m_data = new XWORD[size];
+	SetCyclesPerSecond(0);
 }
 
 DataStorage::~DataStorage( void )

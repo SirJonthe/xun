@@ -1,4 +1,5 @@
 #include <iostream>
+#include "xhwids.h"
 #include "xbell.h"
 
 bool Bell::HandlePacket(const Device::Packet &msg)
@@ -11,12 +12,12 @@ bool Bell::HandlePacket(const Device::Packet &msg)
 	return false;
 }
 
-Bell::Bell( void ) : Device("XERXES(tm) On-board Bell", 0x0005)
+Bell::Bell( void ) : Device("XERXES(tm) On-board Bell", XHWID_BELL)
 {
-	SetCyclesPerSecond(1);
+	SetCyclesPerSecond(0);
 }
 
 void Bell::Sound( void ) const
 {
-	std::cout << GetName() << ": <BEEP>" << std::endl;
+	std::cout << "[" << GetClock() << "] " << GetName() << ": <BEEP>" << std::endl;
 }

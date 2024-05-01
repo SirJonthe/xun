@@ -226,6 +226,11 @@ void Device::SetCyclesPerSecond(uint32_t hz)
 	m_ns_per_cycle = hz > 0 ? (((NS_PER_S * 10ULL) / uint64_t(hz)) + 5ULL) / 10ULL : 0ULL;
 }
 
+uint32_t Device::GetCyclesPerSecond( void ) const
+{
+	return m_cycles_per_second;
+}
+
 uint64_t Device::GetLocalClock( void ) const
 {
 	return m_clock_ns;
@@ -285,6 +290,9 @@ void Device::Input(const Device::Packet &msg)
 {
 	if (IsPoweredOn()) {
 		m_in_queue.Pass(msg);
+		if (GetCyclesPerSecond() == 0) {
+			Poll();
+		}
 	}
 }
 
