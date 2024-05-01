@@ -48,7 +48,11 @@ hwpusht(port_index, msg_type, data_ptr, len, max_ms)
 	}
 
 	// Split the data up into several numbered packages.
-	while (len > 0) {
+	auto n = len / MAX_PAYLOAD_SIZE;
+	if (len % MAX_PAYLOAD_SIZE > 0 || n == 0) {
+		++n;
+	}
+	while (n-- > 0) {
 		while (hwfull(port_index)) {
 			if (clock() - clck >= max_ms) {
 				return 0;
