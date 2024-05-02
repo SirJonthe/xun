@@ -144,8 +144,8 @@ d_init_tty( void )
 	if (__port_tty == PORT_UNDEF) {
 		return FALSE;
 	}
-	auto msg[19] = "\aTTY initialized\n";
-	hwpush(__port_tty, msg, 19, CLOCKS_PER_SEC);
+	auto msg[17] = "\aTTY initialized\n";
+	hwpush(__port_tty, msg, 17, CLOCKS_PER_SEC);
 	return TRUE;
 }
 
@@ -213,8 +213,8 @@ d_require_hw(id)
 			auto msg1[27] = "Missing required hardware (";
 			d_tty(msg1, 27);
 			d_tty16(id);
-			auto msg2[3] = ")\n";
-			d_tty(msg2, 3);
+			auto msg2[2] = ")\n";
+			d_tty(msg2, 2);
 		}
 		while (TRUE) {
 		}
@@ -241,35 +241,35 @@ d_print(msg, len)
 
 i_print_sys_info( void )
 {
-	auto newl[2] = "\n";
+	auto newl[1] = "\n";
 
 	{
-		auto s_xerxes[41] = "XERXES(tm) Unified Nanocontroller (XUN)\n";
+		auto s_xerxes[40] = "XERXES(tm) Unified Nanocontroller (XUN)\n";
 		auto s_bios[6] = "BIOS v";
 		auto s_sep[1] = ".";
 
-		d_tty(s_xerxes, 41);
+		d_tty(s_xerxes, 40);
 		d_tty(s_bios, 6);
 		d_tty10(BIOS_MAJ_VER);
 		d_tty(s_sep, 1);
 		d_tty10(BIOS_MIN_VER);
 		d_tty(s_sep, 1);
 		d_tty10(BIOS_HOT_VER);
-		d_tty(newl, 2);
+		d_tty(newl, 1);
 	}
 
 	{
-		auto s_condev[8] = "Ports:\n";
+		auto s_condev[7] = "Ports:\n";
 		auto s_sep[1] = ":";
 		
-		d_tty(s_condev, 8);
+		d_tty(s_condev, 7);
 
 		auto i = 0;
 		while (i < NUM_PORTS) {
 			d_tty10(i);
 			d_tty(s_sep, 1);
 			d_tty16(__hwids[i]);
-			d_tty(newl, 2);
+			d_tty(newl, 1);
 			++i;
 		}
 	}
@@ -310,7 +310,7 @@ i_print_sys_info( void )
 		d_tty10(ram_remaining);
 		d_tty(s_sep, 1);
 		d_tty10(0xffff);
-		d_tty(newl, 2);
+		d_tty(newl, 1);
 	}
 }
 

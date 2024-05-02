@@ -615,6 +615,64 @@ static bool eval_operation(xcc_parser *p, unsigned user_type, type_t &l, type_t 
 	return false;
 }
 
+static bool try_escape_char(xcc_parser_state ps, token &t)
+{
+	if (
+		manage_state(
+			match1(ps.p, token::CHAR, &t)
+		)
+	) {
+		switch (t.hash) {
+		case '\\':               return true;
+		case 't': t.hash = '\t'; return true;
+		case 'r': t.hash = '\r'; return true;
+		case 'a': t.hash = '\a'; return true;
+		case 'n': t.hash = '\n'; return true;
+		case 'b': t.hash = '\b'; return true;
+		case 'f': t.hash = '\f'; return true;
+		case '0': t.hash = '\0'; return true;
+		}
+		if (t.hash == ps.end) {
+			switch (t.hash) {
+			case '\'': return true;
+			case '"':  return true;
+			}
+		}
+	}
+	return false;
+}
+
+static bool try_encoded_char(xcc_parser_state ps, token &t)
+{
+	if (
+		manage_state(
+			match1(ps.p, token::CHAR, &t) &&
+			(
+				(t.hash == '\\') ?
+					try_escape_char(new_state(ps.end), t) :
+					true
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_read_char_lit(xcc_parser_state ps, token &t)
+{
+	if (
+		manage_state(
+			match           (ps.p, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE)         &&
+			try_encoded_char(new_state(xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE), t) &&
+			match           (ps.p, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 template < typename type_t >
 static bool try_lit_factor(xcc_parser_state ps, type_t &l);
 
@@ -632,7 +690,7 @@ static bool try_read_lit(xcc_parser_state ps, type_t &result)
 			result = sym->data.u;
 			return true;
 		}
-	} else if (match(ps.p, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE) && match1(ps.p, token::CHAR, &t) && match(ps.p, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE)) {
+	} else if (try_read_char_lit(new_state(ps.end), t)) {
 		result = t.hash;
 		return true;
 	}
@@ -1655,7 +1713,7 @@ static bool try_str_lit(xcc_parser_state ps, U16 *count)
 {
 	token t;
 	while (peek(ps.p).user_type != ps.end) {
-		if (!match1(ps.p, token::CHAR, &t)) {
+		if (!try_encoded_char(new_state(ps.end), t)) {
 			return false;
 		}
 		if (!xcc_write_word(ps.p, XWORD{XIS::PUT}) || !xcc_write_word(ps.p, XWORD{U16(t.hash)})) {
