@@ -82,6 +82,18 @@ protected:
 		void Flush( void );
 	};
 
+	/// @brief Print info message to the terminal.
+	/// @param msg The message.
+	void Info(const char *msg) const;
+
+	/// @brief Print warning message to the terminal.
+	/// @param msg The message.
+	void Warn(const char *msg) const;
+
+	/// @brief Print error message to the terminal.
+	/// @param msg The message.
+	void Error(const char *msg) const;
+
 private:
 	Device       *m_connection;         // The connected device.
 	MessageQueue  m_in_queue;           // The input buffer where the connected device sends input messages.

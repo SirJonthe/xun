@@ -2,6 +2,11 @@
 /// @param text The text to print.
 print(text);
 
+/// @brief Prints the text to standard out including formatted values.
+/// @param format The text to print, given the format.
+/// @param values The lookup table of balues to print using the format text.
+printf(format, values);
+
 /// @brief Opens a file.
 /// @param file The name of the file to open.
 /// @param mode The mode of opening the file.
@@ -27,3 +32,9 @@ fgetc(fp);
 /// @param text The text to output to the file.
 /// @return The total number of characters written successfully. Otherwise a negative number.
 fprint(fp, text);
+
+/// @brief Prints text to a file including formatted values.
+/// @param fp The file pointer.
+/// @param format The text to output to the file, given the format.
+/// @param values The lookup table of values to print using the format text.
+fprintf(fp, format, values);

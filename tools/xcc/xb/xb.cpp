@@ -2800,10 +2800,13 @@ static bool emit_call_main(xcc_parser *op)
 	// TODO We need to think about how we pass parameters to programs, as well as return values from programs to the calling program. Use function calls as base.
 	// TODO According to B manual "main(); exit();" are implicitly called in that order. Since we have parameters and return values from programs we can do the below:
 	// p.in.l = init_lexer(chars::view{"exit(main(*0x01,*0x02);", 23})); // 0x00 is the return value address, 0x01 is 'argc', and 0x02 is 'argv' (array of pointers).
+	// TODO We should break out "exit" function into a small header so we do not need to include the entire 'libb' for simple programs.
 	p.in = init_lexer(chars::view{ "main(0,0);", 10 });
+	//p.in = init_lexer(chars::view{ "#include<_exit>exit(main(0,0));", 31 });
 	xcc_parser_state ps = xcc_new_state(&p, NULL, token::STOP_EOF, 0, 0, 0);
 	if (
 		manage_state(
+//			try_include  (new_state(ps.end)) &&
 			try_statement(new_state(ps.end))
 		)
 	) {

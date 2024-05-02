@@ -9,19 +9,27 @@ d_hwscan( void );
 /// @sa d_hwscan
 d_find_hw(id);
 
+/// @brief Initialized the on-board TTY console.
+/// @return 1 if the TTY was found, 0 otherwise.
+d_init_tty( void );
+
+/// @brief Prints text on the TTY.
+/// @param msg The message.
+/// @param len The length of the message (stops earlier if zero terminator encountered).
+/// @return 1 if the print was successful, 0 otherwise.
+d_tty(msg, len);
+
 /// @brief Scans hardware ID table for the given ID and returns the index in the table corresponding to the port index of the connected device. If the device is not found, execution locks.
 /// @param id The ID to scan for.
 /// @return The port index of the device with the given ID.
 /// @note Completely locks execution if the ID is not found, requiring a physical reboot.
 d_require_hw(id);
 
-/// @brief Initializes the on-board bell.
-/// @return 1 if the bell was found, 0 otherwise.
-d_init_bell( void );
-
-/// @brief Initialized the on-board TTY console.
-/// @return 1 if the TTY was found, 0 otherwise.
-d_init_tty( void );
+/// @brief Prints text on the monitor. If monitor not available, print text to TTY.
+/// @param msg The message.
+/// @param len The length of the message (stops earlier if zero terminator encountered).
+/// @return 1 if the print was successful on one of the devices, 0 otherwise.
+d_print(msg, len);
 
 /// @brief Initializes a connected monitor.
 /// @param mode Sets the monitor to a specified mode.
@@ -30,9 +38,6 @@ d_init_monitor(mode);
 
 /// @brief Prints some handy information about the computer.
 i_print_sys_info( void );
-
-/// @brief Prints a list of all devices connected to the computer.
-i_print_connected_devices( void );
 
 /// @brief Initializes a connected keyboard.
 /// @note A keyboard is required to be connected, so execution will lock if there is no keyboard connected.

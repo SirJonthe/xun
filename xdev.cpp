@@ -1,3 +1,4 @@
+#include <iostream>
 #include "xdev.h"
 
 Device::MessageQueue::MessageQueue( void ) : m_queue(), m_start(0), m_end(0)
@@ -45,6 +46,21 @@ void Device::MessageQueue::Flush( void )
 {
 	m_start = 0;
 	m_end = 0;
+}
+
+void Device::Info(const char *msg) const
+{
+	std::cout << GetClock() << " INFO  " << GetHWID() << ": " << msg << std::endl;
+}
+
+void Device::Warn(const char *msg) const
+{
+	std::cout << GetClock() << " WARN  " << GetHWID() << ": " << msg << std::endl;
+}
+
+void Device::Error(const char *msg) const
+{
+	std::cout << GetClock() << " ERROR " << GetHWID() << ": " << msg << std::endl;
 }
 
 void Device::Ack( void )
@@ -118,9 +134,8 @@ bool Device::Poll( void )
 	if (Pending()) {
 		Packet p = Peek();
 		Ack();
-		switch (p.header[Packet::HEADER_TYPE]) {
-		case Packet::TYPE_PING: Output(PongPacket()); return true;
-		case Packet::TYPE_PONG: return true;
+		if (p.header[Packet::HEADER_TYPE] == Packet::TYPE_PING) {
+			Output(PongPacket());
 		}
 		return HandlePacket(p);
 	}
@@ -133,6 +148,8 @@ bool Device::HandlePacket(const Packet &msg)
 		case Packet::TYPE_ERR:        return true;
 		case Packet::TYPE_CONNECT:    return true;
 		case Packet::TYPE_DISCONNECT: return true;
+		case Packet::TYPE_PING:       return true;
+		case Packet::TYPE_PONG:       return true;
 		case Packet::TYPE_DATA:       return true;
 		case Packet::TYPE_KEYVALS:    return true;
 	}
@@ -290,6 +307,7 @@ void Device::Input(const Device::Packet &msg)
 	if (IsPoweredOn()) {
 		m_in_queue.Pass(msg);
 		if (GetCyclesPerSecond() == 0) {
+			m_clock_ns = msg.header[Packet::HEADER_CLOCK] * 1000000ULL;
 			Poll();
 		}
 	}

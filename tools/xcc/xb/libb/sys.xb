@@ -24,6 +24,8 @@ hwfull(port_index)
 {
 	auto f;
 	asm {
+		put port_index.
+		port.
 		full.
 		mov f.
 	}

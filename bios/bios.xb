@@ -101,11 +101,7 @@ const HWID_KB   = 0x0001; // Hardware ID of keyboard.
 const HWID_RDD  = 0x0002; // Hardware ID of disk reader.
 const HWID_MON  = 0x0003; // Hardware ID of monitor.
 const HWID_DISK = 0x0004; // Hardware ID of disk reader.
-const HWID_BELL = 0x0005; // Hardware ID of on-board bell.
-const HWID_TTY  = 0x0006; // Hardware ID of integrated TTY.
-
-// Bell message types.
-const BELL_MSG_BEEP = 7; // The message type to ring the on-board bell.
+const HWID_TTY  = 0x0005; // Hardware ID of integrated TTY.
 
 // Monitor message types.
 const MON_MSG_PIXMODE              = 0xface; // Sets the monitor mode to direct pixel manipulation.
@@ -140,59 +136,143 @@ d_find_hw(id)
 	return i;
 }
 
-d_require_hw(id)
-{
-	auto port = d_find_hw(id);
-	if (port == PORT_UNDEF) {
-		// [ ] Print message if possible
-//		while (1) {
-//			// [ ] call bell with type=7
-//			hwpush(__port_bell);
-//		}
-	}
-	return port;
-}
-
-auto __port_bell = PORT_UNDEF; // The port index where the system bell is connected.
-
-d_init_bell( void )
-{
-	__port_bell = d_find_hw(HWID_BELL);
-	if (__port_bell == PORT_UNDEF) {
-		return 0;
-	}
-	hwpusht(__port_bell, BELL_MSG_BEEP, 0, 0, CLOCKS_PER_SEC);
-	return 1;
-}
-
 auto __port_tty = PORT_UNDEF; // The port index where the TTY device is connected.
 
 d_init_tty( void )
 {
 	__port_tty = d_find_hw(HWID_TTY);
 	if (__port_tty == PORT_UNDEF) {
-		return 0;
+		return FALSE;
 	}
-	auto msg[11] = "Hello, TTY!";
-	hwpush(__port_tty, msg, 11, CLOCKS_PER_SEC);
-	return 1;
+	auto msg[19] = "\aTTY initialized\n";
+	hwpush(__port_tty, msg, 19, CLOCKS_PER_SEC);
+	return TRUE;
+}
+
+d_tty(msg, len)
+{
+	if (__port_tty != PORT_UNDEF) {
+		return hwpush(__port_tty, msg, len, CLOCKS_PER_SEC);
+	}
+	return FALSE;
+}
+
+auto dig10[10] = "0123456789";
+
+d_tty10(num)
+{
+	if (__port_tty != PORT_UNDEF) {
+		auto msg[5];
+		auto i = 0;
+		while (i < 5) {
+			msg[4 - i] = dig10[num%10];
+			num /= 10;
+			++i;
+		}
+		i = 0;
+		while (i < 4) {
+			if (msg[i] == '0') {
+				msg[i] = ' ';
+			} else {
+				break;
+			}
+			++i;
+		}
+		return d_tty(msg, 5);
+	}
+	return FALSE;
+}
+
+auto dig16[16] = "0123456789abcdef";
+
+d_tty16(num)
+{
+	if (__port_tty != PORT_UNDEF) {
+		auto msg[6];
+		msg[0] = '0';
+		msg[1] = 'x';
+		auto i = 0;
+		while (i < 4) {
+			msg[5 - i] = dig10[num%16];
+			num /= 16;
+			++i;
+		}
+		return d_tty(msg, 6);
+	}
+	return FALSE;
 }
 
 auto __port_mon = PORT_UNDEF; // The port index where the monitor is connected.
+
+d_require_hw(id)
+{
+	auto port = d_find_hw(id);
+	if (port == PORT_UNDEF) {
+		// [ ] Print message if possible
+		if (__port_mon == PORT_UNDEF) {
+			auto msg1[27] = "Missing required hardware (";
+			d_tty(msg1, 27);
+			d_tty16(id);
+			auto msg2[3] = ")\n";
+			d_tty(msg2, 3);
+		}
+		while (TRUE) {
+		}
+	}
+	return port;
+}
 
 d_init_monitor(mode)
 {
 	__port_mon = d_require_hw(HWID_MON);
 	// [ ] set up monitor with specified mode
-	return 1;
+	return TRUE;
+}
+
+d_print(msg, len)
+{
+	if (__port_mon != PORT_UNDEF) {
+		// [ ] print on monitor
+	} else {
+		return d_tty(msg, len);
+	}
+	return FALSE;
 }
 
 i_print_sys_info( void )
 {
-	auto xerxes_str[39] = "XERXES(tm) Unified Nanocontroller (XUN)";
-	auto bios_str[6] = "BIOS v";
-	auto sep_str[1] = ".";
-	// [ ] print general info
+	auto newl[2] = "\n";
+
+	{
+		auto s_xerxes[41] = "XERXES(tm) Unified Nanocontroller (XUN)\n";
+		auto s_bios[6] = "BIOS v";
+		auto s_sep[1] = ".";
+
+		d_tty(s_xerxes, 41);
+		d_tty(s_bios, 6);
+		d_tty10(BIOS_MAJ_VER);
+		d_tty(s_sep, 1);
+		d_tty10(BIOS_MIN_VER);
+		d_tty(s_sep, 1);
+		d_tty10(BIOS_HOT_VER);
+		d_tty(newl, 2);
+	}
+
+	{
+		auto s_condev[8] = "Ports:\n";
+		auto s_sep[1] = ":";
+		
+		d_tty(s_condev, 8);
+
+		auto i = 0;
+		while (i < NUM_PORTS) {
+			d_tty10(i);
+			d_tty(s_sep, 1);
+			d_tty16(__hwids[i]);
+			d_tty(newl, 2);
+			++i;
+		}
+	}
 
 	auto cycles = 8;
 //	asm { // BUG: Something is wrong with this assembly (stack corruption?). Re-write in C?
@@ -216,24 +296,21 @@ i_print_sys_info( void )
 //	}
 	// hz = cycles * 10000; // WARNING: This overflows *very* easily.
 	// [ ] print Hz (don't have instructions for this so maybe we can just run a few instructions, time them and calculate it ourselves... lol)
-	
-	auto ram_remaining;
-	asm {
-		put 0xffff, $top.
-		sub.
-		mov ram_remaining.
-	}
-	// [ ] print available RAM
-}
 
-i_print_connected_devices( void )
-{
-	auto i = 0;
-	while (i < NUM_PORTS) {
-		// [ ] print(i);
-		// [ ] print(": ");
-		// [ ] print(__hwids[i]);
-		++i;
+	{
+		auto ram_remaining;
+		asm {
+			put 0xffff, $top.
+			sub.
+			mov ram_remaining.
+		}
+		auto s_ramavail[14] = "RAM available:";
+		auto s_sep[1] = "/";
+		d_tty(s_ramavail, 14);
+		d_tty10(ram_remaining);
+		d_tty(s_sep, 1);
+		d_tty10(0xffff);
+		d_tty(newl, 2);
 	}
 }
 
@@ -260,12 +337,11 @@ s_load_bootdisk( void )
 main(a,b)
 {
 	d_hwscan();
-	d_init_bell();
 	d_init_tty();
+	i_print_sys_info();
 	d_init_monitor(MON_MSG_TXTMODE);
 //	i_print_sys_info();
 //	d_init_diskreader();
-//	i_print_connected_devices();
 //	d_init_keyboard(); // Not really necessary because BIOS takes no user input
 //	s_load_bootdisk();
 
@@ -274,5 +350,5 @@ main(a,b)
 
 	sleep(2000);
 
-	return 0;
+	return EXIT_SUCCESS;
 }

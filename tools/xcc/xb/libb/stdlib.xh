@@ -1,7 +1,5 @@
-const NULL = 0; // Null value.
-
-const EXIT_FAILURE = -1; // Program return value representing failure.
-const EXIT_SUCCESS =  0; // Program return value representing success.
+#include <_exit>
+#include <stddef>
 
 /// @brief Generates a pseudo-random number.
 /// @return The pseudo-random number.
@@ -26,16 +24,6 @@ calloc(n);
 /// @sa malloc
 /// @sa calloc
 free(mem);
-
-/// @brief Sets a function to call before the program finally returns execution to the host program.
-/// @param  fn The function to call before the program finally returns execution to the host program.
-atexit(fn);
-
-/// @brief Exits the current program and returns execution to the host program.
-/// @param status The exit status to return to the host program.
-/// @return Nothing. However the host program will receive a return value from this program corresponding to 'status'.
-/// @note This function is implicitly called after execution of 'main' even if it is not explicitly called.
-exit(status);
 
 /// @brief Returns the absolute of the input value.
 /// @param a The input value.

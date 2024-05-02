@@ -6,7 +6,6 @@
 #include "xdev.h"
 #include "hw/xdisk.h"
 #include "hw/xpwr.h"
-#include "hw/xbell.h"
 #include "hw/xtty.h"
 
 /// @brief A programmable computer.
@@ -106,10 +105,9 @@ private:
 	XWORD                     RAM[MEM_SIZE_MAX];   // The internal working memory of the computer. Non-persistent.
 	DataStorage               m_storage;           // Built-in, small persistent memory bank.
 	PowerController           m_power_controller;  // Can physically turn power off.
-	Bell                      m_bell;
-	Teletypewriter            m_tty;
+	Teleprinter               m_tty;
 	
-	// DataStorageReader     m_external_reader;                      // 
+	// DataStorageReader     m_external_reader;
 	// DataStorageReader     m_internal_reader;
 
 	IOPort                    m_ports[NUM_PORTS];  // The I/O ports of the computer.

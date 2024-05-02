@@ -11,6 +11,7 @@ github.com/SirJonthe
 
 ## TODO
 
+[ ] xb:   BUG: "asd " evaluates to 3 (trailing space ignored, but initial and spaces between words work)
 [ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
 [ ] xb:   Better error messages across separate files.
 [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope

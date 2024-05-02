@@ -92,7 +92,7 @@ bool Computer::IsFull(U16 port_index)
 bool Computer::IsEmpty(U16 port_index)
 {
 	if (GetPort(port_index) != NULL) {
-		return !GetPort(port_index)->IsFull();
+		return GetPort(port_index)->IsEmpty();
 	} else {
 		SetError(ERR_IO);
 	}
@@ -104,11 +104,9 @@ Computer::Computer(bool debug) : Device(XUN_NAME, XHWID_XUN), m_storage(1<<21), 
 	SetCyclesPerSecond(10000000U);
 
 	Device::Connect(m_ports[0], m_power_controller);
-	Device::Connect(m_ports[1], m_bell);
-	Device::Connect(m_ports[2], m_tty);
+	Device::Connect(m_ports[1], m_tty);
 
 	m_power_controller.PowerOn();
-	m_bell.PowerOn();
 	m_tty.PowerOn();
 
 	// Device::Connect(m_ports[3], m_internal_reader);
@@ -369,7 +367,7 @@ void Computer::Cycle( void )
 		break;
 	case XIS::FULL:
 		PUSH_STACK(1);
-		TOP.u = IsFull(P.u) ? 0 : 1;
+		TOP.u = IsFull(P.u) ? 1 : 0;
 		break;
 	case XIS::ACK:
 		Ack(P.u);
