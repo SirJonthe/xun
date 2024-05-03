@@ -215,6 +215,8 @@ d_require_hw(id)
 			d_tty16(id);
 			auto msg2[2] = ")\n";
 			d_tty(msg2, 2);
+			auto msg3[28] = "Plug in hardware and reboot\n";
+			d_tty(msg3, 28);
 		}
 		while (TRUE) {
 		}
