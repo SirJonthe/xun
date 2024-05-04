@@ -20,7 +20,6 @@ github.com/SirJonthe
 [ ] xb:   static (variables stored in binary, RLA used to address)
 [ ] xcc:  Deprecate HALT, and use LDA for program end.
 [ ] xasm: Deprecate HALT instruction.
-[ ] xb:   Variadic param fn(x, ...) (syntax for access: ...[index])
 [ ] xb:   signed/unsigned
 [ ] xb:   ++*ptr
 [ ] xb:   argc, argv

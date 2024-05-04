@@ -111,13 +111,12 @@ struct xbtoken
 		OPERATOR_COMMA,
 		OPERATOR_HASH,
 		OPERATOR_REVERSE_SEARCH,
-		OPERATOR_PARAM_VARIADIC,
 		LITERAL_INT
 		// LITERAL_FLOAT
 	};
 };
 
-const signed XB_TOKEN_COUNT = 68; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 67; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -157,7 +156,6 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_operator("++",                      2, xbtoken::OPERATOR_ARITHMETIC_INC),
 	new_operator("--",                      2, xbtoken::OPERATOR_ARITHMETIC_DEC),
 	new_operator("::",                      2, xbtoken::OPERATOR_REVERSE_SEARCH),
-	new_operator("...",                     3, xbtoken::OPERATOR_PARAM_VARIADIC),
 	new_comment ("//",                      2),
 	new_operator("!",                       1, xbtoken::OPERATOR_LOGICAL_NOT),
 	new_operator("#",                       1, xbtoken::OPERATOR_MACRO),
@@ -1953,33 +1951,16 @@ static bool try_fn_param(xcc_parser_state ps, xcc_symbol *param)
 	return false;
 }
 
-static bool try_param_vari(xcc_parser_state ps)
-{
-	if (
-		manage_state(
-			match(ps.p, xbtoken::OPERATOR_PARAM_VARIADIC) &&
-			peek(ps.p).user_type == ps.end
-		)
-	) {
-		ps.p->fn->variadic = true;
-		return true;
-	}
-	return false;
-}
-
 static bool try_fn_params(xcc_parser_state ps, xcc_symbol *param)
 {
 	if (
 		manage_state(
-			try_fn_param(new_state(ps.end), param)                      &&
+			try_fn_param(new_state(ps.end), param)                  &&
 			(
-				peek(ps.p).user_type == ps.end                          ||
+				peek(ps.p).user_type == ps.end                      ||
 				(
-					match(ps.p, xbtoken::OPERATOR_COMMA)                &&
-					(
-						try_param_vari(new_state(ps.end))               ||
-						try_fn_params (new_state(ps.end), param->param)
-					)
+					match(ps.p, xbtoken::OPERATOR_COMMA)            &&
+					try_fn_params (new_state(ps.end), param->param)
 				)
 			)
 		)
@@ -2549,33 +2530,6 @@ static bool try_filepath(xcc_parser_state ps, chars::view &fp)
 	return true;
 }
 
-#include <iostream>
-static void print_sum(const xcc_filesum &s)
-{
-	char hex[33];
-	s.sprint_hex(hex);
-	hex[32] = 0;
-	std::cout << hex;
-}
-
-static void print_sums(const xcc_filesums &s)
-{
-	std::cout << "[" << std::endl;
-	for (unsigned i = 0; i < s.count; ++i) {
-		std::cout << "  ";
-		print_sum(s.sums[i]);
-		std::cout << std::endl;
-	}
-	std::cout << "]" << std::endl;
-}
-
-static void print_sums(const xcc_filesum &s, const xcc_filesums &f)
-{
-	print_sum(s);
-	std::cout << std::endl << "---" << std::endl;
-	print_sums(f);
-}
-
 static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, xcc_text &text)
 {
 	if (!xcc_load_text(source_file, text)) {
@@ -2583,15 +2537,10 @@ static bool try_load_text(xcc_parser_state &ps, const chars::view &source_file, 
 		return false;
 	}
 	
-//	std::cout << xcc_short_path(source_file).str << " ";
-//	print_sums(text.sum, ps.p->fsums);
-	
 	if (xcc_add_filesum(ps.p->fsums, text.sum)) {
 		ps.p->in = init_lexer(chars::view{ text.txt, text.len, 0 });
-//		std::cout << "COMPILE" << std::endl << std::endl;
 	} else {
 		ps.p->in = init_lexer(chars::view{ "", 0, 0 });
-//		std::cout << "SKIP" << std::endl << std::endl;
 	}
 	ps.p->max = ps.p->in.last;
 	return true;

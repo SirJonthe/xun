@@ -137,7 +137,6 @@ struct xcc_symbol
 	U16         link;        // Indicates that the symbol is declared, but not defined and requires linkage between definition and a later declaration.
 	xcc_symbol *param;       // For functions, this points to the first parameter. For parameters, this points to the next parameter. For groups, this points to the first member. For members this points to the next member.
 	chars       file;        // The short name of the file this symbol was declared in.
-	bool        variadic;    // If the symbol is a function, then TRUE denotes that the function can take at least param_count arguments, but possibly any number more.
 };
 
 /// @brief The data structure containing the current state of declared and defined symbols in the compiler.
