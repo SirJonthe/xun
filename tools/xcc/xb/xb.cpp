@@ -111,12 +111,13 @@ struct xbtoken
 		OPERATOR_COMMA,
 		OPERATOR_HASH,
 		OPERATOR_REVERSE_SEARCH,
+		OPERATOR_SIZEOF,
 		LITERAL_INT
 		// LITERAL_FLOAT
 	};
 };
 
-const signed XB_TOKEN_COUNT = 67; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 68; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -134,6 +135,7 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_keyword ("namespace",               9, xbtoken::KEYWORD_NAMESPACE),
 	new_keyword ("include",                 7, xbtoken::KEYWORD_INCLUDE),
 	new_keyword ("enum",                    4, xbtoken::KEYWORD_ENUM),
+	new_keyword ("sizeof",                  6, xbtoken::OPERATOR_SIZEOF),
 	new_operator("#",                       1, xbtoken::OPERATOR_HASH),
 	new_operator("+=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_ADD),
 	new_operator("-=",                      2, xbtoken::OPERATOR_ARITHMETIC_ASSIGNMENT_SUB),
@@ -677,6 +679,7 @@ static bool try_lit_factor(xcc_parser_state ps, type_t &l);
 template < typename type_t >
 static bool try_read_lit(xcc_parser_state ps, type_t &result)
 {
+	// TODO: Manage this state
 	token t;
 	bool rs;
 	if (match(ps.p, xbtoken::LITERAL_INT, &t)) {
@@ -691,6 +694,17 @@ static bool try_read_lit(xcc_parser_state ps, type_t &result)
 	} else if (try_read_char_lit(new_state(ps.end), t)) {
 		result = t.hash;
 		return true;
+	} else if (
+		match    (ps.p, xbtoken::OPERATOR_SIZEOF)                            &&
+		match    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)             &&
+		try_alias(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), t, rs) &&
+		match    (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)
+	) {
+		const xcc_symbol *sym = xcc_find_symbol(t.text, ps.p, rs);
+		if (sym != NULL) {
+			result = sym->size > 1 ? sym->size - 1 : sym->size;
+			return true;
+		}
 	}
 	return false;
 }
@@ -748,7 +762,6 @@ static bool try_lit_uni_lnot_val(xcc_parser_state ps, type_t &l)
 	return false;
 }
 
-// val ::= "*" val | name "(" exprs ")" | val "[" expr "]" | name | num
 template < typename type_t >
 static bool try_lit_rval(xcc_parser_state ps, type_t &l)
 {
@@ -798,7 +811,6 @@ static bool try_lit_uni_neg(xcc_parser_state ps, type_t &l)
 	return false;
 }
 
-// factor ::= "&" val | "+" val | "-" val | "(" expr ")"
 template < typename type_t >
 static bool try_lit_factor(xcc_parser_state ps, type_t &l)
 {
@@ -1771,25 +1783,57 @@ static bool try_opt_arr_def_expr(xcc_parser_state ps, xcc_symbol *sym)
 	return false;
 }
 
+static bool try_arr_def_expr(xcc_parser_state ps, xcc_symbol *sym)
+{
+	token p = peek(ps.p);
+	if (!xcc_write_rel(ps.p, sym)) {
+		return false;
+	}
+	++ps.p->out.buffer[ps.p->out.size - 2].u; // Make the 'xcc_write_rel' point to one address higher than the array pointer (where the array is located).
+	U16 count = 0;
+	if (
+		manage_state(
+			match(ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET) &&
+			(
+				(
+					match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)              &&
+					try_expr_list(new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R), &count) &&
+					match        (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
+				) ||
+				(
+					match        (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)              &&
+					try_str_lit  (new_state(xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE), &count) &&
+					match        (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)
+				)
+			)
+		)
+	) {
+		sym->size += count;
+		return true;
+	}
+	return false;
+}
+
 static bool try_new_arr_item(xcc_parser_state ps)
 {
 	token t;
 	xcc_symbol *sym;
 	if (
 		manage_state(
-			match               (ps.p, token::ALIAS, &t)                                    &&
-			(sym = xcc_add_var(t, ps.p)) != NULL                                            &&
-			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                 &&
-			// TODO Change this so that the memory (not pointer) is its own anonymous symbol
-			// (
-			// 	match(OPERATOR_ENCLOSE_BRACKET_R) &&
-			// 	try_arr_def_expr() // NOT optional
-			// ) ||
+			match                       (ps.p, token::ALIAS, &t)                                    &&
+			(sym = xcc_add_var(t, ps.p)) != NULL                                                    &&
+			match                       (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                 &&
 			(
-				try_lit_expr        (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
-				match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
-				try_opt_arr_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), sym)
-			)                                                                                   &&
+				(
+					try_lit_expr        (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
+					match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
+					try_opt_arr_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), sym)
+				)                                                                                   ||
+				(
+					match               (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
+					try_arr_def_expr    (new_state(xbtoken::OPERATOR_SEMICOLON), sym)
+				)
+			)                                                                                       &&
 			(
 				match(ps.p, xbtoken::OPERATOR_COMMA) ?
 					try_new_var_list(new_state(ps.end)) :
@@ -2749,8 +2793,6 @@ static bool try_fn_decl(xcc_parser_state ps)
 	}
 	return false;
 }
-
-// TODO asd
 
 static bool try_global_statement(xcc_parser_state ps)
 {
