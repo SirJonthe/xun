@@ -262,7 +262,7 @@ i_print_sys_info( void )
 
 	{
 		auto s_condev[] = "Ports:\n";
-		auto s_sep[]    = ":";
+		auto s_sep[]    = ": ";
 		
 		d_tty(s_condev, sizeof(s_condev));
 
@@ -306,7 +306,7 @@ i_print_sys_info( void )
 			sub.
 			mov ram_remaining.
 		}
-		auto s_ramavail[] = "RAM available:";
+		auto s_ramavail[] = "RAM available: ";
 		auto s_sep[] = "/";
 		d_tty(s_ramavail, sizeof(s_ramavail));
 		d_tty10(ram_remaining);
