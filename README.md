@@ -11,7 +11,6 @@ github.com/SirJonthe
 
 ## TODO
 
-[ ] xb:   BUG: "asd " evaluates to 3 (trailing space ignored, but initial and spaces between words work)
 [ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
 [ ] xb:   Better error messages across separate files.
 [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
@@ -21,7 +20,7 @@ github.com/SirJonthe
 [ ] xasm: Deprecate HALT instruction.
 [ ] xb:   signed/unsigned
 [ ] xb:   ++*ptr
-[ ] xb:   argc, argv
+[ ] xb:   argc, argv (B only uses one parameter, arg, where first elem is size and the rest are ptrs to strings)
 [ ] xb:   robust function call: fn[index1](param1, param2)[index2](param2, param3) etc...
 [ ] xb:   namespace
 
@@ -53,7 +52,7 @@ XCC (XERXES Compiler Collection) is the back-end that is used for both the XASM 
 
 #### XASM
 
-XASM (XERXES Assembly Language) is an external that is a low-overhead assembler that allows the programmer to access most instructions of the XUN instruction set in a 1:1 manner with some exceptions to make the code more readable and the effects more predictable and in-line with established programming languages. There are only two instructions that take parameters; `put`, which places a value on the stack, and `mov` which pops the top value off the stack and stores it in the specified address. All other instructions work by operating on values on the stack and are free to add, remove, or just read values on the stack.
+XASM (XERXES Assembly Language) is an external tool that is a low-overhead assembler that allows the programmer to access most instructions of the XUN instruction set in a 1:1 manner with some exceptions to make the code more readable and the effects more predictable and in-line with established programming languages. There are only two instructions that take parameters; `put`, which places a value on the stack, and `mov` which pops the top value off the stack and stores it in the specified address. All other instructions work by operating on values on the stack and are free to add, remove, or just read values on the stack.
 
 XASM adds some meta-programming, i.e. programming of the assembler, which allows for such things as adding symbols to the assembler, emitting binary data to the output, and accessing registers (which are actually hidden behind separate instructions in the instruction set, but accessed using assembler directives to more closely resemble symbols).
 
@@ -63,9 +62,9 @@ See Programming Manual for XERXES(tm) Unified Nanocontroller Assembly Language (
 
 #### XB
 
-XB (XERXES B) an external tool that is a flavor of Ken Thompson's B (the predecessor of C) that is intended for more high-level programming and increased productivity. On a small computer platform such as XUN, even a low-overhead programming language such as XB may introduce significant overhead in terms of binary size and performance. However, it may still be a much preferrable option since XASM may be quite verbose, hard to read, and error prone.
+XB (XERXES B) is an external tool that is a flavor of Ken Thompson's B (the predecessor of C) that is intended for more high-level programming and increased productivity. On a small computer platform such as XUN, even a low-overhead programming language such as XB may introduce significant overhead in terms of binary size and performance. However, it may still be a much preferrable option since XASM may be quite verbose, hard to read, and error prone. For instances where performance and size is paramount XB supports inline assembly.
 
-XB supports most of the convienience of C, such as functions, return values, expressions, control flow, array indexing, pointer indirection, etc.
+XB supports some of the convienience of C, such as functions, return values, expressions, control flow, array indexing, pointer indirection, etc.
 
 XB has no types. All variables and constants are unsigned integers. Pointers are unsigned integers as well, and it is up to the programmer to distinguish between use cases.
 

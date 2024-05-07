@@ -246,6 +246,14 @@ static token peek(xcc_parser *p)
 	return xcc_peek(p, xblex);
 }
 
+/// @brief Peeks the next single character token without advancing the parser.
+/// @param p The parser.
+/// @return The token.
+static token peek1(xcc_parser *p)
+{
+	return xcc_peek(p, xblex1);
+}
+
 /// @brief Tries to match the next token in the token sequence against an expected user type.
 /// @param p The parser.
 /// @param type The user type of the expected token.
@@ -1722,7 +1730,7 @@ static bool try_new_var_list(xcc_parser_state ps);
 static bool try_str_lit(xcc_parser_state ps, U16 *count)
 {
 	token t;
-	while (peek(ps.p).user_type != ps.end) {
+	while (((t = peek(ps.p)).user_type != ps.end || is_white(peek1(ps.p).hash)) && t.user_type != token::STOP_EOF) {
 		if (!try_encoded_char(new_state(ps.end), t)) {
 			return false;
 		}
