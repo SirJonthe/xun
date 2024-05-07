@@ -168,6 +168,24 @@ d_tty10(num)
 			msg[4 - i] = dig10[num%10];
 			num /= 10;
 			++i;
+			if (num == 0) {
+				break;
+			}
+		}
+		return d_tty(msg + 5 - i, i);
+	}
+	return FALSE;
+}
+
+d_tty10p(num)
+{
+	if (__port_tty != PORT_UNDEF) {
+		auto msg[5];
+		auto i = 0;
+		while (i < 5) {
+			msg[4 - i] = dig10[num%10];
+			num /= 10;
+			++i;
 		}
 		i = 0;
 		while (i < 4) {
@@ -268,9 +286,11 @@ i_print_sys_info( void )
 
 		auto i = 0;
 		while (i < NUM_PORTS) {
-			d_tty10(i);
+			d_tty10p(i);
 			d_tty(s_sep, sizeof(s_sep));
-			d_tty16(__hwids[i]);
+			if (__hwids[i] != 0) {
+				d_tty16(__hwids[i]);
+			}
 			d_tty(newl, sizeof(s_sep));
 			++i;
 		}

@@ -1,6 +1,9 @@
 #include <_exit>
 #include <stddef>
 
+const EXIT_FAILURE = -1; // Program return value representing failure.
+const EXIT_SUCCESS =  0; // Program return value representing success.
+
 /// @brief Generates a pseudo-random number.
 /// @return The pseudo-random number.
 rand( void );
