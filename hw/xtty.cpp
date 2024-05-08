@@ -19,16 +19,9 @@ Teleprinter::Teleprinter( void ) : Device("XERXES(tm) Integrated Teleprinter", X
 
 void Teleprinter::PrintChars(const U16 *msg, U16 size)
 {
-	bool term = false;
-	for (unsigned i = 0; i < size && !term; ++i) {
-		if (msg[i] == '\\' && ++i < size) {
-			switch (msg[i]) {
-			case 'n':  std::cout << "\n"; break;
-			case 't':  std::cout << "\t"; break;
-			case 'a':  Info("<BEEP>");    break;
-			case '\\': std::cout << "\\"; break;
-			case '0':  term = true;       break;
-			}
+	for (unsigned i = 0; i < size && msg[i] != 0; ++i) {
+		if (msg[i] == '\a') {
+			Info("<BEEP>");
 		} else {
 			std::cout << (char)msg[i];
 		}

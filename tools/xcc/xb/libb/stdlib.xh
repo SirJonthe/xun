@@ -13,20 +13,20 @@ rand( void );
 srand(seed);
 
 /// @brief Allocates memory dynamically on the heap.
-/// @param n The number of words to allocate.
+/// @param size The number of words to allocate.
 /// @return A pointer to the allocated memory.
-malloc(n);
+malloc(size);
 
 /// @brief Allocates memory dynamically on the heap and sets each memory location to zero.
-/// @param n The number of words to allocate.
+/// @param size The number of words to allocate.
 /// @return A pointer to the allocated memory.
-calloc(n);
+calloc(size);
 
 /// @brief Frees memory on the heap as pointed to by the input parameter.
-/// @param  mem The pointer to the first memory location of the memory allocated by 'malloc' or 'calloc'.
+/// @param ptr The pointer to the first memory location of the memory allocated by 'malloc' or 'calloc'.
 /// @sa malloc
 /// @sa calloc
-free(mem);
+free(ptr);
 
 /// @brief Returns the absolute of the input value.
 /// @param a The input value.

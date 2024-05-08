@@ -45,6 +45,9 @@ xdebugger::xdebugger(const xcc_binary &program) : m_computer(true)
 {
 	m_computer.PowerOn();
 	m_computer.BootDisk(program.buffer, program.size);
+
+	m_monitor.PowerOn();
+	m_computer.Connect(m_monitor, 15);
 }
 
 bool xdebugger::step( void )

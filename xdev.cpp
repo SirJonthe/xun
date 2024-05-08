@@ -156,7 +156,14 @@ bool Device::HandlePacket(const Packet &msg)
 	return false;
 }
 
-Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ns(0), m_exec_ns(0), m_message_id_counter(0), m_power(false)
+void Device::SetExternalState(uint32_t external_state)
+{
+	if (IsPoweredOn()) {
+		m_external_state = external_state;
+	}
+}
+
+Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ns(0), m_exec_ns(0), m_external_state(0), m_message_id_counter(0), m_power(false)
 {
 	SetCyclesPerSecond(60);
 }
@@ -174,6 +181,7 @@ void Device::PowerOn( void )
 		m_exec_ns = 0;
 		m_message_id_counter = 0;
 		m_in_queue.Flush();
+		m_external_state = 0;
 		Output(ConnectPacket());
 	}
 }
@@ -185,11 +193,9 @@ void Device::Cycle( void )
 
 void Device::Run(uint32_t ms)
 {
-	uint32_t cycles = 0;
 	m_exec_ns += uint64_t(ms) * 1000000ULL;
 	while (m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
 		Cycle();
-		++cycles;
 		m_exec_ns -= m_ns_per_cycle;
 	}
 }
@@ -202,6 +208,7 @@ void Device::PowerOff( void )
 		m_exec_ns = 0;
 		m_message_id_counter = 0;
 		m_in_queue.Flush();
+		m_external_state = 0;
 		m_power = false;
 	}
 }
@@ -321,6 +328,11 @@ bool Device::IsFull( void ) const
 bool Device::IsEmpty( void ) const
 {
 	return m_in_queue.IsEmpty();
+}
+
+uint32_t Device::GetExternalState( void ) const
+{
+	return IsPoweredOn() ? m_external_state : 0;
 }
 
 void Device::Connect(Device &a, Device &b)

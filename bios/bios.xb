@@ -138,6 +138,14 @@ d_find_hw(id)
 
 auto __port_tty = PORT_UNDEF; // The port index where the TTY device is connected.
 
+d_tty(msg, len)
+{
+	if (__port_tty != PORT_UNDEF) {
+		return hwpush(__port_tty, msg, len, CLOCKS_PER_SEC);
+	}
+	return FALSE;
+}
+
 d_init_tty( void )
 {
 	__port_tty = d_find_hw(HWID_TTY);
@@ -145,16 +153,8 @@ d_init_tty( void )
 		return FALSE;
 	}
 	auto msg[] = "\aTTY initialized\n";
-	hwpush(__port_tty, msg, sizeof(msg), CLOCKS_PER_SEC);
+	d_tty(msg, sizeof(msg));
 	return TRUE;
-}
-
-d_tty(msg, len)
-{
-	if (__port_tty != PORT_UNDEF) {
-		return hwpush(__port_tty, msg, len, CLOCKS_PER_SEC);
-	}
-	return FALSE;
 }
 
 auto dig10[10] = "0123456789";
@@ -228,15 +228,28 @@ d_require_hw(id)
 	if (port == PORT_UNDEF) {
 		// [ ] Print message if possible
 		if (__port_mon == PORT_UNDEF) {
-			auto msg1[27] = "Missing required hardware (";
-			d_tty(msg1, 27);
+			auto msg1[] = "Missing required hardware (";
+			d_tty(msg1, sizeof(msg1));
 			d_tty16(id);
-			auto msg2[2] = ")\n";
-			d_tty(msg2, 2);
-			auto msg3[28] = "Plug in hardware and reboot\n";
-			d_tty(msg3, 28);
+			auto msg2[] = ")\n";
+			d_tty(msg2, sizeof(msg2));
+			auto msg3[] = "Plug in hardware and reboot\n";
+			d_tty(msg3, sizeof(msg3));
 		}
+		auto now = clock();
+		auto beep_at = now + CLOCKS_PER_SEC;
+		auto wrapped_time = now > beep_at;
 		while (TRUE) {
+			now = clock();
+			if (wrapped_time == FALSE && now > beep_at) {
+				auto beep[] = "\a";
+				d_tty(beep, sizeof(beep));
+				beep_at = now + CLOCKS_PER_SEC;
+				wrapped_time = now > beep_at;
+			}
+			if (now < beep_at) {
+				wrapped_time = FALSE;
+			}
 		}
 	}
 	return port;

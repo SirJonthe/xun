@@ -2,6 +2,7 @@
 #define XDB_H
 
 #include "../xcc/xasm/xasm.h"
+#include "../../hw/xout.h"
 #include "../../xcomp.h"
 
 /// @brief A debugger for binary programs.
@@ -9,6 +10,7 @@ class xdebugger
 {
 public:
 	Computer m_computer;
+	Monitor  m_monitor;
 
 public:
 	/// @brief Creates a new debugging with a program attached.

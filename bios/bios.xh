@@ -9,15 +9,15 @@ d_hwscan( void );
 /// @sa d_hwscan
 d_find_hw(id);
 
-/// @brief Initialized the on-board TTY console.
-/// @return 1 if the TTY was found, 0 otherwise.
-d_init_tty( void );
-
 /// @brief Prints text on the TTY.
 /// @param msg The message.
 /// @param len The length of the message (stops earlier if zero terminator encountered).
 /// @return 1 if the print was successful, 0 otherwise.
 d_tty(msg, len);
+
+/// @brief Initialized the on-board TTY console.
+/// @return 1 if the TTY was found, 0 otherwise.
+d_init_tty( void );
 
 /// @brief Scans hardware ID table for the given ID and returns the index in the table corresponding to the port index of the connected device. If the device is not found, execution locks.
 /// @param id The ID to scan for.

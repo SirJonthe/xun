@@ -103,6 +103,7 @@ private:
 	uint64_t      m_exec_ns;            // Internal state representing the remainder of execution time left over after a given time slice.
 	uint64_t      m_ns_per_cycle;       // The number of pico seconds per cycle.
 	uint32_t      m_cycles_per_second;  // The number of cycles that can run per second. If 0, then the device will poll automatically when there is a message in the queue.
+	uint32_t      m_external_state;     // An integer that represents some state that can be observed externally, for instance a flashing LED.
 	U16           m_message_id_counter; // A counter to give each message a unique ID. Note that messages split up over several packets carry the same message ID.
 	bool          m_power;              // The power state of the device.
 
@@ -160,6 +161,11 @@ protected:
 	/// @return False if the custom message is not recognized by the device.
 	/// @note Overload this to handle the incoming packet.
 	virtual bool HandlePacket(const Packet &msg);
+
+	/// @brief Sets the external state to a given value.
+	/// @param external_state The external state value.
+	/// @note The external state is only modified if the device is powered on.
+	void SetExternalState(uint32_t external_state);
 
 public:
 	/// @brief Creates a new Device object.
@@ -257,6 +263,11 @@ public:
 	/// @brief Checks if the queue is empty.
 	/// @return True if the queue is empty.
 	bool IsEmpty( void ) const;
+
+	/// @brief Returns the external state.
+	/// @return The external state.
+	/// @note The external state is always 0 if the device is powered off.
+	uint32_t GetExternalState( void ) const;
 
 	/// @brief Connects two devices together (disconnects previously connected devices if need be) and performs a handshake.
 	/// @param a A device.
