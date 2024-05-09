@@ -102,7 +102,7 @@ struct xtoken
 	};
 };
 
-const signed X_TOKEN_COUNT = 98;
+const signed X_TOKEN_COUNT = 99;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, XIS::NOP),
 	new_keyword ("at",                      2, XIS::AT),
@@ -156,6 +156,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword("cpuid",                    5, XIS::CPUID),
 	new_keyword("cerr",                     4, XIS::CERR),
 	new_keyword("full",                     4, XIS::FULL),
+	new_keyword("dup",                      3, XIS::DUP),
 
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),

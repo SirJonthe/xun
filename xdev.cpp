@@ -104,38 +104,13 @@ Device::Packet Device::NewPacket(U16 type)
 	return p;
 }
 
-Device::Packet Device::ErrorPacket( void )
-{
-	return NewPacket(Packet::TYPE_ERR);
-}
-
-Device::Packet Device::PingPacket( void )
-{
-	return NewPacket(Packet::TYPE_PING);
-}
-
-Device::Packet Device::PongPacket( void )
-{
-	return NewPacket(Packet::TYPE_PONG);
-}
-
-Device::Packet Device::ConnectPacket( void )
-{
-	return NewPacket(Packet::TYPE_CONNECT);
-}
-
-Device::Packet Device::DisconnectPacket( void )
-{
-	return NewPacket(Packet::TYPE_DISCONNECT);
-}
-
 bool Device::Poll( void )
 {
 	if (Pending()) {
 		Packet p = Peek();
 		Ack();
 		if (p.header[Packet::HEADER_TYPE] == Packet::TYPE_PING) {
-			Output(PongPacket());
+			Output(NewPacket(Packet::TYPE_PONG));
 		}
 		return HandlePacket(p);
 	}
@@ -155,6 +130,15 @@ bool Device::HandlePacket(const Packet &msg)
 	}
 	return false;
 }
+
+void Device::DoCycle( void )
+{}
+
+void Device::DoPowerOn( void )
+{}
+
+void Device::DoPowerOff( void )
+{}
 
 void Device::SetExternalState(uint32_t external_state)
 {
@@ -182,28 +166,41 @@ void Device::PowerOn( void )
 		m_message_id_counter = 0;
 		m_in_queue.Flush();
 		m_external_state = 0;
-		Output(ConnectPacket());
+		Output(NewPacket(Device::Packet::TYPE_DISCONNECT));
+		DoPowerOn();
 	}
 }
 
 void Device::Cycle( void )
 {
-	m_clock_ns += m_ns_per_cycle;
+	if (m_cycles_per_second > 0 && IsPoweredOn()) {
+		Poll();
+		DoCycle();
+		m_clock_ns += m_ns_per_cycle;
+	}
 }
 
 void Device::Run(uint32_t ms)
 {
-	m_exec_ns += uint64_t(ms) * 1000000ULL;
-	while (m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
-		Cycle();
+	if (m_cycles_per_second > 0 && IsPoweredOn()) {
+		m_exec_ns += uint64_t(ms) * 1000000ULL;
+	}
+	while (m_cycles_per_second > 0 && m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
+		Poll();
+		DoCycle();
+		m_clock_ns += m_ns_per_cycle;
 		m_exec_ns -= m_ns_per_cycle;
+	}
+	if (m_cycles_per_second == 0 || IsPoweredOff()) {
+		m_exec_ns = 0;
 	}
 }
 
 void Device::PowerOff( void )
 {
 	if (IsPoweredOn()) {
-		Output(DisconnectPacket()); // Do not formally call Disconnect since devices may still be physically connected.
+		DoPowerOff();
+		Output(NewPacket(Device::Packet::TYPE_DISCONNECT)); // Do not formally call Disconnect since devices may still be physically connected.
 		m_clock_ns = 0;
 		m_exec_ns = 0;
 		m_message_id_counter = 0;
@@ -301,7 +298,7 @@ bool Device::IsConnected( void ) const
 
 void Device::Disconnect( void )
 {
-	Output(DisconnectPacket());
+	Output(NewPacket(Device::Packet::TYPE_DISCONNECT));
 	Device *dev = m_connection;
 	m_connection = nullptr;
 	if (dev != nullptr) {
@@ -313,7 +310,7 @@ void Device::Input(const Device::Packet &msg)
 {
 	if (IsPoweredOn()) {
 		m_in_queue.Pass(msg);
-		if (GetCyclesPerSecond() == 0) {
+		if (m_cycles_per_second == 0) {
 			m_clock_ns = msg.header[Packet::HEADER_CLOCK] * 1000000ULL;
 			Poll();
 		}
@@ -341,6 +338,6 @@ void Device::Connect(Device &a, Device &b)
 	b.Disconnect();
 	a.m_connection = &b;
 	b.m_connection = &a;
-	a.Output(b.ConnectPacket());
-	b.Output(a.ConnectPacket());
+	a.Output(b.NewPacket(Device::Packet::TYPE_CONNECT));
+	b.Output(a.NewPacket(Device::Packet::TYPE_CONNECT));
 }

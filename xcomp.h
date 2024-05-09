@@ -113,6 +113,19 @@ private:
 	IOPort                    m_ports[NUM_PORTS];  // The I/O ports of the computer.
 	bool                      m_debug;
 
+protected:
+	/// @brief Turns the power off.
+	/// @note Not in use.
+	void DoPowerOff( void );
+
+	/// @brief Turns the power on.
+	/// @note Not in use.
+	void DoPowerOn( void );
+
+	/// @brief Executes a single cycle on the machine.
+	/// @return The last executed instruction.
+	void DoCycle( void );
+
 public:
 	/// @brief Constructs a new Computer object.
 	/// @param debug Sets debug mode where memory is not cleared on power off, and HALT instructions are emitted when loading a binary from disk.
@@ -136,22 +149,6 @@ public:
 
 	// DiskReader &GetDiskReader();
 
-	/// @brief Turns the power off.
-	/// @note Not in use.
-	void PowerOff( void );
-
-	/// @brief Turns the power on.
-	/// @note Not in use.
-	void PowerOn( void );
-
-	/// @brief Turns the power on if off, and off if on.
-	/// @note Not in use.
-	void PowerToggle( void );
-
-	/// @brief Turns the computer off, then on again.
-	/// @note Not in use.
-	void PowerCycle( void );
-
 	void  Poke(U16 addr, XWORD val);
 	void  PokeA(U16 addr, XWORD val);
 	void  PokeB(U16 addr, XWORD val);
@@ -162,10 +159,6 @@ public:
 	XWORD PeekB(U16 addr) const;
 	XWORD PeekC(U16 addr) const;
 	XWORD PeekTop(U16 addr) const;
-	
-	/// @brief Executes a single cycle on the machine.
-	/// @return The last executed instruction.
-	void Cycle( void );
 
 	/// @brief Checks if a given port is available to be connected.
 	/// @param port The port number.

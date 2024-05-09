@@ -130,42 +130,32 @@ protected:
 	/// @return The new packet.
 	Packet NewPacket(U16 type);
 
-	/// @brief Creates a new error packet.
-	/// @return The error packet.
-	Packet ErrorPacket( void );
-	
-	/// @brief Creates a new ping packet.
-	/// @return The ping packet.
-	Packet PingPacket( void );
-
-	/// @brief Creates a new pong packet.
-	/// @return The pong packet.
-	Packet PongPacket( void );
-	
-	/// @brief Creates a new connect packet.
-	/// @return The connect packet.
-	Packet ConnectPacket( void );
-	
-	/// @brief Creates a new disconnect packet.
-	/// @return The disconnect packet.
-	Packet DisconnectPacket( void );
-
 	/// @brief Automatically grabs top packet, acknowledges it, then passes the packet to a custom function for handling.
 	/// @return False if the message failed to be handled properly.
 	/// @note Packet types TYPE_PING and TYPE_PONG are handled automatically.
 	/// @sa HandlePacket
 	bool Poll( void );
 
-	/// @brief Abstract function that is intended to handle message types.
+	/// @brief Sets the external state to a given value.
+	/// @param external_state The external state value.
+	/// @note The external state is only modified if the device is powered on.
+	void SetExternalState(uint32_t external_state);
+
+protected:
+	/// @brief Abstract function that is intended to handle message types. Overwrite this to handle messages in a custom manner.
 	/// @param msg The incoming message.
 	/// @return False if the custom message is not recognized by the device.
 	/// @note Overload this to handle the incoming packet.
 	virtual bool HandlePacket(const Packet &msg);
 
-	/// @brief Sets the external state to a given value.
-	/// @param external_state The external state value.
-	/// @note The external state is only modified if the device is powered on.
-	void SetExternalState(uint32_t external_state);
+	/// @brief Overwrite this to perform some custom action during the device cycle.
+	virtual void DoCycle( void );
+
+	/// @brief Overwrite this to perform some custom action during the power on phase.
+	virtual void DoPowerOn( void );
+
+	/// @brief Overwrite this to perform some custom action during the power off phase.
+	virtual void DoPowerOff( void );
 
 public:
 	/// @brief Creates a new Device object.
@@ -178,17 +168,17 @@ public:
 	~Device( void );
 
 	/// @brief Powers the device on.
-	virtual void PowerOn( void );
+	void PowerOn( void );
 
 	/// @brief Runs a single simulated cycle of this device's function.
-	virtual void Cycle( void );
+	void Cycle( void );
 	
 	/// @brief Simulates the device for a given amount of simulated time.
 	/// @param ms The amount of time to simulate the hardware for. Note that this does not require that the application spends the given amount of time in the real world, just that the device is simulated for that time in whatever time it takes to simulate that time in real-time.
 	void Run(uint32_t ms);
 
 	/// @brief Powers the device off.
-	virtual void PowerOff( void );
+	void PowerOff( void );
 
 	/// @brief If the power is on then turn off power, and vice versa.
 	void PowerToggle( void );

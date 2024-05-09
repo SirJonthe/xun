@@ -26,15 +26,17 @@ private:
 	void Clear( void );
 	void Refresh( void ) const;
 
+protected:
+	void DoPowerOn( void );
+	void DoCycle( void );
+	void DoPowerOff( void );
+
 public:
 	Monitor( void );
 	~Monitor( void );
 
 	void Plot(U16 x, U16 y, U8 color);
 	U8 GetPixel(U16 x, U16 y) const;
-	void PowerOn( void );
-	void Cycle( void );
-	void PowerOff( void );
 };
 
 #endif // XOUT_H

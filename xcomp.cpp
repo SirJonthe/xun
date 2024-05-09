@@ -99,124 +99,33 @@ bool Computer::IsEmpty(U16 port_index)
 	return true;
 }
 
-Computer::Computer(bool debug) : Device(XUN_NAME, XHWID_XUN), m_storage(1<<21), m_debug(debug)
+
+void Computer::DoPowerOff( void )
 {
-	SetCyclesPerSecond(10000000U);
-
-	Device::Connect(m_ports[0], m_power_controller);
-	Device::Connect(m_ports[1], m_tty);
-
-	m_power_controller.PowerOn();
-	m_tty.PowerOn();
-
-	// Device::Connect(m_ports[3], m_internal_reader);
-	// Device::Connect(m_ports[4], m_external_reader);
-	// Device::Connect(m_internal_reader, m_storage);
-}
-
-// Flash memory with a program.
-// Ideally should be an OS that can load other programs,
-// but can be any program.
-void Computer::BootDisk(const XWORD *bin, U16 bin_count)
-{
-	IP.u = A.u = B.u = C.u = SP.u = I.u = 0;
-	for (U16 i = 0; i < bin_count; ++SP.u, ++i) {
-		AT(SP) = bin[i];
-	}
-	if (m_debug) {
-		for (unsigned i = SP.u; i < MEM_SIZE_MAX; ++i) {
-			AT(XWORD{U16(i)}).u = XIS::HALT;
-		}
-	} else {
-		for (unsigned i = SP.u; i < MEM_SIZE_MAX; ++i) {
-			AT(XWORD{U16(i)}).u = U16(rand());
-		}
-	}
-	SP.u -= 1;
-}
-
-void Computer::PowerOff( void )
-{
-	if (IsPoweredOn()) {
-		A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
-		if (!m_debug) {
-			I.u = 0;
-			for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
-				AT(XWORD{U16(i)}).u = 0;
-			}
-		}
-		for (uint32_t i = 0; i < 16; ++i) {
-			m_ports[i].PowerOff();
-		}
-		Device::PowerOff();
-	}
-}
-
-void Computer::PowerOn( void )
-{
-	if (IsPoweredOff()) {
-		Device::PowerOn();
-		for (uint32_t i = 0; i < 16; ++i) {
-			m_ports[i].PowerOn();
-		}
-		A.u = B.u = C.u = SP.u = IP.u = I.u = ERR.u = 0;
+	A.u = B.u = C.u = SP.u = IP.u = ERR.u = 0;
+	if (!m_debug) {
+		I.u = 0;
 		for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
-			AT(XWORD{U16(i)}).u = U16(rand());
+			AT(XWORD{U16(i)}).u = 0;
 		}
+	}
+	for (uint32_t i = 0; i < 16; ++i) {
+		m_ports[i].PowerOff();
 	}
 }
 
-void Computer::Poke(U16 addr, XWORD val)
+void Computer::DoPowerOn( void )
 {
-	RAM[addr] = val;
+	for (uint32_t i = 0; i < 16; ++i) {
+		m_ports[i].PowerOn();
+	}
+	A.u = B.u = C.u = SP.u = IP.u = I.u = ERR.u = 0;
+	for (unsigned i = 0; i < MEM_SIZE_MAX; ++i) {
+		AT(XWORD{U16(i)}).u = U16(rand());
+	}
 }
 
-void Computer::PokeA(U16 addr, XWORD val)
-{
-	RAM[U16(addr + A.u)] = val;
-}
-
-void Computer::PokeB(U16 addr, XWORD val)
-{
-	RAM[U16(addr + B.u)] = val;
-}
-
-void Computer::PokeC(U16 addr, XWORD val)
-{
-	RAM[U16(addr + C.u)] = val;
-}
-
-void Computer::PokeTop(U16 addr, XWORD val)
-{
-	RAM[U16(addr + SP.u)] = val;
-}
-
-XWORD Computer::Peek(U16 addr) const
-{
-	return RAM[addr];
-}
-
-XWORD Computer::PeekA(U16 addr) const
-{
-	return RAM[U16(addr + A.u)];
-}
-
-XWORD Computer::PeekB(U16 addr) const
-{
-	return RAM[U16(addr + B.u)];
-}
-
-XWORD Computer::PeekC(U16 addr) const
-{
-	return RAM[U16(addr + C.u)];
-}
-
-XWORD Computer::PeekTop(U16 addr) const
-{
-	return RAM[U16(addr + SP.u)];
-}
-
-void Computer::Cycle( void )
+void Computer::DoCycle( void )
 {
 	I.u = READI;
 	switch (I.u) {
@@ -562,7 +471,92 @@ void Computer::Cycle( void )
 		SetError(ERR_UNDEF);
 		break;
 	}
-	Device::Cycle();
+}
+
+Computer::Computer(bool debug) : Device(XUN_NAME, XHWID_XUN), m_storage(1<<21), m_debug(debug)
+{
+	SetCyclesPerSecond(10000000U);
+
+	Device::Connect(m_ports[0], m_power_controller);
+	Device::Connect(m_ports[1], m_tty);
+
+	m_power_controller.PowerOn();
+	m_tty.PowerOn();
+
+	// Device::Connect(m_ports[3], m_internal_reader);
+	// Device::Connect(m_ports[4], m_external_reader);
+	// Device::Connect(m_internal_reader, m_storage);
+}
+
+// Flash memory with a program.
+// Ideally should be an OS that can load other programs,
+// but can be any program.
+void Computer::BootDisk(const XWORD *bin, U16 bin_count)
+{
+	IP.u = A.u = B.u = C.u = SP.u = I.u = 0;
+	for (U16 i = 0; i < bin_count; ++SP.u, ++i) {
+		AT(SP) = bin[i];
+	}
+	if (m_debug) {
+		for (unsigned i = SP.u; i < MEM_SIZE_MAX; ++i) {
+			AT(XWORD{U16(i)}).u = XIS::HALT;
+		}
+	} else {
+		for (unsigned i = SP.u; i < MEM_SIZE_MAX; ++i) {
+			AT(XWORD{U16(i)}).u = U16(rand());
+		}
+	}
+	SP.u -= 1;
+}
+
+void Computer::Poke(U16 addr, XWORD val)
+{
+	RAM[addr] = val;
+}
+
+void Computer::PokeA(U16 addr, XWORD val)
+{
+	RAM[U16(addr + A.u)] = val;
+}
+
+void Computer::PokeB(U16 addr, XWORD val)
+{
+	RAM[U16(addr + B.u)] = val;
+}
+
+void Computer::PokeC(U16 addr, XWORD val)
+{
+	RAM[U16(addr + C.u)] = val;
+}
+
+void Computer::PokeTop(U16 addr, XWORD val)
+{
+	RAM[U16(addr + SP.u)] = val;
+}
+
+XWORD Computer::Peek(U16 addr) const
+{
+	return RAM[addr];
+}
+
+XWORD Computer::PeekA(U16 addr) const
+{
+	return RAM[U16(addr + A.u)];
+}
+
+XWORD Computer::PeekB(U16 addr) const
+{
+	return RAM[U16(addr + B.u)];
+}
+
+XWORD Computer::PeekC(U16 addr) const
+{
+	return RAM[U16(addr + C.u)];
+}
+
+XWORD Computer::PeekTop(U16 addr) const
+{
+	return RAM[U16(addr + SP.u)];
 }
 
 bool Computer::IsAvailablePort(U8 port) const
