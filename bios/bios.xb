@@ -107,13 +107,10 @@ const HWID_TTY = 0x0005; // Hardware ID of integrated TTY.
 // Monitor message types.
 const MON_MSG_PIXMODE              = 0xface; // Sets the monitor mode to direct pixel manipulation.
 const MON_MSG_TXTMODE              = 0xbeef; // Sets the monitor mode to text mode which only requires the computer to send font atlas information to the monitor, and then a text map, allowing the monitor to do the rendering.
-const MON_MSG_TXTMODE_LOADLINE     = 0xdef0; // Transfers a single line of text from the text map to the monitor.
 const MON_MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the monitor internal memory for use in text mode.
 const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
 const MON_MSG_TXTMODE_SCROLL_DOWN  = 0x123a;
 const MON_MSG_TXTMODE_SCROLL_UP    = 0x321b;
-const MON_MSG_TXTMODE_NEWLINE      = 0xfee1;
-const MON_MSG_TXTMODE_PREVLINE     = 0xb00b;
 
 const NUM_PORTS = 16;    // The number of ports on this machine.
 auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
@@ -148,14 +145,6 @@ d_find_hw(id)
 
 auto __port_tty = PORT_UNDEF; // The port index where the TTY device is connected.
 
-d_tty(msg, len)
-{
-	if (__port_tty != PORT_UNDEF) {
-		return hwpush(__port_tty, msg, len, CLOCKS_PER_SEC);
-	}
-	return FALSE;
-}
-
 d_init_tty( void )
 {
 	__port_tty = d_find_hw(HWID_TTY);
@@ -166,66 +155,87 @@ d_init_tty( void )
 }
 
 auto dig10[10] = "0123456789";
-
-d_tty10(num)
-{
-	if (__port_tty != PORT_UNDEF) {
-		auto msg[5];
-		auto i = 0;
-		while (i < 5) {
-			msg[4 - i] = dig10[num%10];
-			num /= 10;
-			++i;
-			if (num == 0) {
-				break;
-			}
-		}
-		return d_tty(msg + 5 - i, i);
-	}
-	return FALSE;
-}
-
-d_tty10p(num)
-{
-	if (__port_tty != PORT_UNDEF) {
-		auto msg[5];
-		auto i = 0;
-		while (i < 5) {
-			msg[4 - i] = dig10[num%10];
-			num /= 10;
-			++i;
-		}
-		i = 0;
-		while (i < 4) {
-			if (msg[i] == '0') {
-				msg[i] = ' ';
-			} else {
-				break;
-			}
-			++i;
-		}
-		return d_tty(msg, 5);
-	}
-	return FALSE;
-}
-
 auto dig16[16] = "0123456789abcdef";
+auto DIG16[16] = "0123456789ABCDEF";
 
-d_tty16(num)
+d_outf(port, format, values)
 {
-	if (__port_tty != PORT_UNDEF) {
-		auto msg[6];
-		msg[0] = '0';
-		msg[1] = 'x';
-		auto i = 0;
-		while (i < 4) {
-			msg[5 - i] = dig10[num%16];
-			num /= 16;
-			++i;
+	if (port == PORT_UNDEF) { return FALSE; }
+	auto start = 0, end = 0, val = 0, esc = FALSE;
+	if (values != NULL) {
+		while (format[end] != 0) {
+			if (esc == TRUE) {
+				auto ch = format[end];
+				if (ch == 'u') {
+					auto num = values[val];
+					auto dec[5];
+					auto i = 0;
+					while (i < 5) {
+						dec[4 - i] = dig10[num%10];
+						num /= 10;
+						++i;
+						if (num == 0) {
+							break;
+						}
+					}
+					if (!hwpush(port, dec + 5 - i, i, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'x' || ch == 'p') {
+					auto num = values[val];
+					auto hex[6];
+					hex[0] = '0';
+					hex[1] = 'x';
+					auto i = 0;
+					while (i < 4) {
+						hex[5 - i] = dig16[num%16];
+						num /= 16;
+						++i;
+					}
+					if (!hwpush(port, hex, 6, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'X') {
+					auto num = values[val];
+					auto hex[6];
+					hex[0] = '0';
+					hex[1] = 'x';
+					auto i = 0;
+					while (i < 4) {
+						hex[5 - i] = DIG16[num%16];
+						num /= 16;
+						++i;
+					}
+					if (!hwpush(port, hex, 6, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'c') {
+					if (!hwpush(port, values[val], 1, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 's') {
+					if (!d_outf(port, values[val], NULL)) { return FALSE; }
+				} else if (ch == '%') {
+					auto escch[] = "%";
+					if (!hwpush(port, escch, sizeof(escch), CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'n') {
+				} else {
+					auto fmterr[] = "{format}";
+					if (!hwpush(port, fmterr, sizeof(fmterr), CLOCKS_PER_SEC)) { return FALSE; }
+				}
+				++val;
+				start = end + 1;
+				esc = FALSE;
+			} else if (format[end] == '%') {
+				if (!hwpush(port, format + start, end - start, CLOCKS_PER_SEC)) { return FALSE; }
+				start = end + 1;
+				esc = TRUE;
+			}
+			++end;
 		}
-		return d_tty(msg, 6);
+		return hwpush(port, format + start, end - start, CLOCKS_PER_SEC);
 	}
-	return FALSE;
+	while (format[end] != 0) {
+		++end;
+	}
+	return hwpush(port, format + start, end - start, CLOCKS_PER_SEC);
+}
+
+d_ttyf(format, values)
+{
+	return d_outf(__port_tty, format, values);
 }
 
 err_stall( void )
@@ -237,7 +247,7 @@ err_stall( void )
 		now = clock();
 		if (wrapped_time == FALSE && now > beep_at) {
 			auto beep[] = "\a";
-			d_tty(beep, sizeof(beep));
+			d_ttyf(beep, NULL);
 			beep_at = now + CLOCKS_PER_SEC;
 			wrapped_time = now > beep_at;
 		}
@@ -255,13 +265,9 @@ d_require_hw(id)
 	if (port == PORT_UNDEF) {
 		// [ ] Print message if possible
 		if (__port_mon == PORT_UNDEF) {
-			auto msg1[] = "Missing required hardware (";
-			d_tty(msg1, sizeof(msg1));
-			d_tty16(id);
-			auto msg2[] = ")\n";
-			d_tty(msg2, sizeof(msg2));
-			auto msg3[] = "Plug in hardware and reboot\n";
-			d_tty(msg3, sizeof(msg3));
+			auto msg[] = "Missing required hardware (%x)\nPlug in hardware and reboot\n";
+			auto vals[] = { id };
+			d_ttyf(msg, vals); // TODO use d_printf instead
 		}
 		err_stall();
 	}
@@ -295,33 +301,21 @@ d_init_monitor(mode)
 		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADFONTMETA, font_metadata, sizeof(font_metadata), CLOCKS_PER_SEC) == FALSE
 	) {
 		auto msg[] = "Monitor I/O error\n";
-		d_tty(msg, sizeof(msg));
+		d_ttyf(msg, NULL);
 		err_stall();
 	}
 
 	return TRUE;
 }
 
-d_print(msg, len)
+d_monf(format, values)
 {
-	if (__port_mon != PORT_UNDEF) {
-		auto i = 0;
-		while (i < len && __linebuf_i < __LINEBUF_SIZE) {
-			if (msg[i] != '\n') {
-				__linebuf[__linebuf_i] = msg[i];
-				++__linebuf_i;
-			} else {
-				hwpusht(__port_mon, MON_MSG_TXTMODE_LOADLINE, __linebuf, __linebuf_i, CLOCKS_PER_SEC);
-				hwpusht(__port_mon, MON_MSG_TXTMODE_NEWLINE, NULL, 0, CLOCKS_PER_SEC);
-				__linebuf_i = 0;
-			}
-			++i;
-		}
-		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADLINE, __linebuf, __linebuf_i, CLOCKS_PER_SEC);
-	} else {
-		return d_tty(msg, len);
-	}
-	return FALSE;
+	return d_outf(__port_mon, format, values);
+}
+
+d_printf(format, values)
+{
+	return d_monf(format, values) || d_ttyf(format, values);
 }
 
 i_print_sys_info( void )
@@ -344,59 +338,48 @@ i_print_sys_info( void )
 			kcycles -= (kcycles / 1000) * 1000;
 		}
 		{
-			auto s_xerxes[] = "XERXES(tm) Unified Nanocontroller (XUN) @ ";
-			d_tty(s_xerxes, sizeof(s_xerxes));
-			auto s_sep[] = ".";
+			auto s_xerxes[] = "XERXES(tm) Unified Nanocontroller @ ";
+			d_printf(s_xerxes, NULL);
 			auto s_zero[] = "0";
+			auto s_unit[] = "%u.";
 			if (mcycles > 0) {
-				auto s_mhz[] = " MHz\n";
-				d_tty10(mcycles);
-				d_tty(s_sep, sizeof(s_sep));
-				if (kcycles < 100) { d_tty(s_zero, sizeof(s_zero)); }
-				if (kcycles < 10)  { d_tty(s_zero, sizeof(s_zero)); }
-				d_tty10(kcycles);
-				d_tty(s_mhz, sizeof(s_mhz));
+				auto s_mhz[] = "%u MHz\n";
+				d_printf(s_unit, &mcycles);
+				if (kcycles < 100) { d_printf(s_zero, NULL); }
+				if (kcycles < 10)  { d_printf(s_zero, NULL); }
+				d_printf(s_mhz, &kcycles);
 			} else if (kcycles > 0) {
-				auto s_khz[] = " KHz\n";
-				d_tty10(kcycles);
-				d_tty(s_sep, sizeof(s_sep));
-				if (cycles < 100) { d_tty(s_zero, sizeof(s_zero)); }
-				if (cycles < 10)  { d_tty(s_zero, sizeof(s_zero)); }
-				d_tty10(cycles);
-				d_tty(s_khz, sizeof(s_khz));
+				auto s_khz[] = "%u KHz\n";
+				d_printf(s_unit, &kcycles);
+				if (cycles < 100) { d_printf(s_zero, NULL); }
+				if (cycles < 10)  { d_printf(s_zero, NULL); }
+				d_printf(s_khz, &cycles);
 			} else {
-				auto s_hz[] = " Hz\n";
-				d_tty10(cycles);
-				d_tty(s_hz, sizeof(s_hz));
+				auto s_hz[] = "%u Hz\n";
+				d_printf(s_hz, &cycles);
 			}
 		}
 	}
 
 	{
-		auto s_bios[] = "XERXES(tm) BIOS v";
-		auto s_sep[]  = ".";
-		d_tty(s_bios, sizeof(s_bios));
-		d_tty10(BIOS_MAJ_VER);
-		d_tty(s_sep, sizeof(s_sep));
-		d_tty10(BIOS_MIN_VER);
-		d_tty(s_sep, sizeof(s_sep));
-		d_tty10(BIOS_HOT_VER);
-		d_tty(newl, sizeof(newl));
+		auto fmt[] = "XERXES(tm) BIOS v%u.%u.%u\n";
+		auto vals[] = { BIOS_MAJ_VER, BIOS_MIN_VER, BIOS_HOT_VER };
+		d_printf(fmt, vals);
 	}
 
 	{
 		auto s_ports[] = "Ports:\n";
-		auto s_sep[]   = ": ";
-		d_tty(s_ports, sizeof(s_ports));
-
+		auto s_id[]   = "%u: %x\n";
+		auto s_noid[]   = "%u: %n\n";
+		d_printf(s_ports, NULL);
 		auto i = 0;
 		while (i < NUM_PORTS) {
-			d_tty10p(i);
-			d_tty(s_sep, sizeof(s_sep));
+			auto vals[] = { i, __hwids[i] };
 			if (__hwids[i] != 0) {
-				d_tty16(__hwids[i]);
+				d_printf(s_id, vals);
+			} else {
+				d_printf(s_noid, vals);
 			}
-			d_tty(newl, sizeof(s_sep));
 			++i;
 		}
 	}
@@ -408,13 +391,9 @@ i_print_sys_info( void )
 			sub.
 			mov ram_remaining.
 		}
-		auto s_ramavail[] = "RAM available: ";
-		auto s_sep[] = "/";
-		d_tty(s_ramavail, sizeof(s_ramavail));
-		d_tty10(ram_remaining);
-		d_tty(s_sep, sizeof(s_sep));
-		d_tty10(0xffff);
-		d_tty(newl, sizeof(newl));
+		auto fmt[] = "RAM available: %u/%u words\n";
+		auto vals[] = { ram_remaining, 0xffff };
+		d_printf(fmt, vals);
 	}
 }
 
@@ -442,15 +421,11 @@ main(a,b)
 {
 	d_hwscan();
 	d_init_tty();
-	i_print_sys_info();
 	d_init_monitor(MON_MSG_TXTMODE);
-//	i_print_sys_info();
+	i_print_sys_info();
 //	d_init_diskreader();
 //	d_init_keyboard(); // Not really necessary because BIOS takes no user input
 //	s_load_bootdisk();
-
-	auto welcome[] = "XUN, Hello\nEat donk\nABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz";
-	d_print(welcome, sizeof(welcome));
 
 	while (TRUE) {}
 

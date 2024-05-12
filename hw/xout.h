@@ -11,13 +11,10 @@ public:
 	static constexpr uint32_t MEMORY_SIZE         = 4096;
 	static constexpr U16 MSG_PIXMODE              = 0xface;
 	static constexpr U16 MSG_TXTMODE              = 0xbeef;
-	static constexpr U16 MSG_TXTMODE_LOADLINE     = 0xdef0; // Transfers a single line of text from the text map to the monitor.
 	static constexpr U16 MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the monitor internal memory for use in text mode.
 	static constexpr U16 MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
 	static constexpr U16 MSG_TXTMODE_SCROLL_DOWN  = 0x123a;
 	static constexpr U16 MSG_TXTMODE_SCROLL_UP    = 0x321b;
-	static constexpr U16 MSG_TXTMODE_NEWLINE      = 0xfee1;
-	static constexpr U16 MSG_TXTMODE_PREVLINE     = 0xb00b;
 
 private:
 	struct Color {
@@ -39,7 +36,7 @@ private:
 	uint32_t m_cell_px_width;
 	uint32_t m_cell_px_height;
 	uint32_t m_scroll;
-	uint32_t m_current_line;
+	uint32_t m_cx, m_cy;
 	U16      m_mode;
 	U8       m_first_char;
 	U8       m_last_char;
@@ -54,6 +51,7 @@ protected:
 	void DoPowerOn( void );
 	void DoCycle( void );
 	void DoPowerOff( void );
+	void Newline( void );
 	bool HandlePacket(const Packet &msg);
 
 public:

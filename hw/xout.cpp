@@ -19,7 +19,7 @@ U8 *Monitor::GetCharMap( void )
 
 U8 *Monitor::GetCurrentCharMapLine( void )
 {
-	return GetCharMap() + GetCharMapWidth() * ((m_current_line - m_scroll) % GetCharMapHeight());
+	return GetCharMap() + GetCharMapWidth() * ((m_cy - m_scroll) % GetCharMapHeight());
 }
 
 void Monitor::DoPowerOn( void )
@@ -40,6 +40,19 @@ void Monitor::DoPowerOff( void )
 	Refresh();
 }
 
+void Monitor::Newline( void )
+{
+	m_cx = 0;
+	++m_cy;
+	if ((m_cy - m_scroll) >= GetCharMapHeight()) {
+		++m_scroll;
+		U8 *scroll = GetScrollCharMapLine();
+		for (uint32_t n = 0; n < GetCharMapWidth(); ++n) {
+			scroll[n] = ' ';
+		}
+	}
+}
+
 bool Monitor::HandlePacket(const Packet &msg) 
 {
 	switch (msg.header[Packet::HEADER_TYPE]) {
@@ -48,7 +61,27 @@ bool Monitor::HandlePacket(const Packet &msg)
 		case Packet::TYPE_DISCONNECT: return true;
 		case Packet::TYPE_PING:       return true;
 		case Packet::TYPE_PONG:       return true;
-		case Packet::TYPE_DATA:       return true;
+		case Packet::TYPE_DATA:
+			if (m_mode == MSG_TXTMODE) {
+				U8 *line = GetCurrentCharMapLine();
+				for (uint32_t i = 0; i < msg.header[Device::Packet::HEADER_SIZE]; ++i) {
+					if (msg.payload[i] != '\n') {
+						line[m_cx] = msg.payload[i];
+						++m_cx;
+						if (m_cx >= GetCharMapWidth()) {
+							Newline();
+							line = GetCurrentCharMapLine();
+						}
+					} else {
+						Newline();
+						line = GetCurrentCharMapLine();
+					}
+				}
+			} else if (m_mode == MSG_PIXMODE) {
+			} else {
+				Error("Invalid video mode");
+			}
+			return true;
 		case Packet::TYPE_KEYVALS:    return true;
 		case MSG_TXTMODE:
 		case MSG_PIXMODE:
@@ -67,35 +100,13 @@ bool Monitor::HandlePacket(const Packet &msg)
 				m_memory[n + 1] = msg.payload[i] & 0x00FF;
 			}
 			return true;
-		case MSG_TXTMODE_LOADLINE:
-			Info("Got text line");
-			{
-				U8 *line = GetCurrentCharMapLine();
-				uint32_t i = 0;
-				uint32_t j = Device::Packet::PAYLOAD_WORD_SIZE * msg.header[Device::Packet::HEADER_SEQ];
-				const uint32_t max = msg.header[Device::Packet::HEADER_SIZE] < GetCharMapWidth() - j ? msg.header[Device::Packet::HEADER_SIZE] : GetCharMapWidth() - j;
-				std::cout << msg.header[Device::Packet::HEADER_SEQ] << ": ";
-				for (; i < max; ++i, ++j) {
-					line[j] = msg.payload[i];
-				}
-				for (; j < GetCharMapWidth(); ++j) {
-					line[j] = ' ';
-				}
-			}
-			return true;
 		case MSG_TXTMODE_SCROLL_DOWN:
-			if ((m_current_line - m_scroll) < GetCharMapHeight()) {
+			if ((m_cy - m_scroll) < GetCharMapHeight()) {
 				++m_scroll;
 				U8 *line = GetCurrentCharMapLine();
 				for (uint32_t i = 0; i < GetCharMapWidth(); ++i) {
 					line[i] = ' ';
 				}
-			}
-			return true;
-		case MSG_TXTMODE_NEWLINE:
-			++m_current_line;
-			if ((m_current_line - m_scroll) > GetCharMapHeight()) {
-				++m_scroll;
 			}
 			return true;
 		case MSG_TXTMODE_LOADFONTMETA:
@@ -112,7 +123,8 @@ bool Monitor::HandlePacket(const Packet &msg)
 				for (uint32_t i = 0; i < GetCharMapWidth() * GetCharMapHeight(); ++i) {
 					GetCharMap()[i] = ' ';
 				}
-				m_current_line = 0;
+				m_cx = 0;
+				m_cy = 0;
 				m_scroll = 0;
 			} else {
 				Error("Payload size not 8");
@@ -127,7 +139,7 @@ Monitor::Monitor( void ) :
 	m_char_px_width(0), m_char_px_height(0),
 	m_atlas_char_width_count(0), m_atlas_char_height_count(0),
 	m_cell_px_width(0), m_cell_px_height(0),
-	m_scroll(0), m_current_line(0),
+	m_scroll(0), m_cx(0), m_cy(0),
 	m_mode(MSG_PIXMODE),
 	m_first_char(0), m_last_char(0)
 {
