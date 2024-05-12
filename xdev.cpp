@@ -120,13 +120,13 @@ bool Device::Poll( void )
 bool Device::HandlePacket(const Packet &msg) 
 {
 	switch (msg.header[Packet::HEADER_TYPE]) {
-		case Packet::TYPE_ERR:        return true;
-		case Packet::TYPE_CONNECT:    return true;
-		case Packet::TYPE_DISCONNECT: return true;
-		case Packet::TYPE_PING:       return true;
-		case Packet::TYPE_PONG:       return true;
-		case Packet::TYPE_DATA:       return true;
-		case Packet::TYPE_KEYVALS:    return true;
+		case Packet::TYPE_ERR:        /*Info("Got ERR");*/        return true;
+		case Packet::TYPE_CONNECT:    /*Info("Got CONNECT");*/    return true;
+		case Packet::TYPE_DISCONNECT: /*Info("Got DISCONNECT");*/ return true;
+		case Packet::TYPE_PING:       /*Info("Got PING");*/       return true;
+		case Packet::TYPE_PONG:       /*Info("Got PONG");*/       return true;
+		case Packet::TYPE_DATA:       /*Info("Got DATA");*/       return true;
+		case Packet::TYPE_KEYVALS:    /*Info("Got KEYVALS");*/    return true;
 	}
 	return false;
 }
@@ -166,7 +166,7 @@ void Device::PowerOn( void )
 		m_message_id_counter = 0;
 		m_in_queue.Flush();
 		m_external_state = 0;
-		Output(NewPacket(Device::Packet::TYPE_DISCONNECT));
+		Output(NewPacket(Device::Packet::TYPE_CONNECT));
 		DoPowerOn();
 	}
 }
@@ -184,15 +184,15 @@ void Device::Run(uint32_t ms)
 {
 	if (m_cycles_per_second > 0 && IsPoweredOn()) {
 		m_exec_ns += uint64_t(ms) * 1000000ULL;
-	}
-	while (m_cycles_per_second > 0 && m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
-		Poll();
-		DoCycle();
-		m_clock_ns += m_ns_per_cycle;
-		m_exec_ns -= m_ns_per_cycle;
-	}
-	if (m_cycles_per_second == 0 || IsPoweredOff()) {
-		m_exec_ns = 0;
+		while (m_cycles_per_second > 0 && m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
+			Poll();
+			DoCycle();
+			m_clock_ns += m_ns_per_cycle;
+			m_exec_ns -= m_ns_per_cycle;
+		}
+		if (m_cycles_per_second == 0) {
+			m_exec_ns = 0;
+		}
 	}
 }
 
@@ -309,6 +309,7 @@ void Device::Disconnect( void )
 void Device::Input(const Device::Packet &msg)
 {
 	if (IsPoweredOn()) {
+		if (IsFull()) { Warn("Input buffer full"); }
 		m_in_queue.Pass(msg);
 		if (m_cycles_per_second == 0) {
 			m_clock_ns = msg.header[Packet::HEADER_CLOCK] * 1000000ULL;
@@ -338,6 +339,6 @@ void Device::Connect(Device &a, Device &b)
 	b.Disconnect();
 	a.m_connection = &b;
 	b.m_connection = &a;
-	a.Output(b.NewPacket(Device::Packet::TYPE_CONNECT));
-	b.Output(a.NewPacket(Device::Packet::TYPE_CONNECT));
+	a.Output(a.NewPacket(Device::Packet::TYPE_CONNECT));
+	b.Output(b.NewPacket(Device::Packet::TYPE_CONNECT));
 }

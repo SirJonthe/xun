@@ -119,7 +119,7 @@ hwid(port_index)
 		// Select the port to output the data to.
 		asm {
 			put port_index. // Select port.
-			port.
+			port.           // Select port.
 			put &id, 0.     // Put the address of the header but we send no data, so just point to null.
 			pass.           // Send the values at the addresses to the selected port.
 		}

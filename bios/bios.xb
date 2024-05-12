@@ -80,20 +80,21 @@ auto FONT_ATLAS[FONT_ATLAS_SIZE_WORDS] = {
 };
 
 const FONT_BITS_PER_PX             =   1;
-const FONT_ATLAS_PX_WIDTH          =   8;
-const FONT_ATLAS_PX_HEIGHT         = 760;
-const FONT_ATLAS_CHAR_WIDTH_COUNT  =   1;
-const FONT_ATLAS_CHAR_HEIGHT_COUNT =  95;
-const FONT_CHAR_PX_WIDTH           =   6;
-const FONT_CHAR_PX_HEIGHT          =   8;
+const FONT_ATLAS_PX_WIDTH          =   8; // The number of pixels in the atlas in the X axis.
+const FONT_ATLAS_PX_HEIGHT         = 760; // The number of pixels in the atlas in the Y axis.
+const FONT_ATLAS_CHAR_WIDTH_COUNT  =   1; // The number of glyphs in the atlas in the X axis.
+const FONT_ATLAS_CHAR_HEIGHT_COUNT =  95; // The number of glyphs in the atlas in the Y axis.
+const FONT_CHAR_PX_WIDTH           =   6; // The number of pixels in the glyph in the X axis.
+const FONT_CHAR_PX_HEIGHT          =   8; // The number of pixels in the glyph in the Y axis.
 const FONT_CHAR_SCANLINES_PER_WORD =   2;
-const FONT_SIZE_WORDS              = ((FONT_ATLAS_PX_WIDTH * FONT_ATLAS_PX_HEIGHT * FONT_BITS_PER_PX) / 16);
+const FONT_CELL_PX_WIDTH           =   8; // The number of pixels in the glyph (including unused pixels) in the X axis.
+const FONT_CELL_PX_HEIGHT          =   8; // The number of pixels in the glyph (including unused pixels) in the Y axis.
 
 const FONT_CHAR_ASCII_START =  33;
 const FONT_CHAR_ASCII_END   = 126;
 
-const TEXTMODE_CHARS_WIDTH  = VIDEO_PX_WIDTH  / FONT_CHAR_PX_WIDTH;
-const TEXTMODE_CHARS_HEIGHT = VIDEO_PX_HEIGHT / FONT_CHAR_PX_HEIGHT;
+const TEXTMODE_CHARS_WIDTH  = VIDEO_PX_WIDTH  / FONT_CHAR_PX_WIDTH;  // The number of glyphs that can fit the X axis given the video dimensions.
+const TEXTMODE_CHARS_HEIGHT = VIDEO_PX_HEIGHT / FONT_CHAR_PX_HEIGHT; // The number of glyphs that can fit the Y axis given the video dimensions.
 
 auto TXTMODE_SCROLL_OFFSET = 0; // This can allow the text to scroll by a single line without having to redraw the entire map.
 
@@ -106,15 +107,24 @@ const HWID_TTY = 0x0005; // Hardware ID of integrated TTY.
 // Monitor message types.
 const MON_MSG_PIXMODE              = 0xface; // Sets the monitor mode to direct pixel manipulation.
 const MON_MSG_TXTMODE              = 0xbeef; // Sets the monitor mode to text mode which only requires the computer to send font atlas information to the monitor, and then a text map, allowing the monitor to do the rendering.
-const MON_MSG_TXTMODE_LOADSCANLINE = 0xdef0; // Transfers a single line of text from the text map to the monitor.
+const MON_MSG_TXTMODE_LOADLINE     = 0xdef0; // Transfers a single line of text from the text map to the monitor.
 const MON_MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the monitor internal memory for use in text mode.
 const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
+const MON_MSG_TXTMODE_SCROLL_DOWN  = 0x123a;
+const MON_MSG_TXTMODE_SCROLL_UP    = 0x321b;
+const MON_MSG_TXTMODE_NEWLINE      = 0xfee1;
+const MON_MSG_TXTMODE_PREVLINE     = 0xb00b;
 
 const NUM_PORTS = 16;    // The number of ports on this machine.
 auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
 
 d_hwscan( void )
 {
+	// TODO:
+	// We should maybe approach this differently.
+	// Instead of identifying the hardware by the first packet on the port, we should flush the entire batch of buffered packets, and get the ID from the last packet.
+	// The reason for this is that if we plug in new hardware on a port that already has buffered packets then we misidentify the hardware.
+	// Also, this is reaaaaaaally slow when not done asynchronously. Instead, iterate over all unidentified ports constantly for a second or until all ports have been identified. This will take 1 second to do, instead of 16.
 	auto i = 0;
 	while (i < NUM_PORTS) {
 		__hwids[i] = hwid(i);
@@ -152,8 +162,6 @@ d_init_tty( void )
 	if (__port_tty == PORT_UNDEF) {
 		return FALSE;
 	}
-	auto msg[] = "\aTTY initialized\n";
-	d_tty(msg, sizeof(msg));
 	return TRUE;
 }
 
@@ -220,6 +228,25 @@ d_tty16(num)
 	return FALSE;
 }
 
+err_stall( void )
+{
+	auto now = clock();
+	auto beep_at = now + CLOCKS_PER_SEC;
+	auto wrapped_time = now > beep_at;
+	while (TRUE) {
+		now = clock();
+		if (wrapped_time == FALSE && now > beep_at) {
+			auto beep[] = "\a";
+			d_tty(beep, sizeof(beep));
+			beep_at = now + CLOCKS_PER_SEC;
+			wrapped_time = now > beep_at;
+		}
+		if (now < beep_at) {
+			wrapped_time = FALSE;
+		}
+	}
+}
+
 auto __port_mon = PORT_UNDEF; // The port index where the monitor is connected.
 
 d_require_hw(id)
@@ -236,36 +263,79 @@ d_require_hw(id)
 			auto msg3[] = "Plug in hardware and reboot\n";
 			d_tty(msg3, sizeof(msg3));
 		}
-		auto now = clock();
-		auto beep_at = now + CLOCKS_PER_SEC;
-		auto wrapped_time = now > beep_at;
-		while (TRUE) {
-			now = clock();
-			if (wrapped_time == FALSE && now > beep_at) {
-				auto beep[] = "\a";
-				d_tty(beep, sizeof(beep));
-				beep_at = now + CLOCKS_PER_SEC;
-				wrapped_time = now > beep_at;
-			}
-			if (now < beep_at) {
-				wrapped_time = FALSE;
-			}
-		}
+		err_stall();
 	}
 	return port;
 }
 
+const __LINEBUF_MAX = 256;
+const __LINEBUF_SIZE = VIDEO_PX_WIDTH / FONT_CHAR_PX_WIDTH;
+auto __linebuf[__LINEBUF_MAX];
+auto __linebuf_i = 0;
+
 d_init_monitor(mode)
 {
+	{
+		__linebuf_i = 0;
+		auto i = 0;
+		while (i < __LINEBUF_SIZE) {
+			__linebuf[i] = ' ';
+			++i;
+		}
+	}
+
 	__port_mon = d_require_hw(HWID_MON);
-	// [ ] set up monitor with specified mode
+
+	auto font_metadata[] = { // Exactly this order.
+		FONT_CHAR_PX_WIDTH,
+		FONT_CHAR_PX_HEIGHT,
+		FONT_ATLAS_CHAR_WIDTH_COUNT,
+		FONT_ATLAS_CHAR_HEIGHT_COUNT,
+		FONT_CHAR_ASCII_START,
+		FONT_CHAR_ASCII_END,
+		FONT_CELL_PX_WIDTH,
+		FONT_CELL_PX_HEIGHT
+	};
+	if (
+		hwpusht(__port_mon, MON_MSG_TXTMODE, NULL, 0, CLOCKS_PER_SEC)                                           == FALSE ||
+		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADFONT, FONT_ATLAS, FONT_ATLAS_SIZE_WORDS, CLOCKS_PER_SEC * 10)   == FALSE ||
+		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADFONTMETA, font_metadata, sizeof(font_metadata), CLOCKS_PER_SEC) == FALSE
+	) {
+		auto msg[] = "Monitor I/O error\n";
+		d_tty(msg, sizeof(msg));
+		err_stall();
+	}
+
 	return TRUE;
 }
 
 d_print(msg, len)
 {
 	if (__port_mon != PORT_UNDEF) {
-		// [ ] print on monitor
+		// [X] write msg to internal line buffer
+		auto i = 0;
+		while (i < len && __linebuf_i < __LINEBUF_SIZE) {
+			if (msg[i] != '\n') {
+				__linebuf[__linebuf_i] = msg[i];
+				++__linebuf_i;
+			} else {
+				// [X] send linebuf to monitor as-is
+				hwpusht(__port_mon, MON_MSG_TXTMODE_LOADLINE, __linebuf, __LINEBUF_SIZE, CLOCKS_PER_SEC);
+				// [X] send newline to monitor
+				hwpusht(__port_mon, MON_MSG_TXTMODE_NEWLINE, NULL, 0, CLOCKS_PER_SEC);
+				// [X] clear linebuf, and set linebuf_i to 0
+				auto n = 0;
+				while (n < __LINEBUF_SIZE) {
+					__linebuf[n] = ' ';
+					++n;
+				}
+				__linebuf_i = 0;
+			}
+			++i;
+		}
+
+		// [X] send line buffer to monitor
+		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADLINE, __linebuf, __LINEBUF_SIZE, CLOCKS_PER_SEC);
 	} else {
 		return d_tty(msg, len);
 	}
@@ -277,34 +347,39 @@ i_print_sys_info( void )
 	auto newl[] = "\n";
 
 	{
-		auto cycles = 0;
-		auto kcycles = 0; // represents every 1,000 cycle.
-		auto mcycles = 0; // represents every 1,000,000 cycle.
-		auto start = clock();
-		const CYCLES_PER_LOOP = 5380 - 5282; // This is a constant that you get by comparing the number of instructions generated without the loop below vs. with it.
+		auto  cycles          = 0;
+		auto  kcycles         = 0; // represents every 1,000 cycles.
+		auto  mcycles         = 0; // represents every 1,000,000 cycles.
+		auto  start           = clock();
+		const CYCLES_PER_LOOP = 5679 - 5581; // This is a constant that you get by comparing the number of instructions generated without the loop below vs. with it.
 
 		while (clock() - start < 1000) {
 			// We need to bend over backwards to avoid conditional code which impacts the number of cycles we perform every loop.
-			cycles += CYCLES_PER_LOOP;
-			kcycles += (cycles >= 1000);
-			mcycles += (kcycles >= 1000);
-			cycles -= (cycles >= 1000) * 1000;
-			kcycles -= (kcycles >= 1000) * 1000;
+			cycles  += CYCLES_PER_LOOP;
+			kcycles += cycles   / 1000;
+			mcycles += kcycles  / 1000;
+			cycles  -= (cycles  / 1000) * 1000;
+			kcycles -= (kcycles / 1000) * 1000;
 		}
 		{
 			auto s_xerxes[] = "XERXES(tm) Unified Nanocontroller (XUN) @ ";
 			d_tty(s_xerxes, sizeof(s_xerxes));
 			auto s_sep[] = ".";
+			auto s_zero[] = "0";
 			if (mcycles > 0) {
 				auto s_mhz[] = " MHz\n";
 				d_tty10(mcycles);
 				d_tty(s_sep, sizeof(s_sep));
+				if (kcycles < 100) { d_tty(s_zero, sizeof(s_zero)); }
+				if (kcycles < 10)  { d_tty(s_zero, sizeof(s_zero)); }
 				d_tty10(kcycles);
 				d_tty(s_mhz, sizeof(s_mhz));
 			} else if (kcycles > 0) {
 				auto s_khz[] = " KHz\n";
 				d_tty10(kcycles);
 				d_tty(s_sep, sizeof(s_sep));
+				if (cycles < 100) { d_tty(s_zero, sizeof(s_zero)); }
+				if (cycles < 10)  { d_tty(s_zero, sizeof(s_zero)); }
 				d_tty10(cycles);
 				d_tty(s_khz, sizeof(s_khz));
 			} else {
@@ -316,9 +391,8 @@ i_print_sys_info( void )
 	}
 
 	{
-		auto s_bios[]   = "XERXES(tm) BIOS v";
-		auto s_sep[]    = ".";
-
+		auto s_bios[] = "XERXES(tm) BIOS v";
+		auto s_sep[]  = ".";
 		d_tty(s_bios, sizeof(s_bios));
 		d_tty10(BIOS_MAJ_VER);
 		d_tty(s_sep, sizeof(s_sep));
@@ -329,10 +403,9 @@ i_print_sys_info( void )
 	}
 
 	{
-		auto s_condev[] = "Ports:\n";
-		auto s_sep[]    = ": ";
-		
-		d_tty(s_condev, sizeof(s_condev));
+		auto s_ports[] = "Ports:\n";
+		auto s_sep[]   = ": ";
+		d_tty(s_ports, sizeof(s_ports));
 
 		auto i = 0;
 		while (i < NUM_PORTS) {
@@ -363,7 +436,7 @@ i_print_sys_info( void )
 	}
 }
 
-auto __port_kb = PORT_UNDEF; // The port index here the keyboard is connected.
+auto __port_kb = PORT_UNDEF; // The port index where the keyboard is connected.
 
 d_init_keyboard( void )
 {
@@ -393,6 +466,9 @@ main(a,b)
 //	d_init_diskreader();
 //	d_init_keyboard(); // Not really necessary because BIOS takes no user input
 //	s_load_bootdisk();
+
+	sleep(CLOCKS_PER_SEC * 10);
+	while (TRUE) {}
 
 	return EXIT_SUCCESS;
 }
