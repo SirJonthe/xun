@@ -275,14 +275,7 @@ auto __linebuf_i = 0;
 
 d_init_monitor(mode)
 {
-	{
-		__linebuf_i = 0;
-		auto i = 0;
-		while (i < __LINEBUF_SIZE) {
-			__linebuf[i] = ' ';
-			++i;
-		}
-	}
+	__linebuf_i = 0;
 
 	__port_mon = d_require_hw(HWID_MON);
 
@@ -312,30 +305,19 @@ d_init_monitor(mode)
 d_print(msg, len)
 {
 	if (__port_mon != PORT_UNDEF) {
-		// [X] write msg to internal line buffer
 		auto i = 0;
 		while (i < len && __linebuf_i < __LINEBUF_SIZE) {
 			if (msg[i] != '\n') {
 				__linebuf[__linebuf_i] = msg[i];
 				++__linebuf_i;
 			} else {
-				// [X] send linebuf to monitor as-is
-				hwpusht(__port_mon, MON_MSG_TXTMODE_LOADLINE, __linebuf, __LINEBUF_SIZE, CLOCKS_PER_SEC);
-				// [X] send newline to monitor
+				hwpusht(__port_mon, MON_MSG_TXTMODE_LOADLINE, __linebuf, __linebuf_i, CLOCKS_PER_SEC);
 				hwpusht(__port_mon, MON_MSG_TXTMODE_NEWLINE, NULL, 0, CLOCKS_PER_SEC);
-				// [X] clear linebuf, and set linebuf_i to 0
-				auto n = 0;
-				while (n < __LINEBUF_SIZE) {
-					__linebuf[n] = ' ';
-					++n;
-				}
 				__linebuf_i = 0;
 			}
 			++i;
 		}
-
-		// [X] send line buffer to monitor
-		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADLINE, __linebuf, __LINEBUF_SIZE, CLOCKS_PER_SEC);
+		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADLINE, __linebuf, __linebuf_i, CLOCKS_PER_SEC);
 	} else {
 		return d_tty(msg, len);
 	}
@@ -467,7 +449,9 @@ main(a,b)
 //	d_init_keyboard(); // Not really necessary because BIOS takes no user input
 //	s_load_bootdisk();
 
-	sleep(CLOCKS_PER_SEC * 10);
+	auto welcome[] = "XUN, Hello\nEat donk\nABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz";
+	d_print(welcome, sizeof(welcome));
+
 	while (TRUE) {}
 
 	return EXIT_SUCCESS;

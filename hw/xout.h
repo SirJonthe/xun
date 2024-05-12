@@ -20,8 +20,18 @@ public:
 	static constexpr U16 MSG_TXTMODE_PREVLINE     = 0xb00b;
 
 private:
+	struct Color {
+		U8 r, g, b, a;
+	};
+	struct Palette {
+		Color pal[16];
+	};
+
+private:
 	U8       m_pixels[WIDTH*HEIGHT];
 	U8       m_memory[MEMORY_SIZE];
+	Palette  m_fg;
+	Palette  m_bg;
 	uint32_t m_char_px_width;
 	uint32_t m_char_px_height;
 	uint32_t m_atlas_char_width_count;
@@ -38,6 +48,7 @@ private:
 	void Clear( void );
 	void Refresh( void ) const;
 	U8 *GetCharMap( void );
+	U8 *GetCurrentCharMapLine( void );
 
 protected:
 	void DoPowerOn( void );
@@ -55,17 +66,18 @@ public:
 	const U8 *GetVideo( void ) const;
 	const U8 *GetMemory( void ) const;
 
-	uint32_t GetCharPxWidth( void ) const;
-	uint32_t GetCharPxHeight( void ) const;
-	uint32_t GetAtlasCharWidthCount( void ) const;
-	uint32_t GetAtlasCharHeightCount( void ) const;
-	uint32_t GetCellPxWidth( void ) const;
-	uint32_t GetCellPxHeight( void ) const;
-	U16      GetMode( void ) const;
-	U8       GetFirstFontChar( void ) const;
-	U8       GetLastFontChar( void ) const;
-	uint32_t GetCharMapWidth( void ) const;
-	uint32_t GetCharMapHeight( void ) const;
+	uint32_t  GetCharPxWidth( void ) const;
+	uint32_t  GetCharPxHeight( void ) const;
+	uint32_t  GetAtlasCharWidthCount( void ) const;
+	uint32_t  GetAtlasCharHeightCount( void ) const;
+	uint32_t  GetCellPxWidth( void ) const;
+	uint32_t  GetCellPxHeight( void ) const;
+	U16       GetMode( void ) const;
+	U8        GetFirstFontChar( void ) const;
+	U8        GetLastFontChar( void ) const;
+	uint32_t  GetCharMapWidth( void ) const;
+	uint32_t  GetCharMapHeight( void ) const;
+	U8       *GetScrollCharMapLine( void );
 };
 
 #endif // XOUT_H

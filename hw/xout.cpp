@@ -17,6 +17,11 @@ U8 *Monitor::GetCharMap( void )
 	return m_memory + m_atlas_char_height_count * m_cell_px_height * m_atlas_char_width_count * (m_cell_px_width / 8);
 }
 
+U8 *Monitor::GetCurrentCharMapLine( void )
+{
+	return GetCharMap() + GetCharMapWidth() * ((m_current_line - m_scroll) % GetCharMapHeight());
+}
+
 void Monitor::DoPowerOn( void )
 {
 	Clear();
@@ -64,16 +69,35 @@ bool Monitor::HandlePacket(const Packet &msg)
 			return true;
 		case MSG_TXTMODE_LOADLINE:
 			Info("Got text line");
-			// a single line of text (string)
+			{
+				U8 *line = GetCurrentCharMapLine();
+				uint32_t i = 0;
+				uint32_t j = Device::Packet::PAYLOAD_WORD_SIZE * msg.header[Device::Packet::HEADER_SEQ];
+				const uint32_t max = msg.header[Device::Packet::HEADER_SIZE] < GetCharMapWidth() - j ? msg.header[Device::Packet::HEADER_SIZE] : GetCharMapWidth() - j;
+				std::cout << msg.header[Device::Packet::HEADER_SEQ] << ": ";
+				for (; i < max; ++i, ++j) {
+					line[j] = msg.payload[i];
+				}
+				for (; j < GetCharMapWidth(); ++j) {
+					line[j] = ' ';
+				}
+			}
 			return true;
 		case MSG_TXTMODE_SCROLL_DOWN:
-			break;
-		case MSG_TXTMODE_SCROLL_UP:
-			break;
+			if ((m_current_line - m_scroll) < GetCharMapHeight()) {
+				++m_scroll;
+				U8 *line = GetCurrentCharMapLine();
+				for (uint32_t i = 0; i < GetCharMapWidth(); ++i) {
+					line[i] = ' ';
+				}
+			}
+			return true;
 		case MSG_TXTMODE_NEWLINE:
-			break;
-		case MSG_TXTMODE_PREVLINE:
-			break;
+			++m_current_line;
+			if ((m_current_line - m_scroll) > GetCharMapHeight()) {
+				++m_scroll;
+			}
+			return true;
 		case MSG_TXTMODE_LOADFONTMETA:
 			Info("Got font meta data");
 			if (msg.header[Device::Packet::HEADER_SIZE] == 8) {
@@ -99,7 +123,7 @@ bool Monitor::HandlePacket(const Packet &msg)
 }
 
 Monitor::Monitor( void ) :
-	Device("XERXES(tm) High Resolution Display V452", XHWID_MON),
+	Device("XERXES(tm) Multi-Color Display V452", XHWID_MON),
 	m_char_px_width(0), m_char_px_height(0),
 	m_atlas_char_width_count(0), m_atlas_char_height_count(0),
 	m_cell_px_width(0), m_cell_px_height(0),
@@ -190,3 +214,7 @@ uint32_t Monitor::GetCharMapHeight( void ) const
 	return HEIGHT / m_char_px_height;
 }
 
+U8 *Monitor::GetScrollCharMapLine( void )
+{
+	return GetCharMap() + GetCharMapWidth() * (m_scroll % GetCharMapHeight());
+}
