@@ -143,6 +143,22 @@ Monitor::Monitor( void ) :
 	m_mode(MSG_PIXMODE),
 	m_first_char(0), m_last_char(0)
 {
+	m_pal.pal[0]  = Color{   0,   0,   0, 255 };
+	m_pal.pal[1]  = Color{ 204,   0,   0, 255 };
+	m_pal.pal[2]  = Color{  78, 154,   6, 255 };
+	m_pal.pal[3]  = Color{ 196, 160,   0, 255 };
+	m_pal.pal[4]  = Color{  54, 101, 164, 255 };
+	m_pal.pal[5]  = Color{ 117,  80, 123, 255 };
+	m_pal.pal[6]  = Color{   6, 152, 154, 255 };
+	m_pal.pal[7]  = Color{ 211, 215, 207, 255 };
+	m_pal.pal[8]  = Color{  85,  87,  83, 255 };
+	m_pal.pal[9]  = Color{ 239,  41,  41, 255 };
+	m_pal.pal[10] = Color{ 138, 226,  52, 255 };
+	m_pal.pal[11] = Color{ 252, 233,  79, 255 };
+	m_pal.pal[12] = Color{ 114, 159, 207, 255 };
+	m_pal.pal[13] = Color{ 173, 127, 168, 255 };
+	m_pal.pal[14] = Color{  52, 226, 226, 255 };
+	m_pal.pal[15] = Color{ 255, 255, 255, 255 };
 	SetCyclesPerSecond(60);
 }
 

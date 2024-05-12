@@ -9,12 +9,6 @@ d_hwscan( void );
 /// @sa d_hwscan
 d_find_hw(id);
 
-/// @brief Prints text on the TTY.
-/// @param msg The message.
-/// @param len The length of the message (stops earlier if zero terminator encountered).
-/// @return 1 if the print was successful, 0 otherwise.
-d_tty(msg, len);
-
 /// @brief Initialized the on-board TTY console.
 /// @return 1 if the TTY was found, 0 otherwise.
 d_init_tty( void );
@@ -25,11 +19,12 @@ d_init_tty( void );
 /// @note Completely locks execution if the ID is not found, requiring a physical reboot.
 d_require_hw(id);
 
-/// @brief Prints text on the monitor. If monitor not available, print text to TTY.
-/// @param msg The message.
-/// @param len The length of the message (stops earlier if zero terminator encountered).
-/// @return 1 if the print was successful on one of the devices, 0 otherwise.
-d_print(msg, len);
+/// @brief Prints text on the monitor. Prints to TTY as a fallback. Stops on zero-terminator.
+/// @param format The message including format of provided values.
+/// @param values The values to print in accordance with the format string.
+/// @return 1 if the print was successful, 0 otherwise.
+/// @note All strings stop on zero-terminator.
+d_printf(format, values);
 
 /// @brief Initializes a connected monitor.
 /// @param mode Sets the monitor to a specified mode.

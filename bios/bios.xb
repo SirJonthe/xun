@@ -4,13 +4,6 @@ const BIOS_MAJ_VER = 0;
 const BIOS_MIN_VER = 1;
 const BIOS_HOT_VER = 0;
 
-const VIDEO_PX_WIDTH           = 320;
-const VIDEO_PX_HEIGHT          = 240;
-const VIDEO_BITS_PER_PX        =   1;
-const VIDEO_WORDS_PER_SCANLINE = ((VIDEO_PX_WIDTH * VIDEO_BITS_PER_PX) / 16);
-const VIDEO_SIZE_WORDS         = (VIDEO_WORDS_PER_SCANLINE * VIDEO_PX_HEIGHT);
-auto  VIDEO[VIDEO_SIZE_WORDS];
-
 const FONT_ATLAS_SIZE_WORDS = 380;
 auto FONT_ATLAS[FONT_ATLAS_SIZE_WORDS] = {
 	0xfffb, 0xfbfb, 0xfffb, 0xffff, 0xffeb, 0xebff,
@@ -79,24 +72,15 @@ auto FONT_ATLAS[FONT_ATLAS_SIZE_WORDS] = {
 	0xc1c1, 0xffff
 };
 
-const FONT_BITS_PER_PX             =   1;
-const FONT_ATLAS_PX_WIDTH          =   8; // The number of pixels in the atlas in the X axis.
-const FONT_ATLAS_PX_HEIGHT         = 760; // The number of pixels in the atlas in the Y axis.
 const FONT_ATLAS_CHAR_WIDTH_COUNT  =   1; // The number of glyphs in the atlas in the X axis.
 const FONT_ATLAS_CHAR_HEIGHT_COUNT =  95; // The number of glyphs in the atlas in the Y axis.
 const FONT_CHAR_PX_WIDTH           =   6; // The number of pixels in the glyph in the X axis.
 const FONT_CHAR_PX_HEIGHT          =   8; // The number of pixels in the glyph in the Y axis.
-const FONT_CHAR_SCANLINES_PER_WORD =   2;
 const FONT_CELL_PX_WIDTH           =   8; // The number of pixels in the glyph (including unused pixels) in the X axis.
 const FONT_CELL_PX_HEIGHT          =   8; // The number of pixels in the glyph (including unused pixels) in the Y axis.
 
 const FONT_CHAR_ASCII_START =  33;
 const FONT_CHAR_ASCII_END   = 126;
-
-const TEXTMODE_CHARS_WIDTH  = VIDEO_PX_WIDTH  / FONT_CHAR_PX_WIDTH;  // The number of glyphs that can fit the X axis given the video dimensions.
-const TEXTMODE_CHARS_HEIGHT = VIDEO_PX_HEIGHT / FONT_CHAR_PX_HEIGHT; // The number of glyphs that can fit the Y axis given the video dimensions.
-
-auto TXTMODE_SCROLL_OFFSET = 0; // This can allow the text to scroll by a single line without having to redraw the entire map.
 
 const HWID_KB  = 0x0001; // Hardware ID of keyboard.
 const HWID_RDD = 0x0002; // Hardware ID of disk reader.
@@ -166,7 +150,34 @@ d_outf(port, format, values)
 		while (format[end] != 0) {
 			if (esc == TRUE) {
 				auto ch = format[end];
-				if (ch == 'u') {
+				if (ch == 'd' || ch == 'i') {
+					auto num = values[val];
+					auto dec[6];
+					auto i = 0;
+					if (num & 0x8000 == 0) {
+						while (i < 5) {
+							dec[5 - i] = dig10[num%10];
+							num /= 10;
+							++i;
+							if (num == 0) {
+								break;
+							}
+						}
+					} else {
+						num = num & 0x7fff;
+						while (i < 5) {
+							dec[5 - i] = dig10[num%10];
+							num /= 10;
+							++i;
+							if (num == 0) {
+								break;
+							}
+						}
+						dec[5 - i] = '-';
+						++i;
+					}
+					if (!hwpush(port, dec + 6 - i, i, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'u') {
 					auto num = values[val];
 					auto dec[5];
 					auto i = 0;
@@ -233,11 +244,6 @@ d_outf(port, format, values)
 	return hwpush(port, format + start, end - start, CLOCKS_PER_SEC);
 }
 
-d_ttyf(format, values)
-{
-	return d_outf(__port_tty, format, values);
-}
-
 err_stall( void )
 {
 	auto now = clock();
@@ -247,7 +253,7 @@ err_stall( void )
 		now = clock();
 		if (wrapped_time == FALSE && now > beep_at) {
 			auto beep[] = "\a";
-			d_ttyf(beep, NULL);
+			d_outf(__port_tty, beep, NULL);
 			beep_at = now + CLOCKS_PER_SEC;
 			wrapped_time = now > beep_at;
 		}
@@ -259,30 +265,25 @@ err_stall( void )
 
 auto __port_mon = PORT_UNDEF; // The port index where the monitor is connected.
 
+d_printf(format, values)
+{
+	return d_outf(__port_mon, format, values) || d_outf(__port_tty, format, values);
+}
+
 d_require_hw(id)
 {
 	auto port = d_find_hw(id);
 	if (port == PORT_UNDEF) {
-		// [ ] Print message if possible
-		if (__port_mon == PORT_UNDEF) {
-			auto msg[] = "Missing required hardware (%x)\nPlug in hardware and reboot\n";
-			auto vals[] = { id };
-			d_ttyf(msg, vals); // TODO use d_printf instead
-		}
+		auto fmt[] = "Missing required hardware (%x)\nPlug in hardware and reboot\n";
+		auto vals[] = { id };
+		d_printf(fmt, vals);
 		err_stall();
 	}
 	return port;
 }
 
-const __LINEBUF_MAX = 256;
-const __LINEBUF_SIZE = VIDEO_PX_WIDTH / FONT_CHAR_PX_WIDTH;
-auto __linebuf[__LINEBUF_MAX];
-auto __linebuf_i = 0;
-
 d_init_monitor(mode)
 {
-	__linebuf_i = 0;
-
 	__port_mon = d_require_hw(HWID_MON);
 
 	auto font_metadata[] = { // Exactly this order.
@@ -301,27 +302,16 @@ d_init_monitor(mode)
 		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADFONTMETA, font_metadata, sizeof(font_metadata), CLOCKS_PER_SEC) == FALSE
 	) {
 		auto msg[] = "Monitor I/O error\n";
-		d_ttyf(msg, NULL);
+		d_outf(__port_tty, msg, NULL);
 		err_stall();
 	}
 
 	return TRUE;
 }
 
-d_monf(format, values)
-{
-	return d_outf(__port_mon, format, values);
-}
-
-d_printf(format, values)
-{
-	return d_monf(format, values) || d_ttyf(format, values);
-}
-
 i_print_sys_info( void )
 {
-	auto newl[] = "\n";
-
+	// Print XUN and calculate CPU speed.
 	{
 		auto  cycles          = 0;
 		auto  kcycles         = 0; // represents every 1,000 cycles.
@@ -361,16 +351,18 @@ i_print_sys_info( void )
 		}
 	}
 
+	// Print BIOS version.
 	{
 		auto fmt[] = "XERXES(tm) BIOS v%u.%u.%u\n";
 		auto vals[] = { BIOS_MAJ_VER, BIOS_MIN_VER, BIOS_HOT_VER };
 		d_printf(fmt, vals);
 	}
 
+	// Print connected devices.
 	{
 		auto s_ports[] = "Ports:\n";
-		auto s_id[]   = "%u: %x\n";
-		auto s_noid[]   = "%u: %n\n";
+		auto s_id[]    = "  %u: %x\n";
+		auto s_noid[]  = "  %u: %n\n";
 		d_printf(s_ports, NULL);
 		auto i = 0;
 		while (i < NUM_PORTS) {
@@ -384,6 +376,7 @@ i_print_sys_info( void )
 		}
 	}
 
+	// Calculate and print RAM status.
 	{
 		auto ram_remaining;
 		asm {

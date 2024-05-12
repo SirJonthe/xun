@@ -27,8 +27,7 @@ private:
 private:
 	U8       m_pixels[WIDTH*HEIGHT];
 	U8       m_memory[MEMORY_SIZE];
-	Palette  m_fg;
-	Palette  m_bg;
+	Palette  m_pal;
 	uint32_t m_char_px_width;
 	uint32_t m_char_px_height;
 	uint32_t m_atlas_char_width_count;
