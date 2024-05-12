@@ -2,9 +2,9 @@
 	[X] Use existing font.
 [X] Set up some data in RAM for monochrome rendering of text
 	[X] Reserve memory in array
-[ ] Font rendering routines
-	[ ] Main routines for messages
-[ ] Print all available devices connected to the machine
+[X] Font rendering routines
+	[X] Main routines for messages
+[X] Print all available devices connected to the machine
 [ ] Require a monitor and keyboard to be connected
 	[ ] If not, "Connect monitor and/or keyboard and reboot."
 [ ] Write some code to detect a disk reader, and load the contents byte for byte to RAM.
