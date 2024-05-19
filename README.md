@@ -16,7 +16,6 @@ github.com/SirJonthe
 [ ] xb:   Better error messages across separate files.
 [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
 [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
-[ ] xb:   static (variables and arrays stored in binary, RLA used to address - Only initializable by literal expressions so value can be injected straight into the binary)
 [ ] xcc:  Deprecate HALT, and use LDA for program end.
 [ ] xasm: Deprecate HALT instruction.
 [ ] xb:   signed/unsigned
