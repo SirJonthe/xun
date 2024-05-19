@@ -71,10 +71,42 @@ const D[3] = { A, B, C }; // Error: 'D' can not be indexed at run-time using var
 auto d[3] = { A, B, C }; // OK: 'd' is defined using constants.
 ```
 
+## Static memory
+Variables, arrays, and strings can be declared using the `static` keyword instead of the `auto` keyword. Static memory is stored inside the program binary rather than on the stack. This has the effect that static memory only has a single instance that persists throughout the run of the entirety of the application.
+```
+auto_fn()
+{
+	auto n = 0;
+	++n;
+	return n;
+}
+
+static_fn()
+{
+	static n = 0;
+	++n;
+	return n;
+}
+```
+
+Calling `auto_fn()` will only ever return `1`, while calling `static_fn()` will return an incrementing value for every call.
+
+Static symbols have local scope and can not be accessed from outside the scope in which they were declared. Static memory must be initialized to a constant or a constant expression since its value at compile-time must be injected into the binary. Similarly, arrays and strings must be initialized where each element must be evaluated to a constant:
+```
+static a[5] = {
+	1, 2, 3, 4, 5
+};
+
+static b[] = "abcde";
+```
+
+There is a caveat regarding arrays and strings; The array pointer is *not* static itself, meaning the pointer is stored on the stack. The effect is that static arrays and strings declared inside a function will have its array pointer reset upon entering the function next time. Any manipulation of the pointer will therefore reset, while any manipulation of the array elements will be preserved.
+
+Static memory is useful in two situations; The first situation is when the programmer wants a value of memory to be persistent throughout the run of an entire program. The second situation is for memory preservation reasons. Large arrays of constants consume large amounts of memory when declared using automatic storage; For every element a PUT instruction is emitted, along with the value of the element, and finally when the code is executed the value will be emitted onto the stack. This is a total of three 16-bit memory locations per element. Static storage allows the memory to be stored only once, leading to 1/3 of the memory being consumed.
+
 ## Functions
 
 ### Definitions
-
 Optionally, for functions taking no arguments the programmer may specify that the function takes a single `void` parameter (this can aid reading, especially for function declarations).
 ```
 fn1() // OK: Function takes no parameters.
@@ -192,6 +224,22 @@ if (x == 0) {
 The same logic applies to all aliasable language elements, such as variables, constants, functions, enums, etc.
 
 ## Include directives
+Files containing XB source code can be included in other XB code files.
+```
+#include "some_file.xh"
+```
+
+Simplified, this results in the code of the included file to be pasted into the including file. This allows for more complex programs to be written by breaking down the program into smaller units, or including externally written code into an existing project.
+
+The compiler will recognize previously included files and ensure that they are only compiled once.
+```
+#include "some_file.xh"
+#include "some_file.xh"
+```
+
+File paths are relative to the including file.
+
+Include directives are only valid in the global scope. It is recommended to only include header files (`xh`). Source files should not be included using the include directive.
 
 ## Standard library
 XB comes with a small set of essential tools for writing applcations and utilizing XUN hardware.
