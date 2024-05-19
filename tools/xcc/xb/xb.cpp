@@ -1895,7 +1895,6 @@ static bool try_new_var_item(xcc_parser_state ps)
 
 static bool try_new_var_list(xcc_parser_state ps)
 {
-	token t;
 	if (
 		manage_state(
 			try_new_arr_item(new_state(ps.end)) ||
@@ -1921,10 +1920,221 @@ static bool try_new_vars(xcc_parser_state ps)
 	return false;
 }
 
+static bool try_sexpr(xcc_parser_state ps)
+{
+	U16 result = 0;
+	if (
+		manage_state(
+			try_lit_expr(new_state(ps.end), result) &&
+			xcc_write_word(ps.p, XWORD{result})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_sexpr_list(xcc_parser_state ps, U16 *count)
+{
+	++(*count);
+	if (
+		manage_state(
+			try_sexpr(new_state(ps.end)) &&
+			(
+				match(ps.p, xbtoken::OPERATOR_COMMA) ?
+					try_sexpr_list(new_state(ps.end), count) :
+					true
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_new_svar_list(xcc_parser_state ps);
+
+static bool try_sstr_lit(xcc_parser_state ps, U16 *count)
+{
+	token t;
+	if (!xcc_write_word(ps.p, XWORD{XIS::PUT}) || !xcc_write_word(ps.p, XWORD{0}) || !xcc_write_word(ps.p, XWORD{XIS::RLA}) || !xcc_write_word(ps.p, XWORD{XIS::JMP})) {
+		return false;
+	}
+	U16 jmp_addr_idx = ps.p->out.size - 3;
+	while (((t = peek(ps.p)).user_type != ps.end || is_white(peek1(ps.p).hash)) && t.user_type != token::STOP_EOF) {
+		if (!try_encoded_char(new_state(ps.end), t)) {
+			return false;
+		}
+		if (!xcc_write_word(ps.p, XWORD{U16(t.hash)})) {
+			return false;
+		}
+		++*count;
+	}
+	if (!xcc_write_word(ps.p, XWORD{U16(0)})) {
+		return false;
+	}
+	++*count;
+	// ps.p->out.buffer[jmp_addr_idx].u = *count; // WRONG: This should be used for SKIP, not JMP
+	ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size;
+	return true;
+}
+
+static bool try_sexpr_def(xcc_parser_state ps, U16 &count)
+{
+	U16 jmp_addr_idx = 0;
+	if (
+		manage_state(
+			xcc_write_word(ps.p, XWORD{XIS::PUT})                                &&
+			(jmp_addr_idx = ps.p->out.size)                                      &&
+			xcc_write_word(ps.p, XWORD{0})                                       &&
+			xcc_write_word(ps.p, XWORD{XIS::RLA})                                &&
+			xcc_write_word(ps.p, XWORD{XIS::JMP})                                &&
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_L)              &&
+			try_sexpr_list(new_state(xbtoken::OPERATOR_ENCLOSE_BRACE_R), &count) &&
+			match         (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACE_R)
+		)
+	) {
+		ps.p->out.buffer[jmp_addr_idx].u = ps.p->out.size;
+		return true;
+	}
+	return false;
+}
+
+static bool try_sarr_def_expr(xcc_parser_state ps, xcc_symbol *sym, bool verify)
+{
+	++sym->size;
+	U16 count = 0;
+	bool is_str = false;
+	if (
+		manage_state(
+			match(ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)                                             &&
+			(
+				xcc_write_word            (ps.p, XWORD{XIS::PUT})                                     &&
+				xcc_write_word            (ps.p, XWORD{U16(ps.p->out.size + 6)})                      && // NOTE: 6 is the number of instructions that will be emitted after this that we have to skip in order to point to the array data.
+				xcc_write_word            (ps.p, XWORD{XIS::RLA})                                     &&
+				try_sexpr_def             (new_state(ps.end), count)                                  ||
+				(
+					match                 (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)               &&
+					(is_str = try_sstr_lit(new_state(xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE), &count)) &&
+					match                 (ps.p, xbtoken::OPERATOR_ENCLOSE_DOUBLEQUOTE)
+				)
+			)
+		)
+	) {
+		if (is_str) {
+			++sym->size;
+		}
+		if (!verify) {
+			sym->size += count;
+		} else if (sym->size - 1 != count) {
+			set_error(ps.p, sym->tok, xcc_error::VERIFY);
+			return false;
+		}
+		return true;
+	}
+	return false;
+}
+
+static bool try_new_sarr_item(xcc_parser_state ps)
+{
+	token t;
+	xcc_symbol *sym;
+	if (
+		manage_state(
+			match                    (ps.p, token::ALIAS, &t)                                    &&
+			(sym = xcc_add_var(t, ps.p)) != NULL                                                 && // NOTE: Array pointers are still AUTO rather than STATIC. However, we need to change that type to STATIC later (not because the pointer is not auto, but because we need to be able to identify that it is pointing to a static array).
+			match                    (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_L)                 &&
+			(
+				(
+					try_lit_expr     (new_state(xbtoken::OPERATOR_ENCLOSE_BRACKET_R), sym->size) &&
+					match            (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
+					try_sarr_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), sym, true)
+				)                                                                                ||
+				(
+					match            (ps.p, xbtoken::OPERATOR_ENCLOSE_BRACKET_R)                 &&
+					try_sarr_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON), sym, false)
+				)
+			)                                                                                    &&
+			(
+				match(ps.p, xbtoken::OPERATOR_COMMA) ?
+					try_new_svar_list(new_state(ps.end)) :
+					true
+			)
+		)
+	) {
+		sym->storage = xcc_symbol::STORAGE_STATIC; // NOTE: Static arrays are really hacky. They require a lot of backend work because we want to be able to have them mostly not affect the stack size since the actual array elements do not reside on the stack yet the array pointer does. This results in the symbol needing to be registered as AUTO initially, then switched over to STATIC, and have the XCC backend implement a lot of exceptions for how static arrays are handled.
+		return true;
+	}
+	return false;
+}
+
+static bool try_svar_def_expr(xcc_parser_state ps)
+{
+	U16 result = 0;
+	if (
+		manage_state(
+			match         (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)         &&
+			try_lit_expr  (new_state(xbtoken::OPERATOR_SEMICOLON), result) &&
+			xcc_write_word(ps.p, XWORD{XIS::BIN})                          &&
+			xcc_write_word(ps.p, XWORD{result})
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_new_svar_item(xcc_parser_state ps)
+{
+	token t;
+	if (
+		manage_state(
+			match            (ps.p, token::ALIAS, &t)                 &&
+			xcc_add_svar     (t, ps.p) != NULL                        &&
+			try_svar_def_expr(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
+			(
+				match(ps.p, xbtoken::OPERATOR_COMMA) ?
+					try_new_svar_list(new_state(ps.end)) :
+					true
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_new_svar_list(xcc_parser_state ps)
+{
+	token t;
+	if (
+		manage_state(
+			try_new_sarr_item(new_state(ps.end)) ||
+			try_new_svar_item(new_state(ps.end))
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
+static bool try_new_svars(xcc_parser_state ps)
+{
+	if (
+		manage_state(
+			match            (ps.p, xbtoken::KEYWORD_TYPE_STATIC)     &&
+			try_new_svar_list(new_state(xbtoken::OPERATOR_SEMICOLON)) &&
+			match            (ps.p, xbtoken::OPERATOR_SEMICOLON)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_const_def_expr(xcc_parser_state ps, U16 &result)
 {
 	result = 0;
-	token p = peek(ps.p);
 	if (
 		manage_state(
 			match       (ps.p, xbtoken::OPERATOR_ASSIGNMENT_SET)         &&
@@ -2522,6 +2732,7 @@ static bool try_statement(xcc_parser_state ps)
 			match             (ps.p, xbtoken::OPERATOR_SEMICOLON) ||
 			try_enum          (new_state(ps.end))                 ||
 			try_new_vars      (new_state(ps.end))                 ||
+			try_new_svars     (new_state(ps.end))                 ||
 			try_new_consts    (new_state(ps.end))                 ||
 			try_if            (new_state(ps.end))                 ||
 			try_while         (new_state(ps.end))                 ||
@@ -2812,8 +3023,8 @@ static bool try_global_statement(xcc_parser_state ps)
 			try_fn_def    (new_state(ps.end))                 ||
 			try_fn_decl   (new_state(ps.end))                 ||
 			try_new_vars  (new_state(ps.end))                 ||
-			try_new_consts(new_state(ps.end))               //||
-			//try_new_svars (new_state(ps.end))
+			try_new_consts(new_state(ps.end))                 ||
+			try_new_svars (new_state(ps.end))
 		)
 	) {
 		return true;

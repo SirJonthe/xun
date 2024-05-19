@@ -91,11 +91,22 @@ bool xcc_write_word(xcc_binary &buf, XWORD data)
 	return true;
 }
 
+static U16 xcc_symbol_stack_size(const xcc_symbol *sym)
+{
+	return sym->storage != xcc_symbol::STORAGE_STATIC ?
+		sym->size :
+		(
+			sym->size <= 1 ?
+				0 :
+				1
+		);
+}
+
 U16 xcc_top_scope_stack_size(const xcc_symbol_stack &s)
 {
 	U16 size = 0;
 	for (signed i = s.count - 1; i >= 0 && s.symbols[i].scope_index == s.scope; --i) {
-		size += s.symbols[i].size;
+		size += xcc_symbol_stack_size(s.symbols + i);
 	}
 	return size;
 }
@@ -115,7 +126,7 @@ U16 xcc_loop_stack_size(const xcc_symbol_stack &s, U16 scope_index)
 {
 	U16 size = 0;
 	for (signed i = s.count - 1; i >= 0 && s.symbols[i].scope_index > scope_index; --i) {
-		size += s.symbols[i].size;
+		size += xcc_symbol_stack_size(s.symbols + i);
 	}
 	return size;
 }
@@ -228,7 +239,7 @@ bool xcc_write_rel(xcc_parser *p, const xcc_symbol *sym, U16 offset)
 	return
 		xcc_write_word(p, XWORD{XIS::PUT})                  &&
 		xcc_write_word(p, XWORD{U16(sym->data.u + offset)}) &&
-		sym->storage == xcc_symbol::STORAGE_STATIC ? xcc_write_word(p, XWORD{XIS::RLA}) : (
+		sym->storage == xcc_symbol::STORAGE_STATIC && sym->size <= 1 ? xcc_write_word(p, XWORD{XIS::RLA}) : ( // NOTE: STATIC variables use RLA, but STATIC arrays use RLB/RLC
 			sym->scope_index > 0 ?
 				xcc_write_word(p, XWORD{XIS::RLC}) :
 				xcc_write_word(p, XWORD{XIS::RLB})
