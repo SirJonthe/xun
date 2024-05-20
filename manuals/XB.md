@@ -14,8 +14,24 @@ xb file01.xb ... filenn.xb
 ### Types
 [what types of statements are there?]
 
+Declaration and initialization of memory, including constants.
+
+Declaration of functions.
+
+Definition of functions.
+
+`#include` statements.
+
 ### Global scope
-[what types of statements are valid in the global scope?]
+Declaration and initialization of memory.
+
+Declaration and initialization of constants.
+
+Declaration of functions.
+
+Definition of functions.
+
+`#include` statements.
 
 ### Local scope
 [what types of statements are valid in the local scope?]
@@ -243,3 +259,36 @@ Include directives are only valid in the global scope. It is recommended to only
 
 ## Standard library
 XB comes with a small set of essential tools for writing applcations and utilizing XUN hardware.
+
+## Main
+All valid XB programs must have a `main` function. `main` is automatically called without the need for manual function invokation and is considered the first entry-point into an application (this is not a hard rule, however as global initialization may contain calls to functions potentially making such functions called before `main`).
+
+`main` takes two parameters; The first parameter is the number of elements in the second parameter. The second parameter is an array of addresses to strings, where each string represents a string argument passed to the application during startup.
+```
+main(argc, argv)
+{
+	return 0;
+}
+```
+
+`main` is expected to return a value representing the exit status of the application. `0` represents a good status, and `-1` represents a failure status. The programmer may instead use the predefined constants found in the standard library `<stdlib>` for status. The following returns a successful state:
+```
+#include <stdlib>
+
+main(argc, argv)
+{
+	return EXIT_SUCCESS;
+}
+```
+
+The following returns a failure state:
+```
+#include <stdlib>
+
+main(argc, argv)
+{
+	return EXIT_FAILURE;
+}
+```
+
+The exit state can be read from the process which started the application in order to determine the successfulness of the application.
