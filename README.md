@@ -63,7 +63,7 @@ XB comes with a standard library that mirrors that of commonly used C standard l
 See "Programming Manual for XERXES(tm) B (XB)" for technical details about the programming language.
 
 #### XDB
-XDB (XERXES Debugger) an external tool that is a binary debugger that executes a binary step by step. The debugger has an option for a terminal-based UI where the used can see the program, stack, and register values as the program executes.
+XDB (XERXES Debugger) is an external tool and binary debugger that executes a binary step by step. The debugger has an option for a terminal-based UI where the used can see the program, stack, and register values as the program executes.
 
 ## Building
 
