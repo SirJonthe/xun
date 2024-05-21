@@ -1,11 +1,10 @@
 #ifndef XIS_H
 #define XIS_H
 
-#define TOSTR(X) #X
-
+/// @brief Contains the XUN instruction set.
 struct XIS
 {
-	// TODO Huge issue. The switch-case in the Computer will most likely want to work on a sequential list of enums rather than values that are very far apart, since 0...n enums can be implemented as a jump table.
+	/// @brief Contains the XUN instruction set.
 	enum Enum
 	{
 		// IDENTITY BITS

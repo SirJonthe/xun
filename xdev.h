@@ -20,7 +20,7 @@ public:
 			TYPE_PONG,       // Sent back as an acknowledgement of a PING.
 			TYPE_DATA,       // Raw data is found in the payload.
 			TYPE_KEYVALS,    // A series of user-defined keys and values are sent in the payload. The same effect can be achieved sending raw data, but a separate packet type may help distinguish between situations.
-			TYPE_COUNT
+			TYPE_COUNT       // The number of packet types available.
 		};
 		enum {
 			HEADER_ID,       // The ID of the sending device.
@@ -30,12 +30,12 @@ public:
 			HEADER_SIZE,     // The number of words in the payload.
 			HEADER_IRQ,      // The IRQ to call on the receiving device.
 			HEADER_MID,      // The message ID.
-			HEADER_WORD_SIZE
+			HEADER_WORD_SIZE // The number of words in the header.
 		};
-		static constexpr uint32_t PACKET_WORD_SIZE  = 32;
-		static constexpr uint32_t PAYLOAD_WORD_SIZE = PACKET_WORD_SIZE - HEADER_WORD_SIZE;
+		static constexpr uint32_t PACKET_WORD_SIZE  = 32;                                  // The total size (in words) of the packet.
+		static constexpr uint32_t PAYLOAD_WORD_SIZE = PACKET_WORD_SIZE - HEADER_WORD_SIZE; // The number of words in the payload.
 		
-		U16 header[HEADER_WORD_SIZE];
+		U16 header[HEADER_WORD_SIZE];   // The packet header.
 		U16 payload[PAYLOAD_WORD_SIZE]; // The packet payload (user data).
 	};
 

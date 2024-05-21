@@ -477,10 +477,10 @@ Computer::Computer(bool debug) : Device(XUN_NAME, XHWID_XUN), m_storage(1<<21), 
 {
 	SetCyclesPerSecond(10000000U);
 
-	Device::Connect(m_ports[0], m_power_controller);
+	Device::Connect(m_ports[0], m_PCU);
 	Device::Connect(m_ports[1], m_tty);
 
-	m_power_controller.PowerOn();
+	m_PCU.PowerOn();
 	m_tty.PowerOn();
 
 	// Device::Connect(m_ports[3], m_internal_reader);

@@ -104,14 +104,14 @@ private:
 	static XWORD              ROM[ROM_SIZE];       // BIOS lives here. At boot, the BIOS is flashed over to RAM.
 	XWORD                     RAM[MEM_SIZE_MAX];   // The internal working memory of the computer. Non-persistent.
 	DataStorage               m_storage;           // Built-in, small persistent memory bank.
-	PowerController           m_power_controller;  // Can physically turn power off.
+	PowerControlUnit          m_PCU;               // Can physically turn power off.
 	Teleprinter               m_tty;
 	
 	// DataStorageReader     m_external_reader;
 	// DataStorageReader     m_internal_reader;
 
 	IOPort                    m_ports[NUM_PORTS];  // The I/O ports of the computer.
-	bool                      m_debug;
+	bool                      m_debug;             // Indicates if the machine is in debug mode. We do some additional safe-guarding like emitting HALTs in all unused memory slots.
 
 protected:
 	/// @brief Turns the power off.
@@ -149,15 +149,64 @@ public:
 
 	// DiskReader &GetDiskReader();
 
-	void  Poke(U16 addr, XWORD val);
-	void  PokeA(U16 addr, XWORD val);
-	void  PokeB(U16 addr, XWORD val);
-	void  PokeC(U16 addr, XWORD val);
-	void  PokeTop(U16 addr, XWORD val);
+	/// @brief Sets an absolute memory address to a given value.
+	/// @param addr The absolute address to write.
+	/// @param val The value.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
+	void Poke(U16 addr, XWORD val);
+	
+	/// @brief Sets a memory address relative to the A offset pointer to a given value.
+	/// @param addr The address to write. The address is relative to the A offset pointer.
+	/// @param val The value.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
+	void PokeA(U16 addr, XWORD val);
+	
+	/// @brief Sets a memory address relative to the B offset pointer to a given value.
+	/// @param addr The address to write. The address is relative to the B offset pointer.
+	/// @param val The value.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
+	void PokeB(U16 addr, XWORD val);
+	
+	/// @brief Sets a memory address relative to the C offset pointer to a given value.
+	/// @param addr The address to write. The address is relative to the C offset pointer.
+	/// @param val The value.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
+	void PokeC(U16 addr, XWORD val);
+	
+	/// @brief Sets a memory address relative to the stack pointer to a given value.
+	/// @param addr The address to write. The address is relative to the stack pointer.
+	/// @param val The value.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
+	void PokeTop(U16 addr, XWORD val);
+	
+	/// @brief Reads a value at a given absolute memory address.
+	/// @param addr The absolute memory address to read from.
+	/// @return The read memory.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
 	XWORD Peek(U16 addr) const;
+
+	/// @brief Reads a value at a given memory address relative to the A offset pointer.
+	/// @param addr The absolute memory address to read from. The address is relative to the A offset pointer.
+	/// @return The read memory.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
 	XWORD PeekA(U16 addr) const;
+
+	/// @brief Reads a value at a given memory address relative to the B offset pointer.
+	/// @param addr The absolute memory address to read from. The address is relative to the B offset pointer.
+	/// @return The read memory.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
 	XWORD PeekB(U16 addr) const;
+
+	/// @brief Reads a value at a given memory address relative to the C offset pointer.
+	/// @param addr The absolute memory address to read from. The address is relative to the C offset pointer.
+	/// @return The read memory.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
 	XWORD PeekC(U16 addr) const;
+
+	/// @brief Reads a value at a given memory address relative to the stack pointer.
+	/// @param addr The absolute memory address to read from. The address is relative to the stack pointer.
+	/// @return The read memory.
+	/// @note If the write memory address is out of bounds, the address is wrapped around.
 	XWORD PeekTop(U16 addr) const;
 
 	/// @brief Checks if a given port is available to be connected.
@@ -180,12 +229,32 @@ public:
 	/// @return A pointer to the connected device. Returns null if there is no connected device.
 	const Device *GetDeviceAtPort(U8 port) const;
 
+	/// @brief Returns the value of the port index register.
+	/// @return The value of the port index register.
 	U16 GetPortIndex( void ) const;
+
+	/// @brief Returns the value of the instruction pointer.
+	/// @return The value of the instruction pointer.
 	U16 InstructionPointer( void ) const;
+	
+	/// @brief Returns the last executed instruction.
+	/// @return The last executed instruction.
 	U16 Instruction( void ) const;
+	
+	/// @brief Returns the value of the stack pointer.
+	/// @return The value of the stack pointer.
 	U16 StackPointer( void ) const;
+	
+	/// @brief Returns the value of the A offset pointer.
+	/// @return The value of the A offset pointer.
 	U16 StackOffsetA( void ) const;
+	
+	/// @brief Returns the value of the B offset pointer.
+	/// @return The value of the B offset pointer.
 	U16 StackOffsetB( void ) const;
+	
+	/// @brief Returns the value of the C offset pointer.
+	/// @return The value of the C offset pointer.
 	U16 StackOffsetC( void ) const;
 };
 

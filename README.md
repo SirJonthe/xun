@@ -23,6 +23,7 @@ github.com/SirJonthe
 [ ] xb:   argc, argv (B only uses one parameter, arg, where first elem is size and the rest are ptrs to strings)
 [ ] xb:   robust function call: fn[index1](param1, param2)[index2](param2, param3) etc...
 [ ] xb:   namespace
+[ ] xis:  A sequential instruction set could increase performance greatly in a switch-case.
 
 ## Design
 

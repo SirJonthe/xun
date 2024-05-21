@@ -9,9 +9,6 @@ void Monitor::Clear( void )
 	}
 }
 
-void Monitor::Refresh( void ) const
-{}
-
 U8 *Monitor::GetCharMap( void )
 {
 	return m_memory + m_atlas_char_height_count * m_cell_px_height * m_atlas_char_width_count * (m_cell_px_width / 8);
@@ -25,19 +22,16 @@ U8 *Monitor::GetCurrentCharMapLine( void )
 void Monitor::DoPowerOn( void )
 {
 	Clear();
-	Refresh();
 }
 
 void Monitor::DoCycle( void )
 {
 	while (Poll()) {}
-	Refresh();
 }
 
 void Monitor::DoPowerOff( void )
 {
 	Clear();
-	Refresh();
 }
 
 void Monitor::Newline( void )
