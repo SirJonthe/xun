@@ -1,11 +1,9 @@
 # Programming Manual for XERXES(tm) Unified Nanocontroller Assembly Language (XASM)
-
 ## Introduction
 ### A note on code listings
 Note that `...` may be used in code listings to indicate zero or more non-specific statements. XASM does not compile `...` as an instruction, so it is used purely for illustrative purposes.
 
 ## Instructions
-
 ### Stack manipulation
 
 ### Intruction pointer manipulation

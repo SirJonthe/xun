@@ -1,5 +1,4 @@
 # Programming Manual for XERXES(tm) B (XB)
-
 ## Introduction
 
 ## Build system
@@ -121,7 +120,6 @@ There is a caveat regarding arrays and strings; The array pointer is *not* stati
 Static memory is useful in two situations; The first situation is when the programmer wants a value of memory to be persistent throughout the run of an entire program. The second situation is for memory preservation reasons. Large arrays of constants consume large amounts of memory when declared using automatic storage; For every element a PUT instruction is emitted, along with the value of the element, and finally when the code is executed the value will be emitted onto the stack. This is a total of three 16-bit memory locations per element. Static storage allows the memory to be stored only once, leading to 1/3 of the memory being consumed.
 
 ## Functions
-
 ### Definitions
 Optionally, for functions taking no arguments the programmer may specify that the function takes a single `void` parameter (this can aid reading, especially for function declarations).
 ```
