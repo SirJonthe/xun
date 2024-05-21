@@ -5,7 +5,7 @@ Jonathan Karlsson, 2024
 github.com/SirJonthe
 
 ## About
-`XUN` is a fictional 16-bit computing platform.
+`xun` is a fictional 16-bit computing platform.
 
 ## TODO
 - [ ] xb:   ~ might not work (test both compile-time and run-time evaluation). Perhaps all unary operations are broken?
@@ -23,14 +23,14 @@ github.com/SirJonthe
 - [ ] xis:  A sequential instruction set could increase performance greatly in the VM switch-case.
 
 ## Design
-`XUN` (XERXES Unified Nanocontroller) is a 16-bit fictional computing platform, meaning that it is a virtual machine, or emulator, for the XUN instruction set architecture - a fictitious instruction set. The user can write programs, compile them, and run them inside the virtual machine under, admittedly, arbitrary constraints.
+`xun` (XERXES Unified Nanocontroller) is a 16-bit fictional computing platform, meaning that it is a virtual machine, or emulator, for the XUN instruction set architecture - a fictitious instruction set. The user can write programs, compile them, and run them inside the virtual machine under, admittedly, arbitrary constraints.
 
-`XUN` comes with necessary tools, such as compilers, standard libraries, and debuggers, to build programs. There are two programming languates available; XASM, and XB. XASM is an assembly language which assembles into the XUN instruction set and closely mirrors how the XUN processor works (with some syntactic sugar). XB is a variant of Ken Thompson's B programming language with some omissions from the spec and additions from C.
+`xun` comes with necessary tools, such as compilers, standard libraries, and debuggers, to build programs. There are two programming languates available; XASM, and XB. XASM is an assembly language which assembles into the XUN instruction set and closely mirrors how the XUN processor works (with some syntactic sugar). XB is a variant of Ken Thompson's B programming language with some omissions from the spec and additions from C.
 
-`XUN` does not include platform-specific input/output integrations in order to keep the core portable. As such, the user will need to implement this themselves (extending `Device` is a good idea for this purpose).
+`xun` does not include platform-specific input/output integrations in order to keep the core portable. As such, the user will need to implement this themselves (extending `Device` is a good idea for this purpose).
 
 ## Manuals
-`XUN` contains manuals that are written in a way that combines the technical specification of the thing it documents, but also includes fiction surrounding motivations, background, etc. of technical decisions in order to construct convincing fiction.
+`xun` contains manuals that are written in a way that combines the technical specification of the thing it documents, but also includes fiction surrounding motivations, background, etc. of technical decisions in order to construct convincing fiction.
 
 ## Tools
 ### Introduction
