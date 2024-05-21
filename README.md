@@ -8,19 +8,19 @@ github.com/SirJonthe
 `XUN` is a fictional 16-bit computing platform.
 
 ## TODO
-[ ] xb:   ~ might not work (test both compile-time and run-time evaluation). Perhaps all unary operations are broken?
-[ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
-[ ] xb:   Better error messages across separate files.
-[ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
-[ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
-[ ] xcc:  Deprecate HALT, and use LDA for program end.
-[ ] xasm: Deprecate HALT instruction.
-[ ] xb:   signed/unsigned
-[ ] xb:   ++*ptr
-[ ] xb:   argc, argv (B only uses one parameter, arg, where first elem is size and the rest are ptrs to strings)
-[ ] xb:   robust function call: fn[index1](param1, param2)[index2](param2, param3) etc...
-[ ] xb:   namespace
-[ ] xis:  A sequential instruction set could increase performance greatly in the VM switch-case.
+- [ ] xb:   ~ might not work (test both compile-time and run-time evaluation). Perhaps all unary operations are broken?
+- [ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
+- [ ] xb:   Better error messages across separate files.
+- [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
+- [ ] xb:   Remember to use xcc_push_scope and xcc_pop_scope even for program scope
+- [ ] xcc:  Deprecate HALT, and use LDA for program end.
+- [ ] xasm: Deprecate HALT instruction.
+- [ ] xb:   signed/unsigned
+- [ ] xb:   ++*ptr
+- [ ] xb:   argc, argv (B only uses one parameter, arg, where first elem is size and the rest are ptrs to strings)
+- [ ] xb:   robust function call: fn[index1](param1, param2)[index2](param2, param3) etc...
+- [ ] xb:   namespace
+- [ ] xis:  A sequential instruction set could increase performance greatly in the VM switch-case.
 
 ## Design
 `XUN` (XERXES Unified Nanocontroller) is a 16-bit fictional computing platform, meaning that it is a virtual machine, or emulator, for the XUN instruction set architecture - a fictitious instruction set. The user can write programs, compile them, and run them inside the virtual machine under, admittedly, arbitrary constraints.
