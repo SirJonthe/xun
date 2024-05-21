@@ -66,6 +66,7 @@ See "Programming Manual for XERXES(tm) B (XB)" for technical details about the p
 XDB (XERXES Debugger) is an external tool and binary debugger that executes a binary step by step. The debugger has an option for a terminal-based UI where the used can see the program, stack, and register values as the program executes.
 
 ## Building
+`xun` requires little special treatment in the way of compiling. Use your C++ compiler of choice, present it with the source files and compile. Just ensure that the compiler is set up in such a way that search paths are relative to the file currently being compiled.
 
 ## Examples
 
