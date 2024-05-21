@@ -49,7 +49,7 @@ XASM adds some meta-programming, i.e. programming of the assembler, which allows
 
 XASM does not come with a standard library. It is up to the programmer to construct the tools necessary for the use-case.
 
-See Programming Manual for XERXES(tm) Unified Nanocontroller Assembly Language (XASM) for technical details about the programming language.
+See "Programming Manual for XERXES(tm) Unified Nanocontroller Assembly Language (XASM)" for technical details about the programming language.
 
 #### XB
 XB (XERXES B) is an external tool that is a flavor of Ken Thompson's B (the predecessor of C) that is intended for more high-level programming and increased productivity. On a small computer platform such as XUN, even a low-overhead programming language such as XB may introduce significant overhead in terms of binary size and performance. However, it may still be a much preferrable option since XASM may be quite verbose, hard to read, and error prone. For instances where performance and size is paramount XB supports inline assembly.
@@ -60,7 +60,7 @@ XB has no types. All variables and constants are unsigned integers. Pointers are
 
 XB comes with a standard library that mirrors that of commonly used C standard library functionality. It also includes non-standard functionality that can be used to access system features, such as device I/O.
 
-See Programming Manual for XERXES(tm) B (XB) for technical details about the programming language.
+See "Programming Manual for XERXES(tm) B (XB)" for technical details about the programming language.
 
 #### XDB
 XDB (XERXES Debugger) an external tool that is a binary debugger that executes a binary step by step. The debugger has an option for a terminal-based UI where the used can see the program, stack, and register values as the program executes.
