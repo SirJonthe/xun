@@ -63,12 +63,57 @@ XB comes with a standard library that mirrors that of commonly used C standard l
 See "Programming Manual for XERXES(tm) B (XB)" for technical details about the programming language.
 
 #### XDB
-XDB (XERXES Debugger) is an external tool and binary debugger that executes a binary step by step. The debugger has an option for a terminal-based UI where the used can see the program, stack, and register values as the program executes.
+XDB (XERXES Debugger) is an external tool and binary debugger that can execute a binary step by step. The debugger has an option for a terminal-based UI where the user can see the program, stack, and register values as the program executes.
 
 ## Building
-`xun` requires little special treatment in the way of compiling. Use your C++ compiler of choice, present it with the source files and compile. Just ensure that the compiler is set up in such a way that search paths are relative to the file currently being compiled.
+`xun` requires no special treatment in the way of compiling. Use your C++ compiler of choice, present it with the source files and compile. Just ensure that the compiler can recognize search paths that are relative to the file currently being compiled.
 
 ## Examples
+### Compiling a program
+First, the appropriate headers for the tools need to be included in the code:
+```
+#include "xun/tools/xcc/xasm/xasm.h"
+#include "xun/tools/xcc/xb/xb.h"
+```
+
+Second, define the program to compile. For XB, do the following:
+```
+const char CODE[] = "main(a,b) { return 0; }";
+```
+
+For XASM:
+```
+const char CODE[] = "nop.";
+```
+
+Third, allocate a large enough buffer to hold the output binary:
+```
+XWORD buffer[128];
+```
+
+This step can be a bit of a guessing game, but if you stick to 65,536 16-bit values then you are guaranteed to be able to hold the largest possible output program. Since we are only giving examples with small programs, for the purposes of these examples we will be sticking with a small buffer size.
+
+Fourth, compile the program. For XB, do the following:
+```
+xcc_out out = xb();
+```
+
+For XASM, do the following:
+```
+xcc_out out = xasm();
+```
+
+The `out` structure will contain information about errors.
+```
+```
+
+If all went well, it also contains a reference to the output binary (same as `buffer`) including the resulting size.
+```
+```
+
+For more serious use of `xun` it is recommended that the compiler step is set up as a stand-alone executable that allows the user to write programs using external tools and just provide the compiler executable with file handles.
+
+### Running a program
 
 ## Lessons learned
 
