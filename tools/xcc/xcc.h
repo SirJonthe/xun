@@ -12,7 +12,7 @@ static constexpr unsigned XCC_DEFAULT_FILE_CAPACITY = 1024; // The default maxim
 struct xcc_text
 {
 	char               *txt; // The text.
-	uint32_t            len; // The length, in characters, of the text.
+	unsigned            len; // The length, in characters, of the text.
 	cc0::sum::md5::sum  sum; // The checksum of the file.
 
 	/// @brief Creates a new instance.
@@ -32,7 +32,7 @@ struct xcc_text
 /// @brief Creates a new text buffer.
 /// @param txt The buffer to allocate memory in.
 /// @param len The length of the buffer.
-void xcc_new_text(xcc_text &txt, uint32_t len);
+void xcc_new_text(xcc_text &txt, unsigned len);
 
 /// @brief Deletes text from memory.
 /// @param txt The text to delete from memory.
@@ -61,9 +61,9 @@ unsigned xcc_chcount(const char *s);
 /// @brief The writeable memory used for output in compiler/assembler output.
 struct xcc_binary
 {
-	XWORD *buffer;
-	U16    capacity;
-	U16    size;
+	XWORD    *buffer;
+	unsigned  capacity;
+	unsigned  size;
 };
 
 /// @brief Contains fatal parser/compiler error.
@@ -360,10 +360,10 @@ bool xcc_match(xcc_parser *p, unsigned type, token *out, token (*lexfn)(lexer*))
 /// @brief A structure representing a path to a directory or file.
 struct xcc_path
 {
-	static constexpr uint32_t MAXPATH = 256;
+	static constexpr unsigned MAXPATH = 256;
 
 	char     str[MAXPATH]; // The path characters.
-	uint32_t len;          // The length of the path.
+	unsigned len;          // The length of the path.
 
 	/// @brief Constructs a default object instance.
 	xcc_path( void );

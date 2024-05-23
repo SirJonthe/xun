@@ -31,7 +31,7 @@ xcc_text::~xcc_text( void )
 	xcc_clear_text(*this);
 }
 
-void xcc_new_text(xcc_text &txt, uint32_t len)
+void xcc_new_text(xcc_text &txt, unsigned len)
 {
 	xcc_clear_text(txt);
 	txt.txt = new char[len + 1];

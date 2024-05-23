@@ -2814,7 +2814,7 @@ static bool try_global_statements(xcc_parser_state ps);
 
 static bool try_file(xcc_parser_state ps, const chars::view &wd, const chars::view &source_file, const chars::view &ext)
 {
-	for (uint32_t i = 0; i < wd.len; ++i) {
+	for (unsigned i = 0; i < wd.len; ++i) {
 		ps.cwd.str[i] = wd.str[i];
 	}
 	ps.cwd.len = wd.len;
@@ -3135,7 +3135,7 @@ xcc_out xb(lexer l, const chars::view &std_lib_path, xcc_binary mem, const U16 s
 
 static bool try_files(xcc_parser_state ps, const chars::view *source_files, U16 num_source_files)
 {
-	for (uint32_t i = 0; i < num_source_files; ++i) {
+	for (unsigned i = 0; i < num_source_files; ++i) {
 		if (
 			!manage_state(
 				try_file(new_state(ps.end), chars::view{ NULL, 0, 0 }, source_files[i], chars::view{ NULL, 0, 0 })
