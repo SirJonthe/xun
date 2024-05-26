@@ -114,10 +114,8 @@ U16 xcc_top_scope_stack_size(const xcc_symbol_stack &s)
 static U16 next_mem_addr(const xcc_symbol_stack &s)
 {
 	for (signed i = s.count - 1; i >= 0; --i) {
-		if (s.symbols[i].storage == xcc_symbol::STORAGE_AUTO || s.symbols[i].storage == xcc_symbol::STORAGE_FN || s.symbols[i].storage == xcc_symbol::STORAGE_LBL) {
-			const U16 next = s.symbols[i].data.u + s.symbols[i].size;
-			return next > 0 ? next : 1;
-		}
+		const U16 next = s.symbols[i].data.u + xcc_symbol_stack_size(&s.symbols[i]);
+		return next > 0 ? next : 1;
 	}
 	return 1;
 }

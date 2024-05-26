@@ -1786,6 +1786,10 @@ static bool try_opt_arr_def_expr(xcc_parser_state ps, xcc_symbol *sym)
 			set_error(ps.p, sym->tok, xcc_error::VERIFY);
 			return false;
 		}
+		if (count == 0) {
+			set_error(ps.p, sym->tok, xcc_error::ZERO);
+			return false;
+		}
 		return true;
 	}
 	return false;
@@ -1817,6 +1821,10 @@ static bool try_arr_def_expr(xcc_parser_state ps, xcc_symbol *sym)
 		)
 	) {
 		sym->size += count;
+		if (count == 0) {
+			set_error(ps.p, sym->tok, xcc_error::ZERO);
+			return false;
+		}
 		return true;
 	}
 	return false;
@@ -1849,6 +1857,10 @@ static bool try_new_arr_item(xcc_parser_state ps)
 			)
 		)
 	) {
+		if (sym->size <= 1) {
+			set_error(ps.p, sym->tok, xcc_error::ZERO);
+			return false;
+		}
 		return true;
 	}
 	return false;
@@ -2030,6 +2042,10 @@ static bool try_sarr_def_expr(xcc_parser_state ps, xcc_symbol *sym, bool verify)
 			set_error(ps.p, sym->tok, xcc_error::VERIFY);
 			return false;
 		}
+		if (count == 0) {
+			set_error(ps.p, sym->tok, xcc_error::ZERO);
+			return false;
+		}
 		return true;
 	}
 	return false;
@@ -2063,6 +2079,10 @@ static bool try_new_sarr_item(xcc_parser_state ps)
 		)
 	) {
 		sym->storage = xcc_symbol::STORAGE_STATIC; // NOTE: Static arrays are really hacky. They require a lot of backend work because we want to be able to have them mostly not affect the stack size since the actual array elements do not reside on the stack yet the array pointer does. This results in the symbol needing to be registered as AUTO initially, then switched over to STATIC, and have the XCC backend implement a lot of exceptions for how static arrays are handled.
+		if (sym->size <= 1) {
+			set_error(ps.p, sym->tok, xcc_error::ZERO);
+			return false;
+		}
 		return true;
 	}
 	return false;
@@ -2839,8 +2859,8 @@ static bool try_file(xcc_parser_state ps, const chars::view &wd, const chars::vi
 		)
 	) {
 		// BUG: We need to restore more state inside the parser than just the lexer. We can probably use ps.restore_point for that. If we do not, then file tracking with be wrong.
-		ps.p->fn   = ps.restore_point.fn;
-		ps.p->in   = ps.restore_point.in;
+		ps.p->fn = ps.restore_point.fn;
+		ps.p->in = ps.restore_point.in;
 		return true;
 	}
 	return false;

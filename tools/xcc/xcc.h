@@ -77,7 +77,8 @@ struct xcc_error
 		VERIFY,
 		INTERNAL,
 		UNEXPECTED,
-		MISSING
+		MISSING,
+		ZERO
 	};
 	token       tok;  // The token generating the error.
 	U16         code; // The error code.
@@ -143,9 +144,9 @@ struct xcc_symbol
 struct xcc_symbol_stack
 {
 	xcc_symbol *symbols;
-	U16         capacity;  // The maximum number of symbols that can be on the stack.
-	U16         count;     // The number of symbols on the stack.
-	U16         scope;     // The number of the topmost scope.
+	U16         capacity; // The maximum number of symbols that can be on the stack.
+	U16         count;    // The number of symbols on the stack.
+	U16         scope;    // The number of the topmost scope.
 };
 
 /// @brief Gets the stack size (in words) of the topmost scope.
@@ -176,14 +177,14 @@ bool xcc_add_filesum(xcc_filesums &fs, const xcc_filesum &s);
 /// @brief The main data structure used for parsing C code.
 struct xcc_parser
 {
-	lexer             in;      // The parser input.
-	xcc_binary        out;     // The parser output.
-	token             max;     // The maximally reached token.
-	xcc_symbol_stack  scopes;  // The symbols ordered into scopes.
-	xcc_symbol       *fn;      // The current function being parsed.
-	xcc_error         error;   // The first fatal error.
-	chars             file;    // The short name of the current file.
-	xcc_filesums      fsums;   // The checksum of the currently read file.
+	lexer             in;     // The parser input.
+	xcc_binary        out;    // The parser output.
+	token             max;    // The maximally reached token.
+	xcc_symbol_stack  scopes; // The symbols ordered into scopes.
+	xcc_symbol       *fn;     // The current function being parsed.
+	xcc_error         error;  // The first fatal error.
+	chars             file;   // The short name of the current file.
+	xcc_filesums      fsums;  // The checksum of the currently read file.
 };
 
 /// @brief Initializes a new parser.
