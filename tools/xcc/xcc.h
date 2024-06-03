@@ -2,8 +2,10 @@
 #define XCC_H
 
 #include "../../xarch.h"
-#include "../../lib/parsec/lex.h"
+#include "../../lib/tokn/tokn.h"
 #include "../../lib/sum/sum.h"
+
+using namespace cc0::tokn;
 
 static constexpr unsigned XCC_DEFAULT_SYM_CAPACITY  =  128; // The default symbol capacity to use when compiling.
 static constexpr unsigned XCC_DEFAULT_FILE_CAPACITY = 1024; // The default maximum number of files that can be compiled in a single compiler call.
@@ -132,7 +134,7 @@ struct xcc_symbol
 	XWORD       data;        // The address of a variable/function, or the value of a literal.
 	U16         storage;     // STORAGE_AUTO, STORAGE_STATIC, STORAGE_PARAM, STORAGE_LIT, STORAGE_FN, STORAGE_LBL
 	U16         type;        // TYPE_SIGNED, TYPE_UNSIGNED, TYPE_POINTER, TYPE_FLOAT, TYPE_LBL, TYPE_GROUP
-	U16         scope_index; // The scope index this symbol is defined in.
+	U16         scope_index; // The scope number this symbol is defined in.
 	U16         param_count; // For functions, the number of parameters a function takes.
 	U16         size;        // 0 for literals and parameters, 1 for functions, 1 or more for variables.
 	U16         link;        // Indicates that the symbol is declared, but not defined and requires linkage between definition and a later declaration.
@@ -146,7 +148,7 @@ struct xcc_symbol_stack
 	xcc_symbol *symbols;
 	U16         capacity; // The maximum number of symbols that can be on the stack.
 	U16         count;    // The number of symbols on the stack.
-	U16         scope;    // The number of the topmost scope.
+	U16         scope;    // The numbering of the topmost scope.
 };
 
 /// @brief Gets the stack size (in words) of the topmost scope.

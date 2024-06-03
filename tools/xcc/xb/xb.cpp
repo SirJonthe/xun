@@ -2,8 +2,10 @@
 #include "xb.h"
 #include "../../../xis.h"
 #include "../../../xarch.h"
-#include "../../../lib/parsec/lex.h"
+#include "../../../lib/tokn/tokn.h"
 #include "../xasm/xasm.h"
+
+using namespace cc0::tokn;
 
 /// @brief Constructs a new parser state from an end token.
 /// @param end A token user type representing the end of the token stream.

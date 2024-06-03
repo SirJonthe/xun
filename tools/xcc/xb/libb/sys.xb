@@ -209,9 +209,7 @@ run(bin)
 	return -1;
 }
 
-auto __hw_power = hwscan(0x0004); // The port index of the power controller circuit.
-
 shutdown( void )
 {
-	// TODO IMPL
+	return hwpusht(hwscan(0x0004), 7, NULL, 0, CLOCKS_PER_SEC);
 }
