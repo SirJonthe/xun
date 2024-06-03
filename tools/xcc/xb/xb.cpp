@@ -601,26 +601,26 @@ template < typename type_t >
 static bool eval_operation(xcc_parser *p, unsigned user_type, type_t &l, type_t r)
 {
 	switch (user_type) {
-	case xbtoken::OPERATOR_ARITHMETIC_ADD:       l += r;       return true;
-	case xbtoken::OPERATOR_ARITHMETIC_SUB:       l -= r;       return true;
-	case xbtoken::OPERATOR_ARITHMETIC_MUL:       l *= r;       return true;
-	case xbtoken::OPERATOR_ARITHMETIC_DIV:       l /= r;       return true;
-	case xbtoken::OPERATOR_ARITHMETIC_MOD:       l %= r;       return true;
+	case xbtoken::OPERATOR_ARITHMETIC_ADD:       l += r;                                                                                 return true;
+	case xbtoken::OPERATOR_ARITHMETIC_SUB:       l -= r;                                                                                 return true;
+	case xbtoken::OPERATOR_ARITHMETIC_MUL:       l *= r;                                                                                 return true;
+	case xbtoken::OPERATOR_ARITHMETIC_DIV:       if (r != 0) { l /= r; } else { l = 0xffff; set_error(p, p->in.last, xcc_error::ZERO); } return true;
+	case xbtoken::OPERATOR_ARITHMETIC_MOD:       if (r != 0) { l %= r; } else { l = 0xffff; set_error(p, p->in.last, xcc_error::ZERO); } return true;
 	case xbtoken::OPERATOR_BITWISE_AND:
-	case xbtoken::OPERATOR_LOGICAL_AND:          l &= r;       return true;
+	case xbtoken::OPERATOR_LOGICAL_AND:          l &= r;                                                                                 return true;
 	case xbtoken::OPERATOR_BITWISE_OR:
-	case xbtoken::OPERATOR_LOGICAL_OR:           l |= r;       return true;
-	case xbtoken::OPERATOR_BITWISE_XOR:          l ^= r;       return true;
-	case xbtoken::OPERATOR_BITWISE_NOT:          l = ~r;       return true;
-	case xbtoken::OPERATOR_BITWISE_LSHIFT:       l <<= r;      return true;
-	case xbtoken::OPERATOR_BITWISE_RSHIFT:       l >>= r;      return true;
-	case xbtoken::OPERATOR_LOGICAL_LESS:         l = (l < r);  return true;
-	case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:    l = (l <= r); return true;
-	case xbtoken::OPERATOR_LOGICAL_GREATER:      l = (l > r);  return true;
-	case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL: l = (l >= r); return true;
-	case xbtoken::OPERATOR_LOGICAL_EQUAL:        l = (l == r); return true;
-	case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:     l = (l != r); return true;
-	case xbtoken::OPERATOR_LOGICAL_NOT:          l = !r;       return true;
+	case xbtoken::OPERATOR_LOGICAL_OR:           l |= r;                                                                                 return true;
+	case xbtoken::OPERATOR_BITWISE_XOR:          l ^= r;                                                                                 return true;
+	case xbtoken::OPERATOR_BITWISE_NOT:          l = ~r;                                                                                 return true;
+	case xbtoken::OPERATOR_BITWISE_LSHIFT:       l <<= r;                                                                                return true;
+	case xbtoken::OPERATOR_BITWISE_RSHIFT:       l >>= r;                                                                                return true;
+	case xbtoken::OPERATOR_LOGICAL_LESS:         l = (l < r);                                                                            return true;
+	case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:    l = (l <= r);                                                                           return true;
+	case xbtoken::OPERATOR_LOGICAL_GREATER:      l = (l > r);                                                                            return true;
+	case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL: l = (l >= r);                                                                           return true;
+	case xbtoken::OPERATOR_LOGICAL_EQUAL:        l = (l == r);                                                                           return true;
+	case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:     l = (l != r);                                                                           return true;
+	case xbtoken::OPERATOR_LOGICAL_NOT:          l = !r;                                                                                 return true;
 	}
 	return false;
 }
