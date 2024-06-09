@@ -479,13 +479,15 @@ Computer::Computer(bool debug) : Device(XUN_NAME, XHWID_XUN), m_storage(1<<21), 
 
 	Device::Connect(m_ports[0], m_PCU);
 	Device::Connect(m_ports[1], m_tty);
+	Device::Connect(m_ports[2], m_internal_reader);
+	Device::Connect(m_ports[3], m_external_reader);
 
 	m_PCU.PowerOn();
 	m_tty.PowerOn();
+	m_internal_reader.PowerOn();
+	m_external_reader.PowerOn();
 
-	// Device::Connect(m_ports[3], m_internal_reader);
-	// Device::Connect(m_ports[4], m_external_reader);
-	// Device::Connect(m_internal_reader, m_storage);
+	m_internal_reader.Attach(&m_storage);
 }
 
 // Flash memory with a program.

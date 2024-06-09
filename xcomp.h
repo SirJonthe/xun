@@ -103,12 +103,11 @@ private:
 	static constexpr uint32_t ROM_SIZE = 4096;     // The size, in words of the ROM.
 	static XWORD              ROM[ROM_SIZE];       // BIOS lives here. At boot, the BIOS is flashed over to RAM.
 	XWORD                     RAM[MEM_SIZE_MAX];   // The internal working memory of the computer. Non-persistent.
-	DataStorage               m_storage;           // Built-in, small persistent memory bank.
+	DiskReader                m_internal_reader;   // Built-in, small persistent memory bank.
 	PowerControlUnit          m_PCU;               // Can physically turn power off.
-	Teleprinter               m_tty;
-	
-	// DataStorageReader     m_external_reader;
-	// DataStorageReader     m_internal_reader;
+	Teleprinter               m_tty;               // A teleprinter that can output text to the host terminal.
+	DiskReader                m_external_reader;   // An external disk reader that the user can put a disk into.
+	Disk                      m_storage;
 
 	IOPort                    m_ports[NUM_PORTS];  // The I/O ports of the computer.
 	bool                      m_debug;             // Indicates if the machine is in debug mode. We do some additional safe-guarding like emitting HALTs in all unused memory slots.
