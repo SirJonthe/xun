@@ -511,6 +511,16 @@ void Computer::BootDisk(const XWORD *bin, U16 bin_count)
 	SP.u -= 1;
 }
 
+bool Computer::AttachDisk(Disk &disk)
+{
+	return m_external_reader.Attach(&disk);
+}
+
+void Computer::EjectDisk( void )
+{
+	m_external_reader.Eject();
+}
+
 void Computer::Poke(U16 addr, XWORD val)
 {
 	RAM[addr] = val;

@@ -54,7 +54,7 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 					r.payload[0] = (next & 0xffff0000) >> 16;
 					r.payload[1] = (next & 0xffff);
 					r.header[Packet::HEADER_SIZE] = next - loc;
-					Device::Output(r);
+					Output(r);
 				} else {
 					Error("Read out of bounds");
 				}
@@ -78,12 +78,22 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 					r.payload[0] = (next & 0xffff0000) >> 16;
 					r.payload[1] = (next & 0xffff);
 					r.header[Packet::HEADER_SIZE] = 2;
-					Device::Output(r);
+					Output(r);
 				} else {
 					Error("Write out of bounds");
 				}
 			} else {
 				Error("Payload size not at least 2");
+			}
+			return true;
+		case MSG_TYPE_INFO:
+			{
+				Packet p = NewPacket(MSG_TYPE_INFO);
+				p.payload[0] = HasAttachment();
+				p.payload[1] = (GetCapacity() & 0xff00) >> 16;
+				p.payload[2] = GetCapacity() & 0x00ff;
+				p.header[Packet::HEADER_SIZE] = 3;
+				Output(p);
 			}
 			return true;
 	}

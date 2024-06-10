@@ -146,7 +146,12 @@ public:
 	/// @deprecated This function will be replaced by a more proper boot sequence when powering on.
 	void BootDisk(const XWORD *bin, U16 bin_count);
 
-	// DiskReader &GetDiskReader();
+	/// @brief Attempts to attach a disk to the external disk reader.
+	/// @return True if the disk was successfully attached. False if there was already another disk attached to the external disk reader.
+	bool AttachDisk(Disk &disk);
+
+	/// @brief Ejects the current disk (if any) from the external disk reader.
+	void EjectDisk( void );
 
 	/// @brief Sets an absolute memory address to a given value.
 	/// @param addr The absolute address to write.

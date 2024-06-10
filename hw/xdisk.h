@@ -42,9 +42,9 @@ class DiskReader : public Device
 {
 public:
 	enum {
-		MSG_TYPE_READ = 0xf00d,
+		MSG_TYPE_READ  = 0xf00d,
 		MSG_TYPE_WRITE = 0xfeed,
-		MSG_TYPE_CAPACITY = 0xbead
+		MSG_TYPE_INFO  = 0xbead
 	};
 
 private:

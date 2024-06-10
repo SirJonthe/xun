@@ -9,6 +9,7 @@ github.com/SirJonthe
 
 ## TODO
 - [ ] xb:   ~ might not work (test both compile-time and run-time evaluation). Perhaps all unary operations are broken?
+- [ ] xb:   Compile "foo("asd", {1,2,3})" as "{ auto _0[] = "asd", _1[] = {1,2,3}; foo(_0, _1); }" (be careful about naming conflicts)
 - [ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
 - [ ] xb:   Better error messages across separate files.
 - [ ] xasm: Remember to use xcc_push_scope and xcc_pop_scope even for program scope
@@ -19,7 +20,6 @@ github.com/SirJonthe
 - [ ] xb:   ++*ptr
 - [ ] xb:   argc, argv (B only uses one parameter, arg, where first elem is size and the rest are ptrs to strings)
 - [ ] xb:   robust function call: fn[index1](param1, param2)[index2](param2, param3) etc...
-- [ ] xb:   namespace
 - [ ] xis:  A sequential instruction set could increase performance greatly in the VM switch-case.
 
 ## Design

@@ -401,7 +401,7 @@ auto __port_disk = PORT_UNDEF; // The port index where the disk reader is connec
 
 d_init_diskreader( void )
 {
-	__port_disk = d_require_hw(HWID_RDD);
+	__port_disk = d_require_hw(HWID_RDD); // [ ] There are TWO disk readers. We are looking for the second. Refactor this.
 }
 
 s_load_bootdisk( void )
