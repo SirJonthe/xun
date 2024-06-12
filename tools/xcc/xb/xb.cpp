@@ -554,45 +554,58 @@ static bool try_put_opt_fn_params(xcc_parser_state ps, const xcc_symbol *sym)
 	return false;
 }
 
+static bool try_call_fn_inline_arr(xcc_parser_state ps)
+{
+	// TODO
+	// pre-parse the function
+	// If there is an array or string as argument, then we parse recursively
+	// foo("asd", {1,2,3})
+	// becomes
+	// { auto _p0[] = "asd", _p1[] = {1,2,3}; foo(_p0, _p1); }
+	return false;
+}
+
 static bool try_call_fn(xcc_parser_state ps)
 {
-	xcc_symbol *sym;
-	U16 off_index = 0;
-	token t;
-	U16 result = 0;
-	bool rs;
-	if (
-		manage_state(
-			try_alias(new_state(ps.end), t, rs)                                            && // TODO Replace this with any value (can be alias, literal, indirection etc.)
-			(
-				(sym = xcc_find_symbol(t.text, ps.p, rs)) != NULL                          || // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
-				try_read_lit(new_state(ps.end), result)
-			)                                                                              &&
-			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)           &&
-			xcc_write_word       (ps.p, XWORD{XIS::PUT})                                   &&
-			xcc_write_word       (ps.p, XWORD{0})                                          && // NOTE: Put return value memory on stack.
-			xcc_write_word       (ps.p, XWORD{XIS::PUTI})                                  && // NOTE: Put return address on stack.
-			xcc_write_word       (ps.p, XWORD{XIS::PUT})                                   &&
-			(off_index = ps.p->out.size)                                                   &&
-			xcc_write_word       (ps.p, XWORD{0})                                          && // NOTE: Unable to determine return address offset here, so just emit 0.
-			xcc_write_word       (ps.p, XWORD{XIS::ADD})                                   && // NOTE: Adjust return address to move ahead of call site.
-			try_put_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
-			match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)           &&
-			(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)             && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
-			(
-				sym != NULL ?
-					xcc_write_rel(ps.p, sym) :
-					xcc_write_word(ps.p, XWORD{result})
-			)                                                                              &&
-			xcc_write_word       (ps.p, XWORD{XIS::AT})                                    &&
-			xcc_write_word       (ps.p, XWORD{XIS::JMP})
-		)
-	) {
-		// TODO Surely we can determine instruction pointer offset without constant 7...
-		return true;
-	}
-	if (t.user_type == token::ALIAS && sym == NULL) {
-		set_error(ps.p, t, xcc_error::UNDEF);
+	if (!try_call_fn_inline_arr(new_state(ps.end))) {
+		xcc_symbol *sym;
+		U16 off_index = 0;
+		token t;
+		U16 result = 0;
+		bool rs;
+		if (
+			manage_state(
+				try_alias(new_state(ps.end), t, rs)                                            && // TODO Replace this with any value (can be alias, literal, indirection etc.)
+				(
+					(sym = xcc_find_symbol(t.text, ps.p, rs)) != NULL                          || // NOTE: find_symbol instead of find_fn. That way we can call anything as if it is a function!
+					try_read_lit(new_state(ps.end), result)
+				)                                                                              &&
+				match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)           &&
+				xcc_write_word       (ps.p, XWORD{XIS::PUT})                                   &&
+				xcc_write_word       (ps.p, XWORD{0})                                          && // NOTE: Put return value memory on stack.
+				xcc_write_word       (ps.p, XWORD{XIS::PUTI})                                  && // NOTE: Put return address on stack.
+				xcc_write_word       (ps.p, XWORD{XIS::PUT})                                   &&
+				(off_index = ps.p->out.size)                                                   &&
+				xcc_write_word       (ps.p, XWORD{0})                                          && // NOTE: Unable to determine return address offset here, so just emit 0.
+				xcc_write_word       (ps.p, XWORD{XIS::ADD})                                   && // NOTE: Adjust return address to move ahead of call site.
+				try_put_opt_fn_params(new_state(xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R), sym) &&
+				match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)           &&
+				(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)             && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
+				(
+					sym != NULL ?
+						xcc_write_rel(ps.p, sym) :
+						xcc_write_word(ps.p, XWORD{result})
+				)                                                                              &&
+				xcc_write_word       (ps.p, XWORD{XIS::AT})                                    &&
+				xcc_write_word       (ps.p, XWORD{XIS::JMP})
+			)
+		) {
+			// TODO Surely we can determine instruction pointer offset without constant 7...
+			return true;
+		}
+		if (t.user_type == token::ALIAS && sym == NULL) {
+			set_error(ps.p, t, xcc_error::UNDEF);
+		}
 	}
 	return false;
 }
@@ -3149,7 +3162,7 @@ xcc_out xb(lexer l, const chars::view &std_lib_path, xcc_binary mem, const U16 s
 			try_single_program(new_state(ps.end))
 		)
 	) {
-		return xcc_out{ p.in, p.out, p.max, 0, p.error };
+		return xcc_out{ p.in, p.out, p.max, p.error.code != xcc_error::NONE, p.error };
 	}
 	set_error(ps.p, p.max, xcc_error::UNEXPECTED);
 	return xcc_out{ p.in, p.out, p.max, 1, p.error };
@@ -3212,7 +3225,7 @@ xcc_out xb(const chars::view *source_files, U16 num_source_files, const chars::v
 			try_program(new_state(ps.end), source_files, num_source_files)
 		)
 	) {
-		return xcc_out{ p.in, p.out, p.max, 0, p.error };
+		return xcc_out{ p.in, p.out, p.max, p.error.code != xcc_error::NONE, p.error };
 	}
 	set_error(ps.p, p.max, xcc_error::UNEXPECTED);
 	return xcc_out{ p.in, p.out, p.max, 1, p.error };
