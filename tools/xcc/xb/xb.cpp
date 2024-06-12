@@ -1724,15 +1724,19 @@ static bool try_expr(xcc_parser_state ps)
 
 static bool try_expr_list(xcc_parser_state ps, U16 *count)
 {
-	++(*count);
+	
 	if (
 		manage_state(
-			try_expr(new_state(ps.end)) &&
 			(
-				match(ps.p, xbtoken::OPERATOR_COMMA) ?
-					try_expr_list(new_state(ps.end), count) :
-					true
-			)
+				try_expr(new_state(ps.end)) &&
+				++(*count)                  &&
+				(
+					match(ps.p, xbtoken::OPERATOR_COMMA) ?
+						try_expr_list(new_state(ps.end), count) :
+						true
+				)
+			) ||
+			peek(ps.p).user_type == ps.end
 		)
 	) {
 		return true;
@@ -1963,15 +1967,18 @@ static bool try_sexpr(xcc_parser_state ps)
 
 static bool try_sexpr_list(xcc_parser_state ps, U16 *count)
 {
-	++(*count);
 	if (
 		manage_state(
-			try_sexpr(new_state(ps.end)) &&
 			(
-				match(ps.p, xbtoken::OPERATOR_COMMA) ?
-					try_sexpr_list(new_state(ps.end), count) :
-					true
-			)
+				try_sexpr(new_state(ps.end)) &&
+				++(*count)                   &&
+				(
+					match(ps.p, xbtoken::OPERATOR_COMMA) ?
+						try_sexpr_list(new_state(ps.end), count) :
+						true
+				)
+			) ||
+			peek(ps.p).user_type == ps.end
 		)
 	) {
 		return true;
