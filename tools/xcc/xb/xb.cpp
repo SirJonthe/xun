@@ -665,6 +665,38 @@ static bool try_escape_char(xcc_parser_state ps, token &t)
 	return false;
 }
 
+static unsigned hexdig2dec(unsigned hex)
+{
+	switch (hex) {
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+		return hex - '0';
+	case 'a':
+	case 'b':
+	case 'c':
+	case 'd':
+	case 'e':
+	case 'f':
+		return hex - 'a';
+	case 'A':
+	case 'B':
+	case 'C':
+	case 'D':
+	case 'E':
+	case 'F':
+		return hex - 'A';
+	}
+	return 0;
+}
+
 static bool try_encoded_char(xcc_parser_state ps, token &t)
 {
 	if (
@@ -682,13 +714,48 @@ static bool try_encoded_char(xcc_parser_state ps, token &t)
 	return false;
 }
 
+static bool try_ext_escape_char(xcc_parser_state ps, token &t)
+{
+	token hi, lo;
+	if (
+		manage_state(
+			match1(ps.p, token::CHAR, &t) &&
+			t.hash == '#' &&
+			match1(ps.p, token::CHAR, &hi) &&
+			match1(ps.p, token::CHAR, &lo) &&
+			try_encoded_char(new_state(ps.end), t)
+		)
+	) {
+		t.hash = ((hexdig2dec(hi.hash) << 4 + hexdig2dec(lo.hash)) << 8) + t.hash;
+		return true;
+	}
+	return false;
+}
+
+static bool try_ext_encoded_char(xcc_parser_state ps, token &t)
+{
+	if (
+		manage_state(
+			match1(ps.p, token::CHAR, &t) &&
+			(
+				(t.hash == '\\') ?
+					try_ext_escape_char(new_state(ps.end), t) || try_escape_char(new_state(ps.end), t) :
+					true
+			)
+		)
+	) {
+		return true;
+	}
+	return false;
+}
+
 static bool try_read_char_lit(xcc_parser_state ps, token &t)
 {
 	if (
 		manage_state(
-			match           (ps.p, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE)         &&
-			try_encoded_char(new_state(xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE), t) &&
-			match           (ps.p, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE)
+			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE)         &&
+			try_ext_encoded_char(new_state(xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE), t) &&
+			match               (ps.p, xbtoken::OPERATOR_ENCLOSE_SINGLEQUOTE)
 		)
 	) {
 		return true;
@@ -1750,7 +1817,7 @@ static bool try_str_lit(xcc_parser_state ps, U16 *count)
 {
 	token t;
 	while (((t = peek(ps.p)).user_type != ps.end || is_white(peek1(ps.p).hash)) && t.user_type != token::STOP_EOF) {
-		if (!try_encoded_char(new_state(ps.end), t)) {
+		if (!try_ext_encoded_char(new_state(ps.end), t)) {
 			return false;
 		}
 		if (!xcc_write_word(ps.p, XWORD{XIS::PUT}) || !xcc_write_word(ps.p, XWORD{U16(t.hash)})) {
@@ -1996,7 +2063,7 @@ static bool try_sstr_lit(xcc_parser_state ps, U16 *count)
 	}
 	U16 jmp_addr_idx = ps.p->out.size - 3;
 	while (((t = peek(ps.p)).user_type != ps.end || is_white(peek1(ps.p).hash)) && t.user_type != token::STOP_EOF) {
-		if (!try_encoded_char(new_state(ps.end), t)) {
+		if (!try_ext_encoded_char(new_state(ps.end), t)) {
 			return false;
 		}
 		if (!xcc_write_word(ps.p, XWORD{U16(t.hash)})) {

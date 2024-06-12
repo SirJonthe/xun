@@ -105,13 +105,6 @@ public:
 	/// @return A pointer to the internal memory.
 	const U8 *GetMemory( void ) const;
 
-	// 
-	// 
-	// 
-	// 
-	// 
-	// 
-
 	/// @brief Returns the width of a single character, in pixels, of the stored bit font.
 	/// @return The width of a single character, in pixels, of the stored bit font.
 	uint32_t GetCharPxWidth( void ) const;
