@@ -4,7 +4,7 @@
 
 void Monitor::Clear( void )
 {
-	for (uint32_t i = 0; i < WIDTH * HEIGHT; ++i) {
+	for (uint32_t i = 0; i < WIDTH * HEIGHT * STRIDE; ++i) {
 		m_pixels[i] = 0;
 	}
 }
@@ -14,9 +14,19 @@ U8 *Monitor::GetCharMap( void )
 	return m_memory + m_atlas_char_height_count * m_cell_px_height * m_atlas_char_width_count * (m_cell_px_width / 8);
 }
 
+U8 *Monitor::GetColorMap( void )
+{
+	return GetCharMap() + GetCharMapWidth() * GetCharMapHeight();
+}
+
 U8 *Monitor::GetCurrentCharMapLine( void )
 {
 	return GetCharMap() + GetCharMapWidth() * ((m_cy - m_scroll) % GetCharMapHeight());
+}
+
+U8 *Monitor::GetCurrentColorMapLine( void )
+{
+	return GetCurrentCharMapLine() + GetCharMapWidth() * GetCharMapHeight();
 }
 
 void Monitor::DoPowerOn( void )
@@ -41,8 +51,10 @@ void Monitor::Newline( void )
 	if ((m_cy - m_scroll) >= GetCharMapHeight()) {
 		++m_scroll;
 		U8 *scroll = GetScrollCharMapLine();
+		U8 *colors = GetScrollColorMapLine();
 		for (uint32_t n = 0; n < GetCharMapWidth(); ++n) {
 			scroll[n] = ' ';
+			colors[n] = 0;
 		}
 	}
 }
@@ -58,17 +70,21 @@ bool Monitor::HandlePacket(const Packet &msg)
 		case Packet::TYPE_DATA:
 			if (m_mode == MSG_TXTMODE) {
 				U8 *line = GetCurrentCharMapLine();
+				U8 *colors = GetCurrentColorMapLine();
 				for (uint32_t i = 0; i < msg.header[Device::Packet::HEADER_SIZE]; ++i) {
 					if (msg.payload[i] != '\n') {
-						line[m_cx] = msg.payload[i];
+						line[m_cx] = msg.payload[i] & 0x00ff;
+						colors[m_cx] = (msg.payload[i] & 0xff00) >> 8;
 						++m_cx;
 						if (m_cx >= GetCharMapWidth()) {
 							Newline();
 							line = GetCurrentCharMapLine();
+							colors = GetCurrentColorMapLine();
 						}
 					} else {
 						Newline();
 						line = GetCurrentCharMapLine();
+						colors = GetCurrentColorMapLine();
 					}
 				}
 			} else if (m_mode == MSG_PIXMODE) {
@@ -98,8 +114,10 @@ bool Monitor::HandlePacket(const Packet &msg)
 			if ((m_cy - m_scroll) < GetCharMapHeight()) {
 				++m_scroll;
 				U8 *line = GetCurrentCharMapLine();
+				U8 *colors = GetCurrentColorMapLine();
 				for (uint32_t i = 0; i < GetCharMapWidth(); ++i) {
 					line[i] = ' ';
+					colors[i] = 0;
 				}
 			}
 			return true;
@@ -116,6 +134,7 @@ bool Monitor::HandlePacket(const Packet &msg)
 				m_cell_px_height          = msg.payload[7];
 				for (uint32_t i = 0; i < GetCharMapWidth() * GetCharMapHeight(); ++i) {
 					GetCharMap()[i] = ' ';
+					GetColorMap()[i] = 0;
 				}
 				m_cx = 0;
 				m_cy = 0;
@@ -137,22 +156,28 @@ Monitor::Monitor( void ) :
 	m_mode(MSG_PIXMODE),
 	m_first_char(0), m_last_char(0)
 {
-	m_pal.pal[0]  = Color{   0,   0,   0, 255 };
-	m_pal.pal[1]  = Color{ 204,   0,   0, 255 };
-	m_pal.pal[2]  = Color{  78, 154,   6, 255 };
-	m_pal.pal[3]  = Color{ 196, 160,   0, 255 };
-	m_pal.pal[4]  = Color{  54, 101, 164, 255 };
-	m_pal.pal[5]  = Color{ 117,  80, 123, 255 };
-	m_pal.pal[6]  = Color{   6, 152, 154, 255 };
-	m_pal.pal[7]  = Color{ 211, 215, 207, 255 };
-	m_pal.pal[8]  = Color{  85,  87,  83, 255 };
-	m_pal.pal[9]  = Color{ 239,  41,  41, 255 };
-	m_pal.pal[10] = Color{ 138, 226,  52, 255 };
-	m_pal.pal[11] = Color{ 252, 233,  79, 255 };
-	m_pal.pal[12] = Color{ 114, 159, 207, 255 };
-	m_pal.pal[13] = Color{ 173, 127, 168, 255 };
-	m_pal.pal[14] = Color{  52, 226, 226, 255 };
-	m_pal.pal[15] = Color{ 255, 255, 255, 255 };
+	m_pal[0].pal[0]  = Color{   0,   0,   0, 255 };
+	m_pal[0].pal[1]  = Color{ 204,   0,   0, 255 };
+	m_pal[0].pal[2]  = Color{  78, 154,   6, 255 };
+	m_pal[0].pal[3]  = Color{ 196, 160,   0, 255 };
+	m_pal[0].pal[4]  = Color{  54, 101, 164, 255 };
+	m_pal[0].pal[5]  = Color{ 117,  80, 123, 255 };
+	m_pal[0].pal[6]  = Color{   6, 152, 154, 255 };
+	m_pal[0].pal[7]  = Color{ 211, 215, 207, 255 };
+	m_pal[0].pal[8]  = Color{  85,  87,  83, 255 };
+	m_pal[0].pal[9]  = Color{ 239,  41,  41, 255 };
+	m_pal[0].pal[10] = Color{ 138, 226,  52, 255 };
+	m_pal[0].pal[11] = Color{ 252, 233,  79, 255 };
+	m_pal[0].pal[12] = Color{ 114, 159, 207, 255 };
+	m_pal[0].pal[13] = Color{ 173, 127, 168, 255 };
+	m_pal[0].pal[14] = Color{  52, 226, 226, 255 };
+	m_pal[0].pal[15] = Color{ 255, 255, 255, 255 };
+
+	for (unsigned i = 0; i < 16; ++i) {
+		Color c = m_pal[0].pal[i];
+		m_pal[1].pal[i] = Color{ U8(~c.r), U8(~c.g), U8(~c.b), c.a };
+	}
+
 	SetCyclesPerSecond(60);
 }
 
@@ -174,6 +199,16 @@ U8 *Monitor::GetVideo( void )
 const U8 *Monitor::GetVideo( void ) const
 {
 	return m_pixels;
+}
+
+U8 *Monitor::GetVideoScanline(U8 y)
+{
+	return GetVideo() + (WIDTH * y * STRIDE);
+}
+
+const U8 *Monitor::GetVideoScanline(U8 y) const
+{
+	return GetVideo() + (WIDTH * y * STRIDE);
 }
 
 const U8 *Monitor::GetMemory( void ) const
@@ -239,4 +274,17 @@ uint32_t Monitor::GetCharMapHeight( void ) const
 U8 *Monitor::GetScrollCharMapLine( void )
 {
 	return GetCharMap() + GetCharMapWidth() * (m_scroll % GetCharMapHeight());
+}
+
+U8 *Monitor::GetScrollColorMapLine( void )
+{
+	return GetScrollCharMapLine() + GetCharMapWidth() * GetCharMapHeight();
+}
+
+Monitor::Colors Monitor::GetColors(U8 color_index) const
+{
+	return Colors{
+		m_pal[0].pal[(color_index & 0xf0) >> 4],
+		m_pal[1].pal[(color_index & 0x0f)]
+	};
 }

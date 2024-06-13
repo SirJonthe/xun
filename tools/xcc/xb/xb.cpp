@@ -665,7 +665,7 @@ static bool try_escape_char(xcc_parser_state ps, token &t)
 	return false;
 }
 
-static unsigned hexdig2dec(unsigned hex)
+static unsigned hexdig2dec(char hex)
 {
 	switch (hex) {
 	case '0':
@@ -685,14 +685,14 @@ static unsigned hexdig2dec(unsigned hex)
 	case 'd':
 	case 'e':
 	case 'f':
-		return hex - 'a';
+		return (hex - 'a') + 10;
 	case 'A':
 	case 'B':
 	case 'C':
 	case 'D':
 	case 'E':
 	case 'F':
-		return hex - 'A';
+		return (hex - 'A') + 10;
 	}
 	return 0;
 }
@@ -726,7 +726,7 @@ static bool try_ext_escape_char(xcc_parser_state ps, token &t)
 			try_encoded_char(new_state(ps.end), t)
 		)
 	) {
-		t.hash = ((hexdig2dec(hi.hash) << 4 + hexdig2dec(lo.hash)) << 8) + t.hash;
+		t.hash = (((hexdig2dec(hi.hash) << 4) + hexdig2dec(lo.hash)) << 8) + t.hash;
 		return true;
 	}
 	return false;
