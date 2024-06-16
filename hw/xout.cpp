@@ -1,4 +1,5 @@
 #include <iostream>
+#include <climits>
 #include "xhwids.h"
 #include "xout.h"
 
@@ -29,6 +30,99 @@ U8 *Monitor::GetCurrentColorMapLine( void )
 	return GetCurrentCharMapLine() + GetCharMapWidth() * GetCharMapHeight();
 }
 
+void Monitor::DrawChar(char ch, char color_index, int x, int y)
+{
+	// TODO: This code needs to be in Monitor, not in demo_monitor.
+	if (GetAtlasCharWidthCount() == 0 || GetAtlasCharHeightCount() == 0) {
+		return;
+	}
+	Monitor::Colors colors = GetColors(color_index);
+	if (x >= 0 && y >= 0 && x + GetCharPxWidth() < Monitor::WIDTH && y + GetCharPxHeight() < Monitor::HEIGHT) {
+		
+		U8 *pixels = GetVideoScanline(y) + x * Monitor::STRIDE;
+
+		if (ch >= GetFirstFontChar() && ch <= GetLastFontChar()) {
+
+			// [X] get the x and y atlas coordinate of the glyph
+			uint32_t glyph_i = ch - GetFirstFontChar();            // The index of the glyph.
+			uint32_t glyph_x = glyph_i % GetAtlasCharWidthCount(); // The X coordinate of the glyph on the atlas.
+			uint32_t glyph_y = glyph_i / GetAtlasCharWidthCount(); // The Y coordinate of the glyph on the atlas.
+
+			// [X] convert to pixel x and y
+			uint32_t glyph_px_x = glyph_x * GetCellPxWidth();  // disregard that each byte contains 8 pixels in a row in this step.
+			uint32_t glyph_px_y = glyph_y * GetCellPxHeight(); // disregard that each byte contains 8 pixels in a row in this step.
+
+			// [X] convert to memory location
+			const U8 *glyph = GetMemory() + ((glyph_px_y * GetAtlasCharWidthCount() * GetCellPxWidth()) + glyph_px_x) / CHAR_BIT;
+
+			for (uint32_t y = 0; y < GetCharPxHeight(); ++y) {
+				const U8 *glyph_scanline = glyph + (GetAtlasCharWidthCount() * GetCellPxWidth() / 8) * y;
+				U8 *pixel_scanline = pixels + Monitor::PITCH * y;
+				for (uint32_t x = 0; x < GetCharPxWidth(); ++x) {
+					uint8_t p = *glyph_scanline & (1 << x);
+					pixel_scanline[x * Monitor::STRIDE + 0] = p ? colors.bg.r : colors.fg.r;
+					pixel_scanline[x * Monitor::STRIDE + 1] = p ? colors.bg.g : colors.fg.g;
+					pixel_scanline[x * Monitor::STRIDE + 2] = p ? colors.bg.b : colors.fg.b;
+				}
+			}
+		} else if (ch != ' ' && ch != '\n' && ch != 0 && ch != '\t' && ch != '\r') {
+			// [X] tofu: just draw a box
+			for (int n = 0; n < GetCharPxWidth(); ++n) {
+				pixels[n * Monitor::STRIDE + 0] = colors.fg.r;
+				pixels[n * Monitor::STRIDE + 1] = colors.fg.g;
+				pixels[n * Monitor::STRIDE + 2] = colors.fg.b;
+			}
+			pixels += Monitor::PITCH;
+			for (int n = 0; n < GetCharPxHeight() - 2; ++n) {
+				pixels[0]                                                     = colors.fg.r;
+				pixels[1]                                                     = colors.fg.g;
+				pixels[2]                                                     = colors.fg.b;
+				for (int m = 1; m < GetCharPxWidth() - 1; ++m) {
+					pixels[m * Monitor::STRIDE + 0]                            = colors.fg.r;
+					pixels[m * Monitor::STRIDE + 1]                            = colors.fg.g;
+					pixels[m * Monitor::STRIDE + 2]                            = colors.fg.b;
+				}
+				pixels[(GetCharPxWidth() - 1) * Monitor::STRIDE + 0] = colors.fg.r;
+				pixels[(GetCharPxWidth() - 1) * Monitor::STRIDE + 1] = colors.fg.g;
+				pixels[(GetCharPxWidth() - 1) * Monitor::STRIDE + 2] = colors.fg.b;
+				pixels += Monitor::PITCH;
+			}
+			for (int n = 0; n < GetCharPxWidth(); ++n) {
+				pixels[n * Monitor::STRIDE + 0] = colors.fg.r;
+				pixels[n * Monitor::STRIDE + 1] = colors.fg.g;
+				pixels[n * Monitor::STRIDE + 2] = colors.fg.b;
+			}
+		} else if (ch == ' ') {
+			for (uint32_t y = 0; y < GetCharPxHeight(); ++y) {
+				U8 *pixel_scanline = pixels + Monitor::PITCH * y;
+				for (uint32_t x = 0; x < GetCharPxWidth(); ++x) {
+					pixel_scanline[x * Monitor::STRIDE + 0] = colors.bg.r;
+					pixel_scanline[x * Monitor::STRIDE + 1] = colors.bg.g;
+					pixel_scanline[x * Monitor::STRIDE + 2] = colors.bg.b;
+				}
+			}
+		}
+	}
+}
+
+void Monitor::DrawCharMap( void )
+{
+	if (GetCharPxWidth() > 0 && GetCharPxHeight() > 0) {
+		U8 *line = GetScrollCharMapLine();
+		U8 *colors = GetScrollColorMapLine();
+
+		for (uint32_t h = 0; h < GetCharMapHeight(); ++h) {
+			const int y = h * GetCharPxHeight();
+			for (uint32_t w = 0; w < GetCharMapWidth(); ++w) {
+				const int x = w * GetCharPxWidth();
+				DrawChar(line[w], colors[w], x, y);
+			}
+			line += GetCharMapWidth();
+			colors += GetCharMapWidth();
+		}
+	}
+}
+
 void Monitor::DoPowerOn( void )
 {
 	Clear();
@@ -37,6 +131,12 @@ void Monitor::DoPowerOn( void )
 void Monitor::DoCycle( void )
 {
 	while (Poll()) {}
+	Clear();
+	switch (m_mode) {
+	case MSG_TXTMODE:
+		DrawCharMap();
+		break;
+	}
 }
 
 void Monitor::DoPowerOff( void )

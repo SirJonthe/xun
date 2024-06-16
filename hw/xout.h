@@ -77,6 +77,16 @@ private:
 	/// @return A pointer to the color index of first character of the current scroll line in the character map.
 	U8 *GetCurrentColorMapLine( void );
 
+	/// @brief Draws a single character from the memory font atlas unto the screen.
+	/// @param ch The character to render.
+	/// @param color_index The color index to use. Used as index into the color palette. The high 4 bits are for the background color, and the low 4 bits are for the foreground (text) color.
+	/// @param x The index of the character tile in the X axis (tile, not pixel).
+	/// @param y The index of the character tile in the Y axis (tile, not pixel).
+	void DrawChar(char ch, char color_index, int x, int y);
+
+	/// @brief Renders the entire character map unto the video memory.
+	void DrawCharMap( void );
+
 protected:
 	/// @brief Powers on the monitor.
 	void DoPowerOn( void );
