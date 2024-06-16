@@ -32,7 +32,6 @@ U8 *Monitor::GetCurrentColorMapLine( void )
 
 void Monitor::DrawChar(char ch, char color_index, int x, int y)
 {
-	// TODO: This code needs to be in Monitor, not in demo_monitor.
 	if (GetAtlasCharWidthCount() == 0 || GetAtlasCharHeightCount() == 0) {
 		return;
 	}
