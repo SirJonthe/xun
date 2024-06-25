@@ -1,15 +1,21 @@
-const PACKET_HEADER_ID        = 0; // The ID of the sending device.
-const PACKET_HEADER_CLOCK     = 1; // The clock as reported by the sending device.
-const PACKET_HEADER_TYPE      = 2; // See TYPE_*.
-const PACKET_HEADER_SEQ       = 3; // The index of a segmented message.
-const PACKET_HEADER_SIZE      = 4; // The number of words in the payload.
-const PACKET_HEADER_IRQ       = 5; // The IRQ to call on the receiving device.
-const PACKET_HEADER_MID       = 6; // The message ID.
-const PACKET_HEADER_WORD_SIZE = 7; // The number of words in the packet header.
+enum {
+	PACKET_HEADER_ID,       // The ID of the sending device.
+	PACKET_HEADER_CLOCK,    // The clock as reported by the sending device.
+	PACKET_HEADER_TYPE,     // See TYPE_*.
+	PACKET_HEADER_SEQ,      // The index of a segmented message.
+	PACKET_HEADER_SIZE,     // The number of words in the payload.
+	PACKET_HEADER_IRQ,      // The IRQ to call on the receiving device.
+	PACKET_HEADER_MID,      // The message ID.
+	PACKET_HEADER_WORD_SIZE // The number of words in the packet header.
+};
 
-/// @brief Returns the CPU ID.
+/// @brief Returns the CPU ID (unique to the CPU architecture).
 /// @return The CPU ID.
 cpuid( void );
+
+/// @brief Returns the device ID (unique to this instance of device).
+/// @return The device ID.
+did( void );
 
 /// @brief Checks if the input buffer on the device connected at the given port is full.
 /// @return 1 if the device connected on the given port has a full input buffer. 0 otherwise.

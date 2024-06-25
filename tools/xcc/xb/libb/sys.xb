@@ -12,6 +12,16 @@ cpuid( void )
 	return id;
 }
 
+did( void )
+{
+	auto id;
+	asm {
+		did.
+		mov id.
+	}
+	return id;
+}
+
 const __NUM_HWPORTS = 16; // The number of ports available on this hardware.
 auto __mid_counter = 0; // Message ID counter.
 

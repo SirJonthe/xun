@@ -98,7 +98,8 @@ private:
 	Device       *m_connection;         // The connected device.
 	MessageQueue  m_in_queue;           // The input buffer where the connected device sends input messages.
 	std::string   m_name;               // The name of the device.
-	U16           m_HWID;               // The unique hardware ID of the device (remember that this has to be unique, otherwise computers may not be able to distinguish this device from another device).
+	U16           m_HWID;               // The unique hardware ID of the class of device (remember that this has to be unique, otherwise computers may not be able to distinguish this device from another device).
+	U16           m_DID;                // The unique ID of this specific device instance.
 	uint64_t      m_clock_ns;           // The clock in pico seconds.
 	uint64_t      m_exec_ns;            // Internal state representing the remainder of execution time left over after a given time slice.
 	uint64_t      m_ns_per_cycle;       // The number of pico seconds per cycle.
@@ -214,9 +215,13 @@ public:
 	/// @return The connected device.
 	const Device *GetConnectedDevice( void ) const;
 
-	/// @brief Returns the hardware ID.
+	/// @brief Returns the hardware ID (unique for this class of device).
 	/// @return The hardware ID.
 	U16 GetHWID( void ) const;
+
+	/// @brief Returns the device ID (unique for this instance of device).
+	/// @return The device ID.
+	U16 GetDID( void ) const;
 
 	/// @brief Returns the hardware name of the device.
 	/// @return The hardware name of the device.

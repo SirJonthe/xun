@@ -70,7 +70,7 @@ struct XIS
 		ERR    = 0b10000010 + (51<<8), // put the error register on the top of the stack. move stack by 1
 		CERR   = 0b10000010 + (52<<8), // clear the error flag at the index indicated by the top value on the stack. collapse stack by 1.
 		FULL   = 0b10000001 + (53<<8), // puts 1 on the stack if the device on the selected port's input buffer is full. 0 otherwise. Expand stack by 1.
-		RES54  = 0b10000010 + (54<<8), // Reserved #54
+		DID    = 0b10000000 + (54<<8), // Puts the device ID on the stack.
 		RES55  = 0b11000010 + (55<<8), // Reserved #55
 		RES56  = 0b10000010 + (56<<8), // Reserved #56
 		RES57  = 0b11000010 + (57<<8), // Reserved #57

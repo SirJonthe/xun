@@ -297,6 +297,10 @@ void Computer::DoCycle( void )
 		PUSH_STACK(1);
 		TOP.u = GetHWID();
 		break;
+	case XIS::DID:
+		PUSH_STACK(1);
+		TOP.u = GetDID();
+		break;
 	case XIS::HALT:
 		--IP.u;
 		PowerOff();

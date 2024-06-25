@@ -147,7 +147,17 @@ void Device::SetExternalState(uint32_t external_state)
 	}
 }
 
-Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_clock_ns(0), m_exec_ns(0), m_external_state(0), m_message_id_counter(0), m_power(false)
+/// @brief Returns the next step in a Gray Code Sequence, which seemingly returns an index from a permuted sequence from 0..65535
+/// @return The Gray code.
+static U16 GrayCode( void )
+{
+	static U16 current = 0;
+	U16 gray = current ^ (current << 3);
+	++current;
+	return gray;
+}
+
+Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_DID(GrayCode()), m_clock_ns(0), m_exec_ns(0), m_external_state(0), m_message_id_counter(0), m_power(false)
 {
 	SetCyclesPerSecond(60);
 }
@@ -269,6 +279,11 @@ const Device *Device::GetConnectedDevice( void ) const
 U16 Device::GetHWID( void ) const
 {
 	return m_HWID;
+}
+
+U16 Device::GetDID( void ) const
+{
+	return m_DID;
 }
 
 std::string Device::GetName( void ) const
