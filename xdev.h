@@ -19,7 +19,7 @@ public:
 			TYPE_PING,       // When sent we expect the receiver to send PONG back.
 			TYPE_PONG,       // Sent back as an acknowledgement of a PING.
 			TYPE_DATA,       // Raw data is found in the payload.
-			TYPE_KEYVALS,    // A series of user-defined keys and values are sent in the payload. The same effect can be achieved sending raw data, but a separate packet type may help distinguish between situations.
+			TYPE_MULTIPACK,  // The payload may contain several packets, where each packet type in the payload starts with a packet type and a sub-payload size before specifying the sub-payload. Good when you want to compress several packets into one.
 			TYPE_COUNT       // The number of packet types available.
 		};
 		enum {

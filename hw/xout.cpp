@@ -191,7 +191,6 @@ bool Monitor::HandlePacket(const Packet &msg)
 				Error("Invalid video mode");
 			}
 			return true;
-		case Packet::TYPE_KEYVALS:    return true;
 		case MSG_TXTMODE:
 		case MSG_PIXMODE:
 			Info("Got display mode");

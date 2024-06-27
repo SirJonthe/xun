@@ -112,7 +112,25 @@ bool Device::Poll( void )
 		if (p.header[Packet::HEADER_TYPE] == Packet::TYPE_PING) {
 			Output(NewPacket(Packet::TYPE_PONG));
 		}
-		return HandlePacket(p);
+		if (p.header[Packet::HEADER_TYPE] == Packet::TYPE_MULTIPACK) {
+			bool ret = true;
+			U16 i = 0;
+			while (i < p.header[Packet::HEADER_SIZE]) {
+				Packet n;
+				for (U16 j = 0; j < Packet::HEADER_WORD_SIZE; ++j) {
+					n.header[j] = p.header[j];
+				}
+				n.header[Packet::HEADER_TYPE] = p.payload[i++];
+				n.header[Packet::HEADER_SIZE] = p.payload[i++];
+				for (U16 j = 0; j < n.header[Packet::HEADER_SIZE]; ++j) {
+					n.payload[j] = p.payload[i++];
+				}
+				ret = ret & HandlePacket(n);
+			}
+			return ret;
+		} else {
+			return HandlePacket(p);
+		}
 	}
 	return false;
 }
@@ -126,7 +144,7 @@ bool Device::HandlePacket(const Packet &msg)
 		case Packet::TYPE_PING:       /*Info("Got PING");*/       return true;
 		case Packet::TYPE_PONG:       /*Info("Got PONG");*/       return true;
 		case Packet::TYPE_DATA:       /*Info("Got DATA");*/       return true;
-		case Packet::TYPE_KEYVALS:    /*Info("Got KEYVALS");*/    return true;
+		case Packet::TYPE_MULTIPACK:  /*Info("Got MULTIPACK");*/  return true;
 	}
 	return false;
 }

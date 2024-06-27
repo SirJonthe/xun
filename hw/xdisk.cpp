@@ -34,7 +34,6 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 		case Packet::TYPE_PING:       return true;
 		case Packet::TYPE_PONG:       return true;
 		case Packet::TYPE_DATA:       return true;
-		case Packet::TYPE_KEYVALS:    return true;
 		case MSG_TYPE_READ:
 			// 2 words define the read location
 			// word 1 is the high word
