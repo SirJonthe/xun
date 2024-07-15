@@ -52,4 +52,13 @@ constexpr I16 I_MIN  = std::numeric_limits<I16>::min(); // The maximum range of 
 
 constexpr uint32_t MEM_SIZE_MAX = uint32_t(U_MAX) + 1; // The maximum number of addressable words in the 16-bit XUN architecture.
 
+/// @brief A data structure used to access 32-bit memory locations.
+struct Addr32
+{
+	U16 bank; // The memory bank.
+	U16 loc;  // The memory location inside the given bank.
+
+	uint32_t Flat( void ) const { return (uint32_t(bank) << 16) + uint32_t(loc); }
+};
+
 #endif // XARCH_H

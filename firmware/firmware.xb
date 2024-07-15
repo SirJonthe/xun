@@ -1,8 +1,8 @@
 #include <sys>
 
-const BIOS_MAJ_VER = 0;
-const BIOS_MIN_VER = 1;
-const BIOS_HOT_VER = 0;
+const FIRMWARE_MAJ_VER = 0;
+const FIRMWARE_MIN_VER = 1;
+const FIRMWARE_HOT_VER = 0;
 
 const FONT_ATLAS_SIZE_WORDS = 380;
 static FONT_ATLAS[FONT_ATLAS_SIZE_WORDS] = {
@@ -351,10 +351,10 @@ i_print_sys_info( void )
 		}
 	}
 
-	// Print BIOS version.
+	// Print firmware version.
 	{
-		auto fmt[] = "XERXES(tm) BIOS v%u.%u.%u\n";
-		auto vals[] = { BIOS_MAJ_VER, BIOS_MIN_VER, BIOS_HOT_VER };
+		auto fmt[] = "XERXES(tm) Firmware v%u.%u.%u\n";
+		auto vals[] = { FIRMWARE_MAJ_VER, FIRMWARE_MIN_VER, FIRMWARE_HOT_VER };
 		d_printf(fmt, vals);
 	}
 
@@ -417,7 +417,7 @@ main(a,b)
 	d_init_monitor(MON_MSG_TXTMODE);
 	i_print_sys_info();
 //	d_init_diskreader();
-//	d_init_keyboard(); // Not really necessary because BIOS takes no user input
+//	d_init_keyboard(); // Not really necessary because firmware takes no user input
 //	s_load_bootdisk();
 
 	while (TRUE) {}

@@ -1,28 +1,39 @@
+#include <map>
 #include "xhwids.h"
 #include "xdisk.h"
 
-Disk::Disk(uint32_t capacity) : m_data(new XWORD[capacity]), m_word_count(capacity)
+Disk::Disk(uint32_t capacity) : m_data(new uint8_t[capacity]), m_size(capacity)
 {}
 
 Disk::~Disk( void )
 {
 	delete [] m_data;
-	m_word_count = 0;
+	m_size = 0;
 }
 
-XWORD Disk::Read(uint32_t i)
+uint8_t Disk::Read(Addr32 i)
 {
-	return m_data[i % m_word_count];
+	return m_data[i.Flat() % m_size];
 }
 
-void Disk::Write(uint32_t i, XWORD data)
+void Disk::Write(Addr32 i, uint8_t data)
 {
-	m_data[i % m_word_count] = data;
+	m_data[i.Flat() % m_size] = data;
 }
 
 uint32_t Disk::GetCapacity( void ) const
 {
-	return m_word_count;
+	return m_size;
+}
+
+uint8_t *Disk::GetData( void )
+{
+	return m_data;
+}
+
+const uint8_t *Disk::GetData( void ) const
+{
+	return m_data;
 }
 
 bool DiskReader::HandlePacket(const Device::Packet &msg) 
@@ -41,23 +52,23 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 			SetExternalState(1);
 			if (msg.header[Packet::HEADER_SIZE] == 2) {
 				Packet r = NewPacket(MSG_TYPE_READ);
-				const uint32_t loc = (uint32_t(msg.payload[0]) << 16) + msg.payload[1];
-				if (loc < GetCapacity()) {
-					uint32_t n = 2;
-					const uint32_t next = loc + Packet::PAYLOAD_WORD_SIZE - 2 < GetCapacity() ? loc + Packet::PAYLOAD_WORD_SIZE - 2 : GetCapacity();
-					for (; n < next; ++n) {
-						r.payload[n] = Read(loc + n - 2).u;
-					}
-					for (; n < Packet::PAYLOAD_WORD_SIZE; ++n) {
-						r.payload[n] = 0;
-					}
-					r.payload[0] = (next & 0xffff0000) >> 16;
-					r.payload[1] = (next & 0xffff);
-					r.header[Packet::HEADER_SIZE] = next - loc;
-					Output(r);
-				} else {
-					Error("Read out of bounds");
-				}
+				const Addr32 loc = { msg.payload[0], msg.payload[1] };
+//				if (loc.Flat() < GetCapacity()) {
+//					uint32_t n = 2;
+//					const uint32_t next = loc + Packet::PAYLOAD_WORD_SIZE - 2 < GetCapacity() ? loc + Packet::PAYLOAD_WORD_SIZE - 2 : GetCapacity();
+//					for (; n < next; ++n) {
+//						r.payload[n] = Read(loc + n - 2).u;
+//					}
+//					for (; n < Packet::PAYLOAD_WORD_SIZE; ++n) {
+//						r.payload[n] = 0;
+//					}
+//					r.payload[0] = (next & 0xffff0000) >> 16;
+//					r.payload[1] = (next & 0xffff);
+//					r.header[Packet::HEADER_SIZE] = next - loc;
+//					Output(r);
+//				} else {
+//					Error("Read out of bounds");
+//				}
 			} else {
 				Error("Payload size not 2");
 			}
@@ -68,21 +79,21 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 			// word 2 is the low word
 			SetExternalState(1);
 			if (msg.header[Packet::HEADER_SIZE] >= 2) {
-				const uint32_t loc = (uint32_t(msg.payload[0]) << 16) + msg.payload[1];
-				if (loc < GetCapacity()) {
-					uint32_t n = 2;
-					const uint32_t next = loc + Packet::PAYLOAD_WORD_SIZE - 2 < GetCapacity() ? loc + Packet::PAYLOAD_WORD_SIZE - 2 : GetCapacity();
-					for (; n < next; ++n) {
-						Write(loc + n - 2, XWORD{msg.payload[n]});
-					}
-					Packet r = NewPacket(MSG_TYPE_WRITE);
-					r.payload[0] = (next & 0xffff0000) >> 16;
-					r.payload[1] = (next & 0xffff);
-					r.header[Packet::HEADER_SIZE] = 2;
-					Output(r);
-				} else {
-					Error("Write out of bounds");
-				}
+//				const Addr32 loc = { msg.payload[0], msg.payload[1] };
+//				if (loc < GetCapacity()) {
+//					uint32_t n = 2;
+//					const uint32_t next = loc + Packet::PAYLOAD_WORD_SIZE - 2 < GetCapacity() ? loc + Packet::PAYLOAD_WORD_SIZE - 2 : GetCapacity();
+//					for (; n < next; ++n) {
+//						Write(loc + n - 2, XWORD{msg.payload[n]});
+//					}
+//					Packet r = NewPacket(MSG_TYPE_WRITE);
+//					r.payload[0] = (next & 0xffff0000) >> 16;
+//					r.payload[1] = (next & 0xffff);
+//					r.header[Packet::HEADER_SIZE] = 2;
+//					Output(r);
+//				} else {
+//					Error("Write out of bounds");
+//				}
 			} else {
 				Error("Payload size not at least 2");
 			}
@@ -107,12 +118,12 @@ DiskReader::DiskReader( void ) : Device("XERXES(tm) Data Disk Reader", XHWID_DIS
 	SetCyclesPerSecond(0);
 }
 
-XWORD DiskReader::Read(uint32_t i)
+uint8_t DiskReader::Read(Addr32 i)
 {
-	return HasAttachment() ? m_attachment->Read(i) : XWORD{0};
+	return HasAttachment() ? m_attachment->Read(i) : 0;
 }
 
-void DiskReader::Write(uint32_t i, XWORD data)
+void DiskReader::Write(Addr32 i, uint8_t data)
 {
 	if (HasAttachment()) {
 		m_attachment->Write(i, data);

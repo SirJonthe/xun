@@ -11,12 +11,12 @@
 class Disk
 {
 private:
-	XWORD    *m_data;       // The data.
-	uint32_t  m_word_count; // The number of words in the data array.
+	uint8_t  *m_data; // The data.
+	uint32_t  m_size; // The number of bytes in the data array.
 
 public:
 	/// @brief Initializes a Disk.
-	/// @param size The number of words in the data storage.
+	/// @param size The number of bytes in the data storage.
 	explicit Disk(uint32_t size);
 
 	/// @brief Cleans up used resources.
@@ -25,16 +25,24 @@ public:
 	/// @brief Reads from the data storage and returns the data read.
 	/// @param i The memory location to read from.
 	/// @return The 16-bit value that was read.
-	XWORD Read(uint32_t i);
+	uint8_t Read(Addr32 i);
 
 	/// @brief Writes data to the data storage.
 	/// @param i The memory location to write to.
 	/// @param data The data to write to the speficied memory location.
-	void Write(uint32_t i, XWORD data);
+	void Write(Addr32 i, uint8_t data);
 
-	/// @brief Returns the capacity of the disk in words.
-	/// @return The capacity of the disk in words.
+	/// @brief Returns the capacity of the disk in bytes.
+	/// @return The capacity of the disk in bytes.
 	uint32_t GetCapacity( void ) const;
+
+	/// @brief Return the raw data array of the disk.
+	/// @return The raw data array of the disk.
+	uint8_t *GetData( void );
+
+	/// @brief Return the raw data array of the disk.
+	/// @return The raw data array of the disk.
+	const uint8_t *GetData( void ) const;
 };
 
 /// @brief Represents a device that can store data persistently.
@@ -48,7 +56,7 @@ public:
 	};
 
 private:
-	Disk *m_attachment;
+	Disk *m_attachment; // The disk attachment that can be read from and written to.
 
 protected:
 	/// @brief 
@@ -62,13 +70,13 @@ public:
 
 	/// @brief Reads from the data storage and returns the data read.
 	/// @param i The memory location to read from.
-	/// @return The 16-bit value that was read.
-	XWORD Read(uint32_t i);
+	/// @return The 8-bit value that was read.
+	uint8_t Read(Addr32 i);
 
 	/// @brief Writes data to the data storage.
 	/// @param i The memory location to write to.
 	/// @param data The data to write to the speficied memory location.
-	void Write(uint32_t i, XWORD data);
+	void Write(Addr32 i, uint8_t data);
 
 	/// @brief Determines if there is an attachment in this reader.
 	/// @return True if there is an attachment.
