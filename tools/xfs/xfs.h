@@ -183,13 +183,22 @@ private:
 	/// @return
 	bool HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry, std::vector<Addr32> &addr) const;
 
-
 	/// @brief
 	/// @param file
 	/// @param p_entry
 	/// @param addr
 	/// @return
 	bool HealthCheckFile(const XFSBlock *file, const Entry *p_entry, std::vector<Addr32> &addr) const;
+
+	bool HealthCheckLinkedBlocksForward(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const;
+
+	bool HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const;
+
+	struct IntegrityNode
+	{
+		IntegrityNode  *prev;
+		const XFSBlock *block;
+	};
 
 public:
 	/// @brief Creates a new XFSUtility object capable of manipulate a given disk.

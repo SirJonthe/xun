@@ -302,7 +302,40 @@ bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry,
 
 bool XFSUtility::HealthCheckFile(const XFSBlock *file, const Entry *p_entry, std::vector<Addr32> &addr) const
 {
-	// check file size and block link integrity
+	return HealthCheckLinkedBlocksForward(file, p_entry, nullptr, 0);
+}
+
+bool XFSUtility::HealthCheckLinkedBlocksForward(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const
+{
+	accum_size += block->header.size;
+	if (prev != nullptr && block->header.prev.Flat() != RelPtr(prev)) {
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForward: block prev link broken for entry \"" << p_entry->name << "\"" << std::endl;
+		return false;
+	}
+	if (block->header.next.Flat() != 0) {
+		return HealthCheckLinkedBlocksForward(GetPtr<XFSBlock>(block->header.next.Flat()), p_entry, block, accum_size);
+	}
+	if (accum_size != p_entry->size) {
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForward: scanning forwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
+		return false;
+	}
+	return HealthCheckLinkedBlocksBackwards(prev, p_entry, block, 0);
+}
+
+bool XFSUtility::HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const Entry *p_entry, const XFSBlock *next, uint32_t accum_size) const
+{
+	accum_size += block->header.size;
+	if (next != nullptr && block->header.next.Flat() != RelPtr(next)) {
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForward: block next link broken for entry \"" << p_entry->name << "\"" << std::endl;
+		return false;
+	}
+	if (block->header.prev.Flat() != 0) {
+		return HealthCheckLinkedBlocksBackwards(GetPtr<XFSBlock>(block->header.prev.Flat()), p_entry, block, accum_size);
+	}
+	if (accum_size != p_entry->size) {
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForward: scanning backwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
+		return false;
+	}
 	return true;
 }
 
@@ -419,7 +452,6 @@ bool XFSUtility::HealthCheck( void ) const
 	// 2) The sub entries must have a parent pointer to the last address on the vector
 	// 3) A next pointer may not link back to a pointer existing on the vector
 	// 4) sum of file sizes match entry size
-	// 5) The linked list of blocks is unbroken in either direction.
 	// 6) The linked list of blocks is acyclical
 	return HealthCheckFolder(root, nullptr, a);
 }
