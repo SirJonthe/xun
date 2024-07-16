@@ -352,7 +352,7 @@ bool XFSUtility::HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const E
 {
 	accum_size += block->header.size;
 	if (OnStack(n, block)) {
-		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocks: entry \"" << p_entry->name << "\" is cyclical" << std::endl;
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksBackwards: entry \"" << p_entry->name << "\" is cyclical" << std::endl;
 		return false;
 	}
 	IntegrityNode node = { n, block };
@@ -478,6 +478,6 @@ bool XFSUtility::HealthCheck( void ) const
 		std::cout << "[ERR] XFSUtility::HealthCheck(): malformed root header" << std::endl;
 		return false;
 	}
-	// 2) The sub entries must have a parent pointer to the last address on the stack
+	// TODO: 2) The sub entries must have a parent pointer to the last address on the stack
 	return HealthCheckFolder(root, nullptr);
 }
