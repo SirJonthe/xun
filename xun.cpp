@@ -1,5 +1,5 @@
 #include "hw/xhwids.h"
-#include "xcomp.h"
+#include "xun.h"
 
 #define AT(x)         RAM[x.u]
 #define ATN(x,n)      RAM[U16(x.u + (n))]

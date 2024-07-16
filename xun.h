@@ -1,5 +1,5 @@
-#ifndef XCOMP_H
-#define XCOMP_H
+#ifndef XUN_H
+#define XUN_H
 
 #include "xarch.h"
 #include "xis.h"
@@ -261,4 +261,4 @@ public:
 	U16 StackOffsetC( void ) const;
 };
 
-#endif // XCOMP_H
+#endif // XUN_H

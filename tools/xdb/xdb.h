@@ -3,7 +3,7 @@
 
 #include "../xcc/xasm/xasm.h"
 #include "../../hw/xout.h"
-#include "../../xcomp.h"
+#include "../../xun.h"
 
 /// @brief A debugger for binary programs.
 class xdebugger
