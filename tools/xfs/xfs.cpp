@@ -73,7 +73,7 @@ std::string XFSUtility::GetPath(const char *prefix, const char *name) const
 	return out;
 }
 
-bool XFSUtility::NewBlock( void )
+bool XFSUtility::NewBlock(XFSBlock *prev)
 {
 	if (m_block_i + 1 >= m_num_blocks) {
 		return false;
@@ -81,9 +81,12 @@ bool XFSUtility::NewBlock( void )
 	++m_block_i;
 	XFSBlock &block = m_blocks[m_block_i];
 	block.header.next  = { 0, 0 };
-	block.header.prev  = { 0, 0 };
-	block.header.entry = { 0, 0 };
+	block.header.prev  = prev != nullptr ? ToAddr32(RelPtr(prev)) : Addr32{ 0, 0 };
+	block.header.entry = prev != nullptr ? prev->header.entry : Addr32{ 0, 0 };
 	block.header.size  = 0;
+	if (prev != nullptr) {
+		prev->header.next = ToAddr32(RelPtr(&block));
+	}
 	return true;
 }
 
@@ -92,18 +95,21 @@ bool XFSUtility::Write(uint8_t x, Entry *p_entry)
 	if (m_block_i >= m_num_blocks) {
 		return false;
 	}
-	XFSBlock &block = m_blocks[m_block_i];
-	block.data.bin[block.header.size++] = x;
+
+	XFSBlock *block = m_blocks + m_block_i;
+
+	if (block->header.size >= sizeof(XFSBlock::data)) {
+		if (!NewBlock(block)) {
+			return false;
+		}
+		block = m_blocks + m_block_i;
+	}
+
+	block->data.bin[block->header.size++] = x;
 	if (p_entry != nullptr) {
 		++p_entry->size;
 	}
-	if (block.header.size <= 1) {
-		block.header.next = Addr32{ 0, 0 };
-		block.header.prev = m_block_i > 0 ? ToAddr32((m_block_i - 1) * sizeof(XFSBlock)) : Addr32{ 0, 0 };
-		block.header.entry = m_block_i > 0 ? m_blocks[m_block_i - 1].header.entry : Addr32{ 0, 0 };
-	} else if (m_blocks[m_block_i].header.size >= sizeof(XFSBlock::data) && !NewBlock()) {
-		return false;
-	}
+	
 	return true;
 }
 
@@ -183,7 +189,6 @@ bool XFSUtility::WriteFolder(const Folder &folder, Entry *p_entry)
 		if (!Write(NewEntry(i->first, ENTRYTYPE_FOLDER, p_entry->loc), p_entry)) {
 			return false;
 		}
-		std::cout << "recorded folder " << i->first << " to " << p_entry->loc.Flat() << std::endl;
 	}
 	for (auto i = folder.files.begin(); i != folder.files.end(); i++) {
 
@@ -264,8 +269,9 @@ Addr32 XFSUtility::ToAddr32(uint32_t addr) const
 	return Addr32{ U16(addr >> 16), U16(addr) };
 }
 
-bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry, std::vector<Addr32> &addr) const
+bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry) const
 {
+	// TODO: Support multi-block folders.
 	if (folder->header.size / sizeof(Entry) * sizeof(Entry) != folder->header.size) {
 		std::cout << "[ERR] XFSUtility::HealthCheck(): entry for \"" << p_entry->name << "\" size not evenly divisible by " << sizeof(Entry) << std::endl;
 		return false;
@@ -279,12 +285,12 @@ bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry,
 		}
 		switch (e->type) {
 		case ENTRYTYPE_FILE:
-			if (!HealthCheckFile(GetPtr<XFSBlock>(e->loc.Flat()), e, addr)) {
+			if (!HealthCheckFile(GetPtr<XFSBlock>(e->loc.Flat()), e)) {
 				return false;
 			}
 			break;
 		case ENTRYTYPE_FOLDER:
-			if (!HealthCheckFolder(GetPtr<XFSBlock>(e->loc.Flat()), e, addr)) {
+			if (!HealthCheckFolder(GetPtr<XFSBlock>(e->loc.Flat()), e)) {
 				return false;
 			}
 			break;
@@ -296,44 +302,43 @@ bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry,
 		}
 		size -= sizeof(Entry);
 	}
-	addr.pop_back();
 	return true;
 }
 
-bool XFSUtility::HealthCheckFile(const XFSBlock *file, const Entry *p_entry, std::vector<Addr32> &addr) const
+bool XFSUtility::HealthCheckFile(const XFSBlock *file, const Entry *p_entry) const
 {
-	return HealthCheckLinkedBlocksForward(file, p_entry, nullptr, 0);
+	return HealthCheckLinkedBlocks(file, p_entry, nullptr, 0);
 }
 
-bool XFSUtility::HealthCheckLinkedBlocksForward(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const
+bool XFSUtility::HealthCheckLinkedBlocks(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const
 {
 	accum_size += block->header.size;
 	if (prev != nullptr && block->header.prev.Flat() != RelPtr(prev)) {
-		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForward: block prev link broken for entry \"" << p_entry->name << "\"" << std::endl;
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForwards: block prev link broken for entry \"" << p_entry->name << "\"" << std::endl;
 		return false;
 	}
 	if (block->header.next.Flat() != 0) {
-		return HealthCheckLinkedBlocksForward(GetPtr<XFSBlock>(block->header.next.Flat()), p_entry, block, accum_size);
+		return HealthCheckLinkedBlocks(GetPtr<XFSBlock>(block->header.next.Flat()), p_entry, block, accum_size);
 	}
 	if (accum_size != p_entry->size) {
-		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForward: scanning forwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForwards: scanning forwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
 		return false;
 	}
-	return HealthCheckLinkedBlocksBackwards(prev, p_entry, block, 0);
+	return HealthCheckLinkedBlocksBackwards(block, p_entry, nullptr, 0);
 }
 
 bool XFSUtility::HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const Entry *p_entry, const XFSBlock *next, uint32_t accum_size) const
 {
 	accum_size += block->header.size;
 	if (next != nullptr && block->header.next.Flat() != RelPtr(next)) {
-		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForward: block next link broken for entry \"" << p_entry->name << "\"" << std::endl;
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksBackwards: block next link broken for entry \"" << p_entry->name << "\"" << std::endl;
 		return false;
 	}
 	if (block->header.prev.Flat() != 0) {
 		return HealthCheckLinkedBlocksBackwards(GetPtr<XFSBlock>(block->header.prev.Flat()), p_entry, block, accum_size);
 	}
 	if (accum_size != p_entry->size) {
-		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForward: scanning backwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksBackwards: scanning backwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
 		return false;
 	}
 	return true;
@@ -442,8 +447,6 @@ bool XFSUtility::HealthCheck( void ) const
 		std::cout << "[ERR] XFSUtility::HealthCheck(): no disk attached" << std::endl;
 		return false;
 	}
-	std::vector<Addr32> a;
-	a.push_back(ToAddr32(0));
 	XFSBlock *root = m_blocks;
 	if (root->header.size != 0 && (root->header.entry.Flat() != 0 || root->header.prev.Flat() != 0)) {
 		std::cout << "[ERR] XFSUtility::HealthCheck(): malformed root header" << std::endl;
@@ -451,7 +454,6 @@ bool XFSUtility::HealthCheck( void ) const
 	}
 	// 2) The sub entries must have a parent pointer to the last address on the vector
 	// 3) A next pointer may not link back to a pointer existing on the vector
-	// 4) sum of file sizes match entry size
 	// 6) The linked list of blocks is acyclical
-	return HealthCheckFolder(root, nullptr, a);
+	return HealthCheckFolder(root, nullptr);
 }

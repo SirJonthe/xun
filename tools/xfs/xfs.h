@@ -104,8 +104,9 @@ private:
 	std::string GetPath(const char *prefix, const char *name) const;
 	
 	/// @brief Creates a new block.
+	/// @param prev The previous block in the linked list. If null, then the block is the first entry in a new list. Default value is null.
 	/// @return True if there is space to allocate a new block on disk.
-	bool NewBlock( void );
+	bool NewBlock(XFSBlock *prev = nullptr);
 
 	/// @brief Writes a data structure to the disk.
 	/// @tparam type_t The type of the data to write.
@@ -176,28 +177,39 @@ private:
 	/// @return The bank and location.
 	Addr32 ToAddr32(uint32_t addr) const;
 
-	/// @brief
-	/// @param folder
-	/// @param p_entry
-	/// @param addr
-	/// @return
-	bool HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry, std::vector<Addr32> &addr) const;
+	/// @brief Checks the XFS integrity of a folder. Performs health check of the folder's contents as well.
+	/// @param folder The folder to check.
+	/// @param p_entry The entry of the folder in the parent folder.
+	/// @return True if the folder passes the health check.
+	bool HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry) const;
 
-	/// @brief
-	/// @param file
-	/// @param p_entry
-	/// @param addr
-	/// @return
-	bool HealthCheckFile(const XFSBlock *file, const Entry *p_entry, std::vector<Addr32> &addr) const;
+	/// @brief Checks the XFS integrity of a file.
+	/// @param file The file to check.
+	/// @param p_entry The entry of the file in the parent folder.
+	/// @return True if the file passes the health check.
+	bool HealthCheckFile(const XFSBlock *file, const Entry *p_entry) const;
 
-	bool HealthCheckLinkedBlocksForward(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const;
+	/// @brief Checks the XFS integrity of a list of XFS blocks in both linked directions.
+	/// @param block The block to check.
+	/// @param p_entry The entry of the file/folder in the parent folder.
+	/// @param prev The block's previous block.
+	/// @param accum_size The total accumulated size of the blocks.
+	/// @return True if the blocks pass health check.
+	bool HealthCheckLinkedBlocks(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const;
 
+	/// @brief Checks the XFS integrity of a list of XFS blocks from last block to first.
+	/// @param block The block to check.
+	/// @param p_entry The entry of the file/folder in the parent folder.
+	/// @param prev The block's previous block (which is linked as the next block since it is scanned backwards).
+	/// @param accum_size The total accumulated size of the blocks.
+	/// @return True if the blocks pass health check.
 	bool HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const;
 
+	/// @brief A linked list of blocks that have been recursively scanned during a health check.
 	struct IntegrityNode
 	{
-		IntegrityNode  *prev;
-		const XFSBlock *block;
+		IntegrityNode  *prev;  // The previously checked block.
+		const XFSBlock *block; // The current block.
 	};
 
 public:
