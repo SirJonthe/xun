@@ -271,12 +271,12 @@ Addr32 XFSUtility::ToAddr32(uint32_t addr) const
 
 bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry) const
 {
-	// TODO: Support multi-block folders.
 	if (folder->header.size / sizeof(Entry) * sizeof(Entry) != folder->header.size) {
 		std::cout << "[ERR] XFSUtility::HealthCheck(): entry for \"" << p_entry->name << "\" size not evenly divisible by " << sizeof(Entry) << std::endl;
 		return false;
 	}
 	const Entry *e = folder->data.rec;
+	uint32_t total_size = p_entry != nullptr ? p_entry->size : folder->header.size;
 	int32_t size = folder->header.size;
 	while (size > 0) {
 		if (e->type != ENTRYTYPE_NONE && e->loc.Flat() == 0) {
@@ -301,6 +301,11 @@ bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry)
 			return false;
 		}
 		size -= sizeof(Entry);
+		total_size -= sizeof(Entry);
+		if (size <= 0 && total_size > 0) {
+			folder = GetPtr<XFSBlock>(folder->header.next.Flat());
+			size = folder->header.size;
+		}
 	}
 	return true;
 }
