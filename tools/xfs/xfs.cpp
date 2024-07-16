@@ -283,6 +283,10 @@ bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry)
 			std::cout << "[ERR] XFSUtility::HealthCheck(): entry for \"" << e->name << "\" pointing to location 0" << std::endl;
 			return false;
 		}
+		if (e->parent.Flat() != ToAddr32(RelPtr(folder)).Flat()) {
+			std::cout << "[ERR] XFSUtility::HealthCheck(): entry for \"" << e->name << "\" not pointing to parent folder start block" << std::endl;
+			return false;
+		}
 		switch (e->type) {
 		case ENTRYTYPE_FILE:
 			if (!HealthCheckFile(GetPtr<XFSBlock>(e->loc.Flat()), e)) {
@@ -320,6 +324,10 @@ bool XFSUtility::HealthCheckLinkedBlocks(const XFSBlock *block, const Entry *p_e
 	accum_size += block->header.size;
 	if (OnStack(n, block)) {
 		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocks: entry \"" << p_entry->name << "\" is cyclical" << std::endl;
+		return false;
+	}
+	if (block->header.entry.Flat() != ToAddr32(RelPtr(p_entry)).Flat()) {
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocks: entry \"" << p_entry->name << "\" does not link back to folder entry" << std::endl;
 		return false;
 	}
 	IntegrityNode node = { n, block };
@@ -478,6 +486,5 @@ bool XFSUtility::HealthCheck( void ) const
 		std::cout << "[ERR] XFSUtility::HealthCheck(): malformed root header" << std::endl;
 		return false;
 	}
-	// TODO: 2) The sub entries must have a parent pointer to the last address on the stack
 	return HealthCheckFolder(root, nullptr);
 }
