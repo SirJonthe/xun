@@ -312,35 +312,56 @@ bool XFSUtility::HealthCheckFolder(const XFSBlock *folder, const Entry *p_entry)
 
 bool XFSUtility::HealthCheckFile(const XFSBlock *file, const Entry *p_entry) const
 {
-	return HealthCheckLinkedBlocks(file, p_entry, nullptr, 0);
+	return HealthCheckLinkedBlocks(file, p_entry, nullptr, nullptr, 0);
 }
 
-bool XFSUtility::HealthCheckLinkedBlocks(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const
+bool XFSUtility::HealthCheckLinkedBlocks(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, const IntegrityNode *n, uint32_t accum_size) const
 {
 	accum_size += block->header.size;
+	if (OnStack(n, block)) {
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocks: entry \"" << p_entry->name << "\" is cyclical" << std::endl;
+		return false;
+	}
+	IntegrityNode node = { n, block };
 	if (prev != nullptr && block->header.prev.Flat() != RelPtr(prev)) {
-		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForwards: block prev link broken for entry \"" << p_entry->name << "\"" << std::endl;
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocks: block prev link broken for entry \"" << p_entry->name << "\"" << std::endl;
 		return false;
 	}
 	if (block->header.next.Flat() != 0) {
-		return HealthCheckLinkedBlocks(GetPtr<XFSBlock>(block->header.next.Flat()), p_entry, block, accum_size);
+		return HealthCheckLinkedBlocks(GetPtr<XFSBlock>(block->header.next.Flat()), p_entry, block, &node, accum_size);
 	}
 	if (accum_size != p_entry->size) {
-		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksForwards: scanning forwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocks: scanning forwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
 		return false;
 	}
-	return HealthCheckLinkedBlocksBackwards(block, p_entry, nullptr, 0);
+	return HealthCheckLinkedBlocksBackwards(block, p_entry, nullptr, nullptr, 0);
 }
 
-bool XFSUtility::HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const Entry *p_entry, const XFSBlock *next, uint32_t accum_size) const
+bool XFSUtility::OnStack(const IntegrityNode *n, const XFSBlock *block) const
+{
+	if (n == nullptr) {
+		return false;
+	}
+	if (block == n->block) {
+		return true;
+	}
+	return OnStack(n->prev, block);
+}
+
+bool XFSUtility::HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const Entry *p_entry, const XFSBlock *next, const IntegrityNode *n, uint32_t accum_size) const
 {
 	accum_size += block->header.size;
+	if (OnStack(n, block)) {
+		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocks: entry \"" << p_entry->name << "\" is cyclical" << std::endl;
+		return false;
+	}
+	IntegrityNode node = { n, block };
 	if (next != nullptr && block->header.next.Flat() != RelPtr(next)) {
 		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksBackwards: block next link broken for entry \"" << p_entry->name << "\"" << std::endl;
 		return false;
 	}
 	if (block->header.prev.Flat() != 0) {
-		return HealthCheckLinkedBlocksBackwards(GetPtr<XFSBlock>(block->header.prev.Flat()), p_entry, block, accum_size);
+		return HealthCheckLinkedBlocksBackwards(GetPtr<XFSBlock>(block->header.prev.Flat()), p_entry, block, &node, accum_size);
 	}
 	if (accum_size != p_entry->size) {
 		std::cout << "[ERR] XFSUtility::HealthCheckLinkedBlocksBackwards: scanning backwards does not yeild correct entry size (" << accum_size << " vs " << p_entry->size << ") for entry \"" << p_entry->name << "\"" << std::endl;
@@ -457,8 +478,6 @@ bool XFSUtility::HealthCheck( void ) const
 		std::cout << "[ERR] XFSUtility::HealthCheck(): malformed root header" << std::endl;
 		return false;
 	}
-	// 2) The sub entries must have a parent pointer to the last address on the vector
-	// 3) A next pointer may not link back to a pointer existing on the vector
-	// 6) The linked list of blocks is acyclical
+	// 2) The sub entries must have a parent pointer to the last address on the stack
 	return HealthCheckFolder(root, nullptr);
 }

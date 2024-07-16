@@ -177,6 +177,13 @@ private:
 	/// @return The bank and location.
 	Addr32 ToAddr32(uint32_t addr) const;
 
+	/// @brief A linked list of blocks that have been recursively scanned during a health check.
+	struct IntegrityNode
+	{
+		const IntegrityNode *prev;  // The previously checked block.
+		const XFSBlock      *block; // The current block.
+	};
+
 	/// @brief Checks the XFS integrity of a folder. Performs health check of the folder's contents as well.
 	/// @param folder The folder to check.
 	/// @param p_entry The entry of the folder in the parent folder.
@@ -193,24 +200,21 @@ private:
 	/// @param block The block to check.
 	/// @param p_entry The entry of the file/folder in the parent folder.
 	/// @param prev The block's previous block.
+	/// @param n The top integrity node in the integrity stack.
 	/// @param accum_size The total accumulated size of the blocks.
 	/// @return True if the blocks pass health check.
-	bool HealthCheckLinkedBlocks(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const;
+	bool HealthCheckLinkedBlocks(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, const IntegrityNode *n, uint32_t accum_size) const;
 
 	/// @brief Checks the XFS integrity of a list of XFS blocks from last block to first.
 	/// @param block The block to check.
 	/// @param p_entry The entry of the file/folder in the parent folder.
 	/// @param prev The block's previous block (which is linked as the next block since it is scanned backwards).
 	/// @param accum_size The total accumulated size of the blocks.
+	/// @param n The top integrity node in the integrity stack.
 	/// @return True if the blocks pass health check.
-	bool HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, uint32_t accum_size) const;
+	bool HealthCheckLinkedBlocksBackwards(const XFSBlock *block, const Entry *p_entry, const XFSBlock *prev, const IntegrityNode *n, uint32_t accum_size) const;
 
-	/// @brief A linked list of blocks that have been recursively scanned during a health check.
-	struct IntegrityNode
-	{
-		IntegrityNode  *prev;  // The previously checked block.
-		const XFSBlock *block; // The current block.
-	};
+	bool OnStack(const IntegrityNode *n, const XFSBlock *block) const;
 
 public:
 	/// @brief Creates a new XFSUtility object capable of manipulate a given disk.
