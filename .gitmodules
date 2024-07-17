@@ -1,6 +1,6 @@
 [submodule "lib/sum"]
 	path = lib/sum
-	url = https://github.com/SirJonthe/sum.github
+	url = https://github.com/SirJonthe/sum.git
 [submodule "lib/tokn"]
 	path = lib/tokn
 	url = https://github.com/SirJonthe/tokn.git
