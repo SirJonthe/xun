@@ -9,6 +9,7 @@ github.com/SirJonthe
 
 ## TODO
 - [ ] xb:   ~ might not work (test both compile-time and run-time evaluation). Perhaps all unary operations are broken?
+- [ ] xb:   Arrays can be declared `auto a = { 1, 2 }` or `auto b = "asd"` (size not checked, and type immediately decays into pointer).
 - [ ] xb:   Compile "foo("asd", {1,2,3})" as "{ auto _0[] = "asd", _1[] = {1,2,3}; foo(_0, _1); }" (be careful about naming conflicts)
 - [ ] xb:   Create translation units by clearing names of symbols declared in source files when finishing compilation of that source file.
 - [ ] xb:   Better error messages across separate files.
