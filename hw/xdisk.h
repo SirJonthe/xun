@@ -59,10 +59,10 @@ private:
 	Disk *m_attachment; // The disk attachment that can be read from and written to.
 
 protected:
-	/// @brief 
-	/// @param msg 
-	/// @return 
-	bool HandlePacket(const Device::Packet &msg);
+	/// @brief Overloads the built-in HandlePacket with rules for how to handle incoming packets of certain types.
+	/// @param msg The message.
+	/// @return True if the package was recognized and was handled properly.
+	bool HandlePacket(const Device::Packet &msg) override;
 
 public:
 	/// @brief Initializes a DiskReader instance.

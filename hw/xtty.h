@@ -11,7 +11,7 @@ protected:
 	/// @brief Overloads the built-in HandlePacket with rules for how to handle incoming packets of certain types.
 	/// @param msg The message.
 	/// @return True if the package was recognized and was handled properly.
-	bool HandlePacket(const Device::Packet &msg);
+	bool HandlePacket(const Device::Packet &msg) override;
 
 public:
 	/// @brief Initializes a Teleprinter.

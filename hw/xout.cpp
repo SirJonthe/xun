@@ -171,7 +171,10 @@ bool Monitor::HandlePacket(const Packet &msg)
 				U8 *line = GetCurrentCharMapLine();
 				U8 *colors = GetCurrentColorMapLine();
 				for (uint32_t i = 0; i < msg.header[Device::Packet::HEADER_SIZE]; ++i) {
-					if (msg.payload[i] != '\n') {
+					if (msg.payload[i] == '\a') {
+						Info("<BEEP>");
+						SetExternalState(0, 1, 500);
+					} else if (msg.payload[i] != '\n') {
 						line[m_cx] = msg.payload[i] & 0x00ff;
 						colors[m_cx] = (msg.payload[i] & 0xff00) >> 8;
 						++m_cx;

@@ -49,7 +49,7 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 			// 2 words define the read location
 			// word 1 is the high word
 			// word 2 is the low word
-			SetExternalState(1);
+			SetExternalState(0, 1, 16);
 			if (msg.header[Packet::HEADER_SIZE] == 2) {
 				Packet r = NewPacket(MSG_TYPE_READ);
 				const Addr32 loc = { msg.payload[0], msg.payload[1] };
@@ -77,7 +77,7 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 			// 2 words define the read location
 			// word 1 is the high word
 			// word 2 is the low word
-			SetExternalState(1);
+			SetExternalState(0, 1, 16);
 			if (msg.header[Packet::HEADER_SIZE] >= 2) {
 //				const Addr32 loc = { msg.payload[0], msg.payload[1] };
 //				if (loc < GetCapacity()) {
@@ -100,7 +100,7 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 			return true;
 		case MSG_TYPE_INFO:
 			{
-				SetExternalState(1);
+				SetExternalState(0, 1, 16);
 				Packet p = NewPacket(MSG_TYPE_INFO);
 				p.payload[0] = HasAttachment();
 				p.payload[1] = (GetCapacity() & 0xff00) >> 16;

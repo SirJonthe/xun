@@ -1,9 +1,13 @@
 #include "xhwids.h"
 #include "xpwr.h"
 
+void PowerControlUnit::DoPowerOn( void )
+{
+	SetExternalState(0, 1, Device::STATE_TIMER_FOREVER);
+}
+
 bool PowerControlUnit::HandlePacket(const Device::Packet &msg)
 {
-	SetExternalState(0);
 	switch (msg.header[Device::Packet::HEADER_TYPE]) {
 	case TYPE_OFF:
 		if (GetConnectedDevice() != NULL) {

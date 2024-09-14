@@ -89,13 +89,13 @@ private:
 
 protected:
 	/// @brief Powers on the monitor.
-	void DoPowerOn( void );
+	void DoPowerOn( void ) override;
 
 	/// @brief Cycles the monitor.
-	void DoCycle( void );
+	void DoCycle( void ) override;
 
 	/// @brief Powers off the monitor.
-	void DoPowerOff( void );
+	void DoPowerOff( void ) override;
 
 	/// @brief Handles newlines by incrementing the Y caret, resetting the X caret, and incrementing the scroll if necessary.
 	void Newline( void );
@@ -103,7 +103,7 @@ protected:
 	/// @brief Overloads the built-in HandlePacket with rules for how to handle incoming packets of certain types.
 	/// @param msg The message.
 	/// @return True if the package was recognized and was handled properly.
-	bool HandlePacket(const Packet &msg);
+	bool HandlePacket(const Packet &msg) override;
 
 public:
 	/// @brief Initializes the Monitor.
@@ -118,23 +118,23 @@ public:
 	/// @brief Returns the color of a pixel.
 	/// @param x The X coordinate of the pixel to read.
 	/// @param y The Y coordinate of the pixel to read.
-	/// @return 
+	/// @return The color of the pixel (8-bit RGB)
 	U8 GetPixel(U16 x, U16 y) const;
 
-	/// @brief Returns a pointer to the pixels in the video memory.
+	/// @brief Returns a pointer to the pixels in the video memory. Each element is the color of a single pixel (8-bit RGB);
 	/// @return A pointer to the pixels in the video memory.
 	U8 *GetVideo( void );
 
-	/// @brief Returns a pointer to the pixels in the video memory.
+	/// @brief Returns a pointer to the pixels in the video memory. Each element is the color of a single pixel (8-bit RGB);
 	/// @return A pointer to the pixels in the video memory.
 	const U8 *GetVideo( void ) const;
 
-	/// @brief Returns a pointer to the pixel scanline in the video memory.
+	/// @brief Returns a pointer to the pixel scanline in the video memory. Each element is the color of a single pixel (8-bit RGB);
 	/// @param y The scanline Y index.
 	/// @return A pointer to the pixels in the video memory.
 	U8 *GetVideoScanline(U8 y);
 
-	/// @brief Returns a pointer to the pixel scanline in the video memory.
+	/// @brief Returns a pointer to the pixel scanline in the video memory. Each element is the color of a single pixel (8-bit RGB);
 	/// @param y The scanline Y index.
 	/// @return A pointer to the pixels in the video memory.
 	const U8 *GetVideoScanline(U8 y) const;

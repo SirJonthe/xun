@@ -4,7 +4,6 @@
 
 bool Teleprinter::HandlePacket(const Device::Packet &msg)
 {
-	SetExternalState(0);
 	switch (msg.header[Device::Packet::HEADER_TYPE]) {
 	case Device::Packet::TYPE_DATA:
 		PrintChars(msg.payload, msg.header[Device::Packet::HEADER_SIZE]);
@@ -23,7 +22,7 @@ void Teleprinter::PrintChars(const U16 *msg, U16 size)
 	for (unsigned i = 0; i < size && msg[i] != 0; ++i) {
 		if (msg[i] == '\a') {
 			Info("<BEEP>");
-			SetExternalState(1);
+			SetExternalState(0, 1, 500);
 		} else {
 			std::cout << (char)msg[i];
 		}

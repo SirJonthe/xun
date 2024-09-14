@@ -12,6 +12,27 @@ void Device::MessageQueue::Pass(const Device::Packet &msg)
 	}
 }
 
+void Device::CountDownExternalState(uint32_t ms)
+{
+	for (uint32_t i = 0; i < 32; ++i) {
+		if (m_external_state_reset[i] > 0 && m_external_state_reset[i] < STATE_TIMER_FOREVER) {
+			if (ms >= m_external_state_reset[i]) {
+				SetExternalState(i, false, 0);
+			} else {
+				m_external_state_reset[i] -= ms;
+			}
+		}
+	}
+}
+
+void Device::ClearExternalState( void )
+{
+	m_external_state = 0;
+	for (uint32_t i = 0; i < 32; ++i) {
+		m_external_state_reset[i] = 0;
+	}
+}
+
 void Device::MessageQueue::Ack( void )
 {
 	if (m_end != m_start) {
@@ -115,13 +136,15 @@ bool Device::Poll( void )
 		if (p.header[Packet::HEADER_TYPE] == Packet::TYPE_MULTIPACK) {
 			bool ret = true;
 			U16 i = 0;
-			while (i < p.header[Packet::HEADER_SIZE]) {
+			const U16 MAX_PAYLOAD = p.header[Packet::HEADER_SIZE] <= Packet::PAYLOAD_WORD_SIZE ? p.header[Packet::HEADER_SIZE] : Packet::PAYLOAD_WORD_SIZE;
+			while (i < MAX_PAYLOAD) {
 				Packet n;
 				for (U16 j = 0; j < Packet::HEADER_WORD_SIZE; ++j) {
 					n.header[j] = p.header[j];
 				}
 				n.header[Packet::HEADER_TYPE] = p.payload[i++];
 				n.header[Packet::HEADER_SIZE] = p.payload[i++];
+				n.header[Packet::HEADER_SIZE] = n.header[Packet::HEADER_SIZE] < MAX_PAYLOAD - i ? n.header[Packet::HEADER_SIZE] : MAX_PAYLOAD - i;
 				for (U16 j = 0; j < n.header[Packet::HEADER_SIZE]; ++j) {
 					n.payload[j] = p.payload[i++];
 				}
@@ -158,10 +181,16 @@ void Device::DoPowerOn( void )
 void Device::DoPowerOff( void )
 {}
 
-void Device::SetExternalState(uint32_t external_state)
+void Device::SetExternalState(uint32_t bit, bool state, uint32_t timer_ms)
 {
 	if (IsPoweredOn()) {
-		m_external_state = external_state;
+		bit = bit % 32;
+		if (state) {
+			m_external_state = m_external_state | (uint32_t(1) << bit);
+		} else {
+			m_external_state = m_external_state & ~(uint32_t(1) << bit);
+		}
+		m_external_state_reset[bit] = timer_ms;
 	}
 }
 
@@ -177,6 +206,7 @@ static U16 GrayCode( void )
 
 Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_DID(GrayCode()), m_clock_ns(0), m_exec_ns(0), m_external_state(0), m_message_id_counter(0), m_power(false)
 {
+	ClearExternalState();
 	SetCyclesPerSecond(60);
 }
 
@@ -194,6 +224,7 @@ void Device::PowerOn( void )
 		m_message_id_counter = 0;
 		m_in_queue.Flush();
 		m_external_state = 0;
+		ClearExternalState();
 		Output(NewPacket(Device::Packet::TYPE_CONNECT));
 		DoPowerOn();
 	}
@@ -221,6 +252,7 @@ void Device::Run(uint32_t ms)
 		if (m_cycles_per_second == 0) {
 			m_exec_ns = 0;
 		}
+		CountDownExternalState(ms);
 	}
 }
 
@@ -235,6 +267,7 @@ void Device::PowerOff( void )
 		m_in_queue.Flush();
 		m_external_state = 0;
 		m_power = false;
+		ClearExternalState();
 	}
 }
 

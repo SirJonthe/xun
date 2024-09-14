@@ -95,20 +95,31 @@ protected:
 	void Error(const char *msg) const;
 
 private:
-	Device       *m_connection;         // The connected device.
-	MessageQueue  m_in_queue;           // The input buffer where the connected device sends input messages.
-	std::string   m_name;               // The name of the device.
-	U16           m_HWID;               // The unique hardware ID of the class of device (remember that this has to be unique, otherwise computers may not be able to distinguish this device from another device).
-	U16           m_DID;                // The unique ID of this specific device instance.
-	uint64_t      m_clock_ns;           // The clock in pico seconds.
-	uint64_t      m_exec_ns;            // Internal state representing the remainder of execution time left over after a given time slice.
-	uint64_t      m_ns_per_cycle;       // The number of pico seconds per cycle.
-	uint32_t      m_cycles_per_second;  // The number of cycles that can run per second. If 0, then the device will poll automatically when there is a message in the queue.
-	uint32_t      m_external_state;     // An integer that represents some state that can be observed externally, for instance a flashing LED.
-	U16           m_message_id_counter; // A counter to give each message a unique ID. Note that messages split up over several packets carry the same message ID.
-	bool          m_power;              // The power state of the device.
+	Device       *m_connection;               // The connected device.
+	MessageQueue  m_in_queue;                 // The input buffer where the connected device sends input messages.
+	std::string   m_name;                     // The name of the device.
+	U16           m_HWID;                     // The unique hardware ID of the class of device (remember that this has to be unique, otherwise computers may not be able to distinguish this device from another device).
+	U16           m_DID;                      // The unique ID of this specific device instance.
+	uint64_t      m_clock_ns;                 // The clock in pico seconds.
+	uint64_t      m_exec_ns;                  // Internal state representing the remainder of execution time left over after a given time slice.
+	uint64_t      m_ns_per_cycle;             // The number of pico seconds per cycle.
+	uint32_t      m_cycles_per_second;        // The number of cycles that can run per second. If 0, then the device will poll automatically when there is a message in the queue.
+	uint32_t      m_external_state;           // An integer that represents some state that can be observed externally, for instance a flashing LED.
+	uint32_t      m_external_state_reset[32]; // A millisecond timer that will reset the corresponding external state to zero when it hits zero.
+	U16           m_message_id_counter;       // A counter to give each message a unique ID. Note that messages split up over several packets carry the same message ID.
+	bool          m_power;                    // The power state of the device.
+
+private:
+	/// @brief 
+	/// @param ms 
+	void CountDownExternalState(uint32_t ms);
+
+	/// @brief 
+	void ClearExternalState( void );
 
 protected:
+	static constexpr uint32_t STATE_TIMER_FOREVER = uint32_t(-1); // Indicates that an external state is permanent rather than counting down until cleared.
+
 	/// @brief Consumes the top of the in-queue message.
 	void Ack( void );
 
@@ -138,9 +149,11 @@ protected:
 	bool Poll( void );
 
 	/// @brief Sets the external state to a given value.
-	/// @param external_state The external state value.
+	/// @param bit the index of the bit (0-31) to set the state of.
+	/// @param state The external state value.
+	/// @param time_ms The amount of time in milliseconds to keep a non-zero state before it resets to zero.
 	/// @note The external state is only modified if the device is powered on.
-	void SetExternalState(uint32_t external_state);
+	void SetExternalState(uint32_t bit, bool state, uint32_t timer_ms = STATE_TIMER_FOREVER);
 
 protected:
 	/// @brief Abstract function that is intended to handle message types. Overwrite this to handle messages in a custom manner.
