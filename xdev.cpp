@@ -236,6 +236,7 @@ void Device::Cycle( void )
 		Poll();
 		DoCycle();
 		m_clock_ns += m_ns_per_cycle;
+		CountDownExternalState(m_ns_per_cycle / 1000000ULL);
 	}
 }
 
@@ -252,8 +253,8 @@ void Device::Run(uint32_t ms)
 		if (m_cycles_per_second == 0) {
 			m_exec_ns = 0;
 		}
-		CountDownExternalState(ms);
 	}
+	CountDownExternalState(ms);
 }
 
 void Device::PowerOff( void )

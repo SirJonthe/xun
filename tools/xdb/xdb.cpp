@@ -238,6 +238,9 @@ chars xdebugger::decode(U16 i)
 		case XIS::RLA:    render(c, "RLA   "); break;
 		case XIS::RLB:    render(c, "RLB   "); break;
 		case XIS::RLC:    render(c, "RLC   "); break;
+		case XIS::OFA:    render(c, "OFA   "); break;
+		case XIS::OFB:    render(c, "OFB   "); break;
+		case XIS::OFC:    render(c, "OFC   "); break;
 		case XIS::TNS:    render(c, "TNS   "); break;
 		case XIS::TUS:    render(c, "TUS   "); break;
 		case XIS::TMS:    render(c, "TMS   "); break;

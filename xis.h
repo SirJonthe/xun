@@ -71,9 +71,10 @@ struct XIS
 		CERR   = 0b10000010 + (52<<8), // clear the error flag at the index indicated by the top value on the stack. collapse stack by 1.
 		FULL   = 0b10000001 + (53<<8), // puts 1 on the stack if the device on the selected port's input buffer is full. 0 otherwise. Expand stack by 1.
 		DID    = 0b10000000 + (54<<8), // Puts the device ID on the stack.
-		RES55  = 0b11000010 + (55<<8), // Reserved #55
-		RES56  = 0b10000010 + (56<<8), // Reserved #56
-		RES57  = 0b11000010 + (57<<8), // Reserved #57
+		
+		OFA    = 0b00000010 + (55<<8), // Subtract the top four values from A, B, C, and SP and save the result. Set A, B, C to SP, and set SP to 0.
+		OFB    = 0b00000010 + (56<<8), // Subtract the top three values from B, C, and SP and save the result. Set B and C to SP, and set SP to 0.
+		OFC    = 0b00000010 + (57<<8), // Subtract the top two values from C and SP to the top of the stack. Set C to SP, and set SP to 0.
 
 		CJMP   = 0b01001000 + (58<<8), // Jump to the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
 		CSKIP  = 0b01001000 + (59<<8), // Skip ahead by an amount as given by the top address if the top-1 value is not 0. Pop 2 values from the stack regardless.
@@ -83,8 +84,8 @@ struct XIS
 		DUP    = 0b10000000 + (62<<8), // Duplicates the top value on the stack and puts it on the top.
 
 		SVA    = 0b10000010 + (63<<8), // Save the A, B, C, and SP to the top of the stack. Set A, B, C to SP, and set SP to 0. Expand stack by 4.
-		SVB    = 0b10000010 + (64<<8), // Save the B, C, and SP to the top of the stack.  Set B and C to SP, and set SP to 0. Expand stack by 3.
-		SVC    = 0b10000010 + (65<<8), // Save the C and SP to the top of the stack.  Set A to SP, and set SP to 0. Expand stack by 2.
+		SVB    = 0b10000010 + (64<<8), // Save the B, C, and SP to the top of the stack. Set B and C to SP, and set SP to 0. Expand stack by 3.
+		SVC    = 0b10000010 + (65<<8), // Save the C and SP to the top of the stack. Set C to SP, and set SP to 0. Expand stack by 2.
 		LDA    = 0b11000010 + (66<<8), // Load A, B, C, and SP from the stack. Stack collapses by restored amount.
 		LDB    = 0b11000010 + (67<<8), // Load B, C, and SP from the stack. Stack collapses by restored amount.
 		LDC    = 0b11000010 + (68<<8), // Load C and SP from the stack. Stack collapses by restored amount.

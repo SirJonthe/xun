@@ -8,6 +8,7 @@
 
 #define TOP           RAM[SP.u]
 #define LST           RAM[U16(SP.u - 1)]
+#define RAT(n)        RAM[U16(SP.u - (n))]
 #define SAT(n)        RAM[U16(SP.u + (n))]
 
 #define POP_STACK(n)  SP.u -= (n)
@@ -439,6 +440,33 @@ void Computer::DoCycle( void )
 		TOP.u = C.u;
 		PUSH_STACK(1);
 		TOP.u = SP.u - 2;
+		C.u = SP.u;
+		break;
+	case XIS::OFA:
+		// ...[A][B][C][SP]
+		//            ABC^
+		RAT(0).u = SP.u - RAT(0).u;
+		RAT(1).u = C.u - RAT(1).u;
+		RAT(2).u = B.u - RAT(2).u;
+		RAT(3).u = A.u - RAT(3).u;
+		A.u = SP.u;
+		B.u = SP.u;
+		C.u = SP.u;
+		break;
+	case XIS::OFB:
+		// ...[ ]...[B][C][SP]
+		//    A^          BC^
+		RAT(0).u = SP.u - RAT(0).u;
+		RAT(1).u = C.u - RAT(1).u;
+		RAT(2).u = B.u - RAT(2).u;
+		B.u = SP.u;
+		C.u = SP.u;
+		break;
+	case XIS::OFC:
+		// ...[ ]...[ ]...[C][SP]
+		//    A^    B^        C^
+		RAT(0).u = SP.u - RAT(0).u;
+		RAT(1).u = C.u - RAT(1).u;
 		C.u = SP.u;
 		break;
 	case XIS::LDA:
