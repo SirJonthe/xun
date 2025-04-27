@@ -22,7 +22,7 @@
 /// @param len The number of characters in the input string.
 /// @return The resulting number.
 /// @warning The function does not verify inputs. Invalid input gives invalid output.
-/// @note The input string is assumed to be prepended with "0x".
+/// @note The input string is assumed to be prepended with an "0x".
 static unsigned hex2u(const char *nums, unsigned len)
 {
 	unsigned h = 0;
@@ -33,6 +33,23 @@ static unsigned hex2u(const char *nums, unsigned len)
 			h = h  * 16 + nums[i] - 'a' + 10;
 		} else if (nums[i] >= 'A' && nums[i] <= 'F') {
 			h = h  * 16 + nums[i] - 'A' + 10;
+		}
+	}
+	return h;
+}
+
+/// @brief Converts a series of characters representing a human-readable octal string into a binary number.
+/// @param nums The characters representing the human-readable octal string.
+/// @param len The length of the input string.
+/// @return The binary number.
+/// @warning This function does not verify the correctness of the input characters. The output of an incorrect input is undefined.
+/// @note The input string is assumed to be prepended with an "0".
+static unsigned oct2u(const char *nums, unsigned len)
+{
+	unsigned h = 0;
+	for (unsigned i = 1; i < len; ++i) {
+		if (nums[i] >= '0' && nums[i] <= '7') {
+			h = h  * 8 + nums[i] - '0';
 		}
 	}
 	return h;
@@ -102,7 +119,7 @@ struct xtoken
 	};
 };
 
-const signed X_TOKEN_COUNT = 103;
+const signed X_TOKEN_COUNT = 104;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, XIS::NOP),
 	new_keyword ("at",                      2, XIS::AT),
@@ -209,6 +226,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_comment ("//",                      2),
 	new_operator("::",                      2, xtoken::OPERATOR_REVERSE_SEARCH),
 	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,  token::ALIAS),
+	new_literal ("0[0-9]+",                 7, xtoken::LITERAL_INT, oct2u),
 	new_literal ("[0-9]+",                  6, xtoken::LITERAL_INT),
 	new_literal ("0[xX][0-9a-fA-F]+",      17, xtoken::LITERAL_INT, hex2u)
 };

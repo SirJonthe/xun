@@ -28,7 +28,7 @@ using namespace cc0::tokn;
 /// @param len The length of the input string.
 /// @return The binary number.
 /// @warning This function does not verify the correctness of the input characters. The output of an incorrect input is undefined.
-/// @note The input string must be prepended with an "0x".
+/// @note The input string is assumed to be prepended with an "0x".
 static unsigned hex2u(const char *nums, unsigned len)
 {
 	unsigned h = 0;
@@ -39,6 +39,23 @@ static unsigned hex2u(const char *nums, unsigned len)
 			h = h  * 16 + nums[i] - 'a' + 10;
 		} else if (nums[i] >= 'A' && nums[i] <= 'F') {
 			h = h  * 16 + nums[i] - 'A' + 10;
+		}
+	}
+	return h;
+}
+
+/// @brief Converts a series of characters representing a human-readable octal string into a binary number.
+/// @param nums The characters representing the human-readable octal string.
+/// @param len The length of the input string.
+/// @return The binary number.
+/// @warning This function does not verify the correctness of the input characters. The output of an incorrect input is undefined.
+/// @note The input string is assumed to be prepended with an "0".
+static unsigned oct2u(const char *nums, unsigned len)
+{
+	unsigned h = 0;
+	for (unsigned i = 1; i < len; ++i) {
+		if (nums[i] >= '0' && nums[i] <= '7') {
+			h = h  * 8 + nums[i] - '0';
 		}
 	}
 	return h;
@@ -119,7 +136,7 @@ struct xbtoken
 	};
 };
 
-const signed XB_TOKEN_COUNT = 68; // The number of tokens defined for the programming language.
+const signed XB_TOKEN_COUNT = 69; // The number of tokens defined for the programming language.
 const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programming language.
 	new_keyword ("return",                  6, xbtoken::KEYWORD_CONTROL_RETURN),
 	new_keyword ("if",                      2, xbtoken::KEYWORD_CONTROL_IF),
@@ -187,6 +204,7 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_operator("^",                       1, xbtoken::OPERATOR_BITWISE_XOR),
 	new_operator("~",                       1, xbtoken::OPERATOR_BITWISE_NOT),
 	new_alias   ("[a-zA-Z_][a-zA-Z0-9_]*", 22,   token::ALIAS),
+	new_literal ("0[0-9]+",                 7, xbtoken::LITERAL_INT, oct2u),
 	new_literal ("[0-9]+",                  6, xbtoken::LITERAL_INT),
 	new_literal ("0[xX][0-9a-fA-F]+",      17, xbtoken::LITERAL_INT, hex2u)
 };
