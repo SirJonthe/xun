@@ -397,17 +397,18 @@ static bool try_put_fn_addr(xcc_parser_state ps)
 	return false;
 }
 
-static bool try_rval(xcc_parser_state ps);
+static bool try_rval(xcc_parser_state ps, unsigned type);
 
 /// @brief Emits instructions to perform a redirect on a value to get the value at the address of the value.
 /// @param ps The parser state
+/// @param type The signedness
 /// @return True if successful
-static bool try_redir_val(xcc_parser_state ps)
+static bool try_redir_val(xcc_parser_state ps, unsigned type)
 {
 	if (
 		manage_state(
 			match         (ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
-			try_rval      (new_state(ps.end))                      &&
+			try_rval      (new_state(ps.end), type)                &&
 			xcc_write_word(ps.p, XWORD{XIS::AT})
 		)
 	) {
@@ -418,12 +419,13 @@ static bool try_redir_val(xcc_parser_state ps)
 
 /// @brief Matches a token against an existing variable symbol and emits instructions to put its value on the stack.
 /// @param ps The parser state.
+/// @param type The signedness.
 /// @return True if successful.
-static bool try_put_var(xcc_parser_state ps)
+static bool try_put_var(xcc_parser_state ps, unsigned type)
 {
 	if (
 		manage_state(
-			try_redir_val(new_state(ps.end)) ||
+			try_redir_val(new_state(ps.end), type) ||
 			(
 				try_put_var_addr(new_state(ps.end)) &&
 				xcc_write_word(ps.p, XWORD{XIS::AT})
@@ -435,11 +437,11 @@ static bool try_put_var(xcc_parser_state ps)
 	return false;
 }
 
-static bool try_put_fn(xcc_parser_state ps)
+static bool try_put_fn(xcc_parser_state ps, unsigned type)
 {
 	if (
 		manage_state(
-			try_redir_val(new_state(ps.end)) ||
+			try_redir_val(new_state(ps.end), type) ||
 			(
 				try_put_fn_addr(new_state(ps.end)) &&
 				xcc_write_word(ps.p, XWORD{XIS::AT})
@@ -1318,7 +1320,7 @@ static bool emit_operation(xcc_parser *p, unsigned user_type, unsigned operand_t
 	return false;
 }
 
-static bool try_factor(xcc_parser_state ps);
+static bool try_factor(xcc_parser_state ps, unsigned type);
 
 static bool try_opt_factor(xcc_parser_state ps, unsigned type)
 {
@@ -1326,7 +1328,7 @@ static bool try_opt_factor(xcc_parser_state ps, unsigned type)
 	while (match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DIV, &t) || match(ps.p, xbtoken::OPERATOR_ARITHMETIC_MOD, &t)) {
 		if (
 			!manage_state(
-				try_factor(new_state(ps.end)) &&
+				try_factor(new_state(ps.end), type) &&
 				emit_operation(ps.p, t.user_type, type)
 			)
 		) {
@@ -1470,14 +1472,14 @@ static bool try_rval(xcc_parser_state ps, unsigned type)
 {
 	if (
 		manage_state(
-			try_call_fn        (new_state(ps.end)) ||
-			try_put_lit        (new_state(ps.end)) ||
-			try_put_index      (new_state(ps.end)) ||
-			try_post_incdec_var(new_state(ps.end)) ||
-			try_put_var        (new_state(ps.end)) ||
-			try_put_fn         (new_state(ps.end)) ||
-			try_signed_expr    (new_state(ps.end)) ||
-			try_unsigned_expr  (new_state(ps.end)) ||
+			try_call_fn        (new_state(ps.end))       ||
+			try_put_lit        (new_state(ps.end))       ||
+			try_put_index      (new_state(ps.end))       ||
+			try_post_incdec_var(new_state(ps.end))       ||
+			try_put_var        (new_state(ps.end), type) ||
+			try_put_fn         (new_state(ps.end), type) ||
+			try_signed_expr    (new_state(ps.end))       ||
+			try_unsigned_expr  (new_state(ps.end))       ||
 			(
 				(
 					match   (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_L)            &&
@@ -1551,7 +1553,7 @@ static bool try_factor(xcc_parser_state ps, unsigned type)
 	return false;
 }
 
-static bool try_term(xcc_parser_state ps);
+static bool try_term(xcc_parser_state ps, unsigned type);
 
 static bool try_opt_term(xcc_parser_state ps, unsigned type)
 {
@@ -1582,7 +1584,7 @@ static bool try_term(xcc_parser_state ps, unsigned type)
 	return false;
 }
 
-static bool try_bitshift(xcc_parser_state ps);
+static bool try_bitshift(xcc_parser_state ps, unsigned type);
 
 static bool try_opt_bitshift(xcc_parser_state ps, unsigned type)
 {
@@ -1613,7 +1615,7 @@ static bool try_bitshift(xcc_parser_state ps, unsigned type)
 	return false;
 }
 
-static bool try_less_greater(xcc_parser_state ps);
+static bool try_less_greater(xcc_parser_state ps, unsigned type);
 
 static bool try_opt_less_greater(xcc_parser_state ps, unsigned type)
 {
@@ -1644,7 +1646,7 @@ static bool try_less_greater(xcc_parser_state ps, unsigned type)
 	return false;
 }
 
-static bool try_equality(xcc_parser_state ps);
+static bool try_equality(xcc_parser_state ps, unsigned type);
 
 static bool try_opt_equality(xcc_parser_state ps, unsigned type)
 {
@@ -2587,12 +2589,12 @@ static bool try_expr_stmt(xcc_parser_state ps)
 	return false;
 }
 
-static bool try_redir_lval(xcc_parser_state ps)
+static bool try_redir_lval(xcc_parser_state ps, unsigned type)
 {
 	if (
 		manage_state(
 			match   (ps.p, xbtoken::OPERATOR_ARITHMETIC_MUL) &&
-			try_rval(new_state(ps.end))
+			try_rval(new_state(ps.end), type)
 		)
 	) {
 		return true;
@@ -2606,7 +2608,7 @@ static bool try_lval(xcc_parser_state ps)
 		manage_state(
 			try_put_index_addr(new_state(ps.end)) ||
 			try_put_var_addr  (new_state(ps.end)) ||
-			try_redir_lval    (new_state(ps.end))
+			try_redir_lval    (new_state(ps.end), xcc_symbol::TYPE_UNSIGNED)
 		)
 	) {
 		return true;

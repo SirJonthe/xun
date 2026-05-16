@@ -1,0 +1,1 @@
+const PACKET_HEADER_WORD_SIZE = 8; // The number of words in the packet header.

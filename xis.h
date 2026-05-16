@@ -103,6 +103,10 @@ struct XIS
 		TD     = 0b10000000 + (78<<8), // Get days (0-6). Expand stack by 1.
 		TW     = 0b10000000 + (79<<8), // Get absolute number of weeks (0-30500 before wrap, approx. 600 years). Expans stack by 1.
 
+		// WFI  // Wait For Interrupt - Completely halts execution until an interrupt resumes execution
+		// ILSH // signed left shift
+		// IRSH // signed right shift
+
 		COUNT = 80                       // The number of instructions in the instruction set.
 	};
 };

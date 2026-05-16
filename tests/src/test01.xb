@@ -1,0 +1,3 @@
+// In this test we try to compile a function definition that has its declaration in an included header.
+
+fn(a,b);

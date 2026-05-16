@@ -1,0 +1,3 @@
+#include <test04>
+
+const MAX_PAYLOAD_SIZE = 32 - PACKET_HEADER_WORD_SIZE;
