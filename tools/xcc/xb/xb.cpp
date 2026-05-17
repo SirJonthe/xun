@@ -149,7 +149,7 @@ const token XB_TOKENS[XB_TOKEN_COUNT] = { // The tokens defined for the programm
 	new_keyword ("const",                   5, xbtoken::KEYWORD_TYPE_CONST),
 	new_keyword ("static",                  6, xbtoken::KEYWORD_TYPE_STATIC),
 	new_keyword ("void",                    4, xbtoken::KEYWORD_TYPE_VOID),
-	new_keyword ("unsigned",                8, xbtoken::KEYWORD_TYPE_SIGNED),
+	new_keyword ("unsigned",                8, xbtoken::KEYWORD_TYPE_UNSIGNED),
 	new_keyword ("signed",                  6, xbtoken::KEYWORD_TYPE_SIGNED),
 	new_keyword ("namespace",               9, xbtoken::KEYWORD_NAMESPACE),
 	new_keyword ("include",                 7, xbtoken::KEYWORD_INCLUDE),
@@ -1268,10 +1268,10 @@ static bool try_lit_expr(xcc_parser_state ps, type_t &l)
 	return false;
 }
 
-static bool emit_operation(xcc_parser *p, unsigned user_type, unsigned operand_type)
+static bool emit_operation(xcc_parser *p, unsigned operation_type, unsigned operand_type)
 {
 	if (operand_type == xcc_symbol::TYPE_SIGNED) {
-		switch (user_type) {
+		switch (operation_type) {
 		case xbtoken::OPERATOR_ARITHMETIC_ADD:       return xcc_write_word(p, XWORD{XIS::IADD});
 		case xbtoken::OPERATOR_ARITHMETIC_SUB:       return xcc_write_word(p, XWORD{XIS::ISUB});
 		case xbtoken::OPERATOR_ARITHMETIC_MUL:       return xcc_write_word(p, XWORD{XIS::IMUL});
@@ -1289,7 +1289,7 @@ static bool emit_operation(xcc_parser *p, unsigned user_type, unsigned operand_t
 			return false;
 		}
 	} else {
-		switch (user_type) {
+		switch (operation_type) {
 		case xbtoken::OPERATOR_ARITHMETIC_ADD:       return xcc_write_word(p, XWORD{XIS::ADD});
 		case xbtoken::OPERATOR_ARITHMETIC_SUB:       return xcc_write_word(p, XWORD{XIS::SUB});
 		case xbtoken::OPERATOR_ARITHMETIC_MUL:       return xcc_write_word(p, XWORD{XIS::MUL});
@@ -1436,7 +1436,7 @@ static bool try_uni_lnot_val(xcc_parser_state ps, unsigned type)
 	}
 	return false;
 }
-
+#include <iostream>
 bool try_signed_expr(xcc_parser_state ps)
 {
 	if (
@@ -1448,6 +1448,7 @@ bool try_signed_expr(xcc_parser_state ps)
 		)
 	) {
 		return true;
+
 	}
 	return false;
 }

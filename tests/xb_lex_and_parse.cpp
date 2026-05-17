@@ -1980,6 +1980,100 @@ CC0_UTEST_BEGIN(xb_lex_and_parse_reverse_search)
 }
 CC0_UTEST_END(xb_lex_and_parse_reverse_search, false)
 
+CC0_UTEST_BEGIN(xb_lex_and_parse_unsigned_expr)
+{
+	const char CODE[] = "auto x = unsigned(111 + 222 - 333 * 444 / 555 % 666);";
+	const int EXPECT_COUNT = 26;
+	const U16 EXPECT[EXPECT_COUNT] = {
+		XIS::SVB,                   // Save the B stack state.
+		XIS::PUT, U16(0), XIS::RLA, // 'main' function pointer storage.
+		XIS::PUT, U16(111),         // The global 'x' variable, set as 111.
+		XIS::PUT, U16(222),         // 222
+		XIS::ADD,                   // Addition
+		XIS::PUT, U16(333),         // 333
+		XIS::PUT, U16(444),         // 444
+		XIS::MUL,                   // Multiply
+		XIS::PUT, U16(555),         // 555
+		XIS::DIV,                   // Division
+		XIS::PUT, U16(666),         // 666
+		XIS::MOD,                   // Modulus
+		XIS::SUB,                   // Subtract
+		XIS::PUT, U16(2), XIS::POP, // Remove 'main' and 'x'.
+		XIS::LDB,                   // Load the B stack state.
+		XIS::HALT                   // Halt.
+	};
+	// 16514
+	// 384 0 17696
+	// 384 111
+	// 384 222
+	// 2448
+	// 384 333
+	// 384 444
+	// 2960
+	// 384 555
+	// 3216
+	// 384 666
+	// 3472
+	// 2704
+	// 384 2 11392
+	// 17346
+	// 12544
+	XWORD binary[128];
+	clear_mem(binary, sizeof(binary) / sizeof(XWORD));
+	xcc_out out = xb(init_lexer(chars::view{CODE, sizeof(CODE), 0}), LIBB, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
+	print_err(out);
+	CC0_UTEST_ASSERT(out.errors, ==, 0);
+	if (EXPECT_COUNT != (int)out.binary.size) {
+		print_bin(binary, out.binary.size);
+	}
+	CC0_UTEST_ASSERT(EXPECT_COUNT, ==, (int)out.binary.size);
+	for (int i = 0; i < EXPECT_COUNT; ++i) {
+		if (binary[i].u != EXPECT[i]) {
+			print_bin(binary, out.binary.size);
+		}
+		CC0_UTEST_ASSERT(binary[i].u, ==, EXPECT[i]);
+	}
+}
+CC0_UTEST_END(xb_lex_and_parse_unsigned_expr, false)
+
+CC0_UTEST_BEGIN(xb_lex_and_parse_signed_expr)
+{
+	const char CODE[] = "auto x = signed(111 + 222 - 333 * 444 / 555);";
+	const int EXPECT_COUNT = 23;
+	const U16 EXPECT[EXPECT_COUNT] = {
+		XIS::SVB,                   // Save the B stack state.
+		XIS::PUT, U16(0), XIS::RLA, // 'main' function pointer storage.
+		XIS::PUT, U16(111),         // The global 'x' variable, set as 111.
+		XIS::PUT, U16(222),         // 222
+		XIS::IADD,                  // Addition
+		XIS::PUT, U16(333),         // 333
+		XIS::PUT, U16(444),         // 444
+		XIS::IMUL,                  // Multiply
+		XIS::PUT, U16(555),         // 555
+		XIS::IDIV,                  // Division
+		XIS::ISUB,                  // Subtract
+		XIS::PUT, U16(2), XIS::POP, // Remove 'main' and 'x'.
+		XIS::LDB,                   // Load the B stack state.
+		XIS::HALT                   // Halt.
+	};
+	XWORD binary[128];
+	clear_mem(binary, sizeof(binary) / sizeof(XWORD));
+	xcc_out out = xb(init_lexer(chars::view{CODE, sizeof(CODE), 0}), LIBB, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
+	print_err(out);
+	CC0_UTEST_ASSERT(out.errors, ==, 0);
+	if (EXPECT_COUNT != (int)out.binary.size) {
+		print_bin(binary, out.binary.size);
+	}
+	CC0_UTEST_ASSERT(EXPECT_COUNT, ==, (int)out.binary.size);
+	for (int i = 0; i < EXPECT_COUNT; ++i) {
+		if (binary[i].u != EXPECT[i]) {
+			print_bin(binary, out.binary.size);
+		}
+		CC0_UTEST_ASSERT(binary[i].u, ==, EXPECT[i]);
+	}
+}
+CC0_UTEST_END(xb_lex_and_parse_signed_expr, false)
+
 CC0_UTEST_BEGIN(xb_lex_and_parse_typed_expr)
 {
 	const char CODE[] = "auto x = 111 + 222 - unsigned(signed(333 - 444) * 555);";
@@ -2000,20 +2094,6 @@ CC0_UTEST_BEGIN(xb_lex_and_parse_typed_expr)
 		XIS::LDB,                   // Load the B stack state.
 		XIS::HALT                   // Halt.
 	};
-	// 16514
-	// 384 0 17696
-	// 384 111
-	// 384 222
-	// 2448
-	// 384 333
-	// 384 444
-	// 3988
-	// 384 555
-	// 4244
-	// 2704
-	// 384 2 11392
-	// 17346
-	// 12544 
 	XWORD binary[128];
 	clear_mem(binary, sizeof(binary) / sizeof(XWORD));
 	xcc_out out = xb(init_lexer(chars::view{CODE, sizeof(CODE), 0}), LIBB, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
