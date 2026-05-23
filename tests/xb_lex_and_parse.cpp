@@ -1217,7 +1217,7 @@ CC0_UTEST_END(xb_lex_and_parse_array_index, false)
 
 CC0_UTEST_BEGIN(xb_lex_and_parse_include_relative)
 {
-	const char CODE[] = "#include \"tests/src/test01.xb\" fn(a, b) {}";
+	const char CODE[] = "#include \"xun/tests/src/test01.xb\" fn(a, b) {}";
 	const int EXPECT_COUNT = 22;
 	const U16 EXPECT[EXPECT_COUNT] = {
 		XIS::SVB,                              // Save the B stack state.
@@ -1271,9 +1271,9 @@ CC0_UTEST_BEGIN(xb_lex_and_parse_include_standard)
 	XWORD binary[128];
 	clear_mem(binary, sizeof(binary) / sizeof(XWORD));
 	const chars::view files[] = {
-		chars::view{ "tests/src/test02.xb", 19, 0 }
+		chars::view{ "xun/tests/src/test02.xb", 23, 0 }
 	};
-	xcc_out out = xb(files, 1, chars::view{"tests/src/", 10, 0}, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
+	xcc_out out = xb(files, 1, chars::view{"xun/tests/src/", 14, 0}, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
 	print_err(out);
 	CC0_UTEST_ASSERT(out.errors, ==, 0);
 	if (EXPECT_COUNT != (int)out.binary.size) {
@@ -1294,9 +1294,9 @@ CC0_UTEST_BEGIN(xb_lex_and_parse_include_const_abs)
 	XWORD binary[128];
 	clear_mem(binary, sizeof(binary) / sizeof(XWORD));
 	const chars::view files[] = {
-		chars::view{ "tests/src/test04.xb", 19, 0 }
+		chars::view{ "xun/tests/src/test04.xb", 23, 0 }
 	};
-	xcc_out out = xb(files, 1, chars::view{"tests/src/", 10, 0}, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
+	xcc_out out = xb(files, 1, chars::view{"xun/tests/src/", 14, 0}, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
 	print_err(out);
 	CC0_UTEST_ASSERT(out.errors, ==, 0);
 }
@@ -1307,9 +1307,9 @@ CC0_UTEST_BEGIN(xb_lex_and_parse_include_const_rel)
 	XWORD binary[128];
 	clear_mem(binary, sizeof(binary) / sizeof(XWORD));
 	const chars::view files[] = {
-		chars::view{ "tests/src/test05.xb", 19, 0 }
+		chars::view{ "xun/tests/src/test05.xb", 23, 0 }
 	};
-	xcc_out out = xb(files, 1, chars::view{"tests/src/", 10, 0}, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
+	xcc_out out = xb(files, 1, chars::view{"xun/tests/src/", 14, 0}, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
 	print_err(out);
 	CC0_UTEST_ASSERT(out.errors, ==, 0);
 }

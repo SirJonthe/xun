@@ -21,6 +21,6 @@ void print_instr(XWORD *binary, U16 binary_size);
 
 void print_err(xcc_out &out);
 
-static const chars::view LIBB = chars::view{"xun/xos/lib/libb/", 17, 0};
+static const chars::view LIBB = chars::view{"xun/tools/xcc/xb/libb/", 22, 0};
 
 #endif
