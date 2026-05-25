@@ -20,6 +20,7 @@ public:
 			TYPE_PONG,       // Sent back as an acknowledgement of a PING.
 			TYPE_DATA,       // Raw data is found in the payload.
 			TYPE_MULTIPACK,  // The payload may contain several packets, where each packet type in the payload starts with a packet type and a sub-payload size before specifying the sub-payload. Good when you want to compress several packets into one.
+			TYPE_BUSY,       // The device received a request, but can not process it right now.
 			TYPE_COUNT       // The number of packet types available.
 		};
 		enum {

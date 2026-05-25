@@ -3,7 +3,7 @@
 CC0_UTEST_BEGIN(xb_compile_firmware)
 {
 	const chars::view source_files[] = {
-		chars::view{"xun/firmware/firmware.xb", 24, 0}
+		chars::view{"xun/sw/firmware/old/firmware.xb", 31, 0}
 	};
 	XWORD binary[16384];
 	clear_mem(binary, sizeof(binary) / sizeof(XWORD));

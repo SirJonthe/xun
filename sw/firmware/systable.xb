@@ -1,0 +1,20 @@
+#include "systable.xh"
+#include "version.xh"
+#include "sysfont.xh"
+
+init_sys_table( void )
+{
+	sys_table[ 0] = VERSION[0];
+	sys_table[ 1] = VERSION[1];
+	sys_table[ 2] = VERSION[2];
+	sys_table[ 3] = FONT_ATLAS_SIZE_WORDS;
+	sys_table[ 4] = FONT_ATLAS;
+	sys_table[ 5] = FONT_ATLAS_CHAR_WIDTH_COUNT;
+	sys_table[ 6] = FONT_ATLAS_CHAR_HEIGHT_COUNT;
+	sys_table[ 7] = FONT_CHAR_PX_WIDTH;
+	sys_table[ 8] = FONT_CHAR_PX_HEIGHT;
+	sys_table[ 9] = FONT_CELL_PX_WIDTH;
+	sys_table[10] = FONT_CELL_PX_HEIGHT;
+	sys_table[11] = FONT_CHAR_ASCII_START;
+	sys_table[12] = FONT_CHAR_ASCII_END;
+}

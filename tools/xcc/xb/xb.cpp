@@ -463,23 +463,23 @@ static bool try_post_incdec_var(xcc_parser_state ps)
 	bool rs;
 	if ( // NOTE: var++ var--
 		manage_state(
-			try_alias(new_state(ps.end), t, rs)            &&
-			(sym = xcc_find_var(t.text, ps.p, rs)) != NULL &&
+			try_alias(new_state(ps.end), t, rs)                    &&
+			(sym = xcc_find_var(t.text, ps.p, rs)) != NULL         &&
 			(
 				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_INC, &op) ||
 				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DEC, &op)
-			)                                              &&
-			xcc_write_rel (ps.p, sym)                      &&
-			xcc_write_word(ps.p, XWORD{XIS::AT})           &&
-			xcc_write_word(ps.p, XWORD{XIS::DUP})          &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})          &&
-			xcc_write_word(ps.p, XWORD{1})                 &&
+			)                                                      &&
+			xcc_write_rel (ps.p, sym)                              &&
+			xcc_write_word(ps.p, XWORD{XIS::AT})                   &&
+			xcc_write_word(ps.p, XWORD{XIS::DUP})                  &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})                  &&
+			xcc_write_word(ps.p, XWORD{1})                         &&
 			(
-				op.user_type == xbtoken::OPERATOR_ARITHMETIC_INC ?
-					xcc_write_word(ps.p, XWORD{XIS::ADD}) :
+				op.user_type == xbtoken::OPERATOR_ARITHMETIC_INC   ?
+					xcc_write_word(ps.p, XWORD{XIS::ADD})          :
 					xcc_write_word(ps.p, XWORD{XIS::SUB})
-			)                                             &&
-			xcc_write_rel (ps.p, sym)                     &&
+			)                                                      &&
+			xcc_write_rel (ps.p, sym)                              &&
 			xcc_write_word(ps.p, XWORD{XIS::MOVU})
 		)
 	) {
@@ -498,20 +498,20 @@ static bool try_pre_incdec_var(xcc_parser_state ps)
 			(
 				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_INC, &op) ||
 				match(ps.p, xbtoken::OPERATOR_ARITHMETIC_DEC, &op)
-			)                                              &&
-			try_alias(new_state(ps.end), t, rs)            &&
-			(sym = xcc_find_var(t.text, ps.p, rs)) != NULL &&
-			xcc_write_rel (ps.p, sym)                      &&
-			xcc_write_word(ps.p, XWORD{XIS::AT})           &&
-			xcc_write_word(ps.p, XWORD{XIS::PUT})          &&
-			xcc_write_word(ps.p, XWORD{1})                 &&
+			)                                                      &&
+			try_alias(new_state(ps.end), t, rs)                    &&
+			(sym = xcc_find_var(t.text, ps.p, rs)) != NULL         &&
+			xcc_write_rel (ps.p, sym)                              &&
+			xcc_write_word(ps.p, XWORD{XIS::AT})                   &&
+			xcc_write_word(ps.p, XWORD{XIS::PUT})                  &&
+			xcc_write_word(ps.p, XWORD{1})                         &&
 			(
-				op.user_type == xbtoken::OPERATOR_ARITHMETIC_INC ?
-					xcc_write_word(ps.p, XWORD{XIS::ADD}) :
+				op.user_type == xbtoken::OPERATOR_ARITHMETIC_INC   ?
+					xcc_write_word(ps.p, XWORD{XIS::ADD})          :
 					xcc_write_word(ps.p, XWORD{XIS::SUB})
-			)                                              &&
-			xcc_write_word(ps.p, XWORD{XIS::DUP})          &&
-			xcc_write_rel (ps.p, sym)                      &&
+			)                                                      &&
+			xcc_write_word(ps.p, XWORD{XIS::DUP})                  &&
+			xcc_write_rel (ps.p, sym)                              &&
 			xcc_write_word(ps.p, XWORD{XIS::MOVU})
 		)
 	) {
@@ -543,9 +543,9 @@ static bool try_put_fn_params(xcc_parser_state ps, U16 *param_count)
 		manage_state(
 			try_put_fn_param(new_state(ps.end), param_count) &&
 			(
-				peek(ps.p).user_type == ps.end ||
+				peek(ps.p).user_type == ps.end               ||
 				(
-					match(ps.p, xbtoken::OPERATOR_COMMA) &&
+					match(ps.p, xbtoken::OPERATOR_COMMA)     &&
 					try_put_fn_params(new_state(ps.end), param_count)
 				)
 			)
@@ -612,8 +612,8 @@ static bool try_call_fn(xcc_parser_state ps)
 				match                (ps.p, xbtoken::OPERATOR_ENCLOSE_PARENTHESIS_R)           &&
 				(ps.p->out.buffer[off_index].u = (ps.p->out.size - off_index) + 7)             && // NOTE: Return address offset can be determined. Adjust the previously emitted 0.
 				(
-					sym != NULL ?
-						xcc_write_rel(ps.p, sym) :
+					sym != NULL                                                                ?
+						xcc_write_rel(ps.p, sym)                                               :
 						xcc_write_word(ps.p, XWORD{result})
 				)                                                                              &&
 				xcc_write_word       (ps.p, XWORD{XIS::AT})                                    &&
@@ -739,8 +739,8 @@ static bool try_ext_escape_char(xcc_parser_state ps, token &t)
 	token hi, lo;
 	if (
 		manage_state(
-			match1(ps.p, token::CHAR, &t) &&
-			t.hash == '#' &&
+			match1(ps.p, token::CHAR, &t)  &&
+			t.hash == '#'                  &&
 			match1(ps.p, token::CHAR, &hi) &&
 			match1(ps.p, token::CHAR, &lo) &&
 			try_encoded_char(new_state(ps.end), t)
@@ -1436,7 +1436,7 @@ static bool try_uni_lnot_val(xcc_parser_state ps, unsigned type)
 	}
 	return false;
 }
-#include <iostream>
+
 bool try_signed_expr(xcc_parser_state ps)
 {
 	if (

@@ -1,0 +1,3 @@
+auto sys_table[64]; // A table that contains pointers and values that the firmware wants to share with programs that load after it.
+
+init_sys_table( void );
