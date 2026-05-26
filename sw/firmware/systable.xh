@@ -1,3 +1,9 @@
-auto sys_table[64]; // A table that contains pointers and values that the firmware wants to share with programs that load after it.
+static sys_table[64] = {
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+}; // A table that contains pointers and values that the firmware wants to share with programs that load after it. The table needs to be static in order to guarantee that its absolute location does not move around as the program changes.
 
+/// @brief Initializes the system table with various important information such as addresses, constants, and function pointers that other programs can use.
 init_sys_table( void );

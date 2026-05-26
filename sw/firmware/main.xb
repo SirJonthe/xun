@@ -1,4 +1,7 @@
+#include "def.xh"
+
 main(argc, argv)
 {
-	
+	while (TRUE) {}
+	return -1;
 }
