@@ -1,12 +1,12 @@
-#include "systable.xh"
+#include "sys_systable.xh"
+#include "sys_font.xh"
 #include "version.xh"
-#include "sysfont.xh"
 
 init_sys_table( void )
 {
-	sys_table[ 0] = VERSION[0];
-	sys_table[ 1] = VERSION[1];
-	sys_table[ 2] = VERSION[2];
+	sys_table[ 0] = VERSION_MAJOR;
+	sys_table[ 1] = VERSION_MINOR;
+	sys_table[ 2] = VERSION_PATCH;
 	sys_table[ 3] = FONT_ATLAS_SIZE_WORDS;
 	sys_table[ 4] = FONT_ATLAS;
 	sys_table[ 5] = FONT_ATLAS_CHAR_WIDTH_COUNT;

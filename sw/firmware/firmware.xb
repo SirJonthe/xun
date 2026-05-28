@@ -1,0 +1,579 @@
+#include "firmware.xh"
+#include "def.xh"
+#include "version.xh"
+#include "sys_font.xh"
+
+/// @brief Returns the raw clock state of the CPU clock.
+/// @return The raw clock state of the CPU clock.
+__cpu_clock( void )
+{
+	auto c;
+	asm {
+		clock.
+		mov c.
+	}
+	return c;
+}
+
+auto __clock_appstart = __cpu_clock(); // The state of the clock when the application started.
+
+clock( void )
+{
+	return __cpu_clock() - __clock_appstart;
+}
+
+
+cpuid( void )
+{
+	auto id;
+	asm {
+		cpuid.
+		mov id.
+	}
+	return id;
+}
+
+did( void )
+{
+	auto id;
+	asm {
+		did.
+		mov id.
+	}
+	return id;
+}
+
+const __NUM_HWPORTS = 16; // The number of ports available on this hardware.
+auto __mid_counter = 0; // Message ID counter.
+
+// Constants.
+const PACKET_TYPE_PING = 3; // The constant representing a ping request.
+const PACKET_TYPE_DATA = 5; // The constant representing data transmission.
+const MAX_PAYLOAD_SIZE = 32 - PACKET_HEADER_WORD_SIZE;
+
+hwfull(port_index)
+{
+	auto f;
+	asm {
+		put port_index.
+		port.
+		full.
+		mov f.
+	}
+	return f;
+}
+
+hwpusht(port_index, msg_type, data_ptr, len, max_ms)
+{
+	// The packet data.
+	auto id    = cpuid();
+	auto clck  = clock();
+	auto type  = msg_type;
+	auto seq   = 0;
+	auto size;
+	auto irq   = 0; // We do not use this field.
+	auto mid   = __mid_counter++;
+
+	// Select the port to output the data to.
+	asm {
+		put port_index.
+		port.
+	}
+
+	// Split the data up into several numbered packages.
+	auto n = len / MAX_PAYLOAD_SIZE;
+	if (len % MAX_PAYLOAD_SIZE > 0 || n == 0) {
+		++n;
+	}
+	while (n-- > 0) {
+		while (hwfull(port_index)) {
+			if (clock() - clck >= max_ms) {
+				return 0;
+			}
+		}
+		if (len > MAX_PAYLOAD_SIZE) {
+			size = MAX_PAYLOAD_SIZE;
+			len -= MAX_PAYLOAD_SIZE;
+		} else {
+			size = len;
+			len = 0;
+		}
+		asm {
+			put &id, data_ptr.
+			pass. // Put the address of the header and the data, and send the values at the addresses to the selected port.
+		}
+		data_ptr += MAX_PAYLOAD_SIZE;
+		++seq;
+	}
+	return 1;
+}
+
+hwpush(port_index, data_ptr, len, max_ms)
+{
+	return hwpusht(port_index, PACKET_TYPE_DATA, data_ptr, len, max_ms);
+}
+
+hwpend(port_index)
+{
+	auto msg_pending;
+	asm {
+		put port_index.
+		port.
+		pend.
+		mov msg_pending.
+	}
+	return msg_pending;
+}
+
+hwid(port_index)
+{
+	// The packet data.
+	auto id;
+	auto clck;
+	auto type; 
+	auto seq;
+	auto size;
+	auto irq;
+	auto mid;
+	auto data[MAX_PAYLOAD_SIZE];
+
+	// First check if there is already an event on the bus we can peek.
+	if (hwpeek(port_index, &id, data) == 0) {
+		// Initialize a PING request.
+		id   = cpuid();
+		clck = clock();
+		type = PACKET_TYPE_PING; 
+		seq  = 0;
+		size = 0;
+		irq  = 0;
+
+		// Select the port to output the data to.
+		asm {
+			put port_index. // Select port.
+			port.           // Select port.
+			put &id, 0.     // Put the address of the header but we send no data, so just point to null.
+			pass.           // Send the values at the addresses to the selected port.
+		}
+
+		// We give a device 1 second to respond, checking every iteration.
+		auto poll_until = clock() + (CLOCKS_PER_SEC * 1);
+		while (hwpeek(port_index, &id, data) == 0) {
+			auto now = clock();
+			if (now > poll_until) {
+				return 0;
+			}
+		}
+	}
+	return id;
+}
+
+hwscan(id)
+{
+	auto i = 0;
+	while (i < __NUM_HWPORTS) {
+		if (hwid(i) == id) {
+			return i;
+		}
+		++i;
+	}
+	return -1;
+}
+
+hwpeek(port_index, header_ptr, data_ptr)
+{
+	auto pending = hwpend(port_index);
+	if (pending) {
+		asm {
+			put port_index.
+			port.
+			put header_ptr, data_ptr.
+			poll.
+		}
+	}
+	return pending;
+}
+
+const __IRQ_TABLE_SIZE = 256; // The number of software IRQ channels available.
+auto __irq_table[__IRQ_TABLE_SIZE]; // A table with function pointers to be called upon an interrupt request. Takes two arguments; a pointer to packet header data, and a pointer to packet payload data.
+
+hwpoll(port_index, header_ptr, data_ptr)
+{
+	auto pending = hwpeek(port_index, header_ptr, data_ptr);
+	if (pending) {
+		asm ack.
+		auto irq = header_ptr[PACKET_HEADER_IRQ];
+		if (irq < __IRQ_TABLE_SIZE && __irq_table[irq]) {
+			auto fn = __irq_table[irq];
+			fn(header_ptr, data_ptr);
+		}
+	}
+	return pending;
+}
+
+sleep(ms)
+{
+	auto now;
+	asm {
+		clock.
+		mov now.
+	}
+	auto to = now + ms;
+	if (to < now) {
+		while (now > 0) {
+			asm {
+				clock.
+				mov now.
+			}
+		}
+	}
+	while (now < to) {
+		asm {
+			clock.
+			mov now.
+		}
+	}
+}
+
+run(bin)
+{
+	// TODO IMPL
+	return -1;
+}
+
+shutdown( void )
+{
+	return hwpusht(hwscan(0x0004), 7, NULL, 0, CLOCKS_PER_SEC);
+}
+
+const HWID_KB  = 0x0001; // Hardware ID of keyboard.
+const HWID_RDD = 0x0002; // Hardware ID of disk reader.
+const HWID_MON = 0x0003; // Hardware ID of monitor.
+const HWID_PWR = 0x0004; // Hardware ID of power controller.
+const HWID_TTY = 0x0005; // Hardware ID of integrated TTY.
+
+// Monitor message types.
+const MON_MSG_PIXMODE              = 0xface; // Sets the monitor mode to direct pixel manipulation.
+const MON_MSG_TXTMODE              = 0xbeef; // Sets the monitor mode to text mode which only requires the computer to send font atlas information to the monitor, and then a text map, allowing the monitor to do the rendering.
+const MON_MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the monitor internal memory for use in text mode.
+const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
+const MON_MSG_TXTMODE_SCROLL_DOWN  = 0x123a;
+const MON_MSG_TXTMODE_SCROLL_UP    = 0x321b;
+
+const NUM_PORTS = 16;    // The number of ports on this machine.
+auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
+
+d_hwscan( void )
+{
+	// TODO:
+	// We should maybe approach this differently.
+	// Instead of identifying the hardware by the first packet on the port, we should flush the entire batch of buffered packets, and get the ID from the last packet.
+	// The reason for this is that if we plug in new hardware on a port that already has buffered packets then we misidentify the hardware.
+	// Also, this is reaaaaaaally slow when not done asynchronously. Instead, iterate over all unidentified ports constantly for a second or until all ports have been identified. This will take 1 second to do, instead of 16.
+	auto i = 0;
+	while (i < NUM_PORTS) {
+		__hwids[i] = hwid(i);
+		++i;
+	}
+}
+
+const PORT_UNDEF = 0xffff; // The port index of an unfound device.
+
+d_find_hw(id)
+{
+	auto i = 0;
+	while (i < NUM_PORTS && __hwids[i] != id) {
+		++i;
+	}
+	if (i == NUM_PORTS) {
+		return PORT_UNDEF;
+	}
+	return i;
+}
+
+auto __port_tty = PORT_UNDEF; // The port index where the TTY device is connected.
+
+d_init_tty( void )
+{
+	__port_tty = d_find_hw(HWID_TTY);
+	if (__port_tty == PORT_UNDEF) {
+		return FALSE;
+	}
+	return TRUE;
+}
+
+auto dig10[10] = "0123456789";
+auto dig16[16] = "0123456789abcdef";
+auto DIG16[16] = "0123456789ABCDEF";
+
+d_outf(port, format, values)
+{
+	if (port == PORT_UNDEF) { return FALSE; }
+	auto start = 0, end = 0, val = 0, esc = FALSE;
+	if (values != NULL) {
+		while (format[end] != 0) {
+			if (esc == TRUE) {
+				auto ch = format[end];
+				if (ch == 'd' || ch == 'i') {
+					auto num = values[val];
+					auto dec[6];
+					auto i = 0;
+					if (num & 0x8000 == 0) {
+						while (i < 5) {
+							dec[5 - i] = dig10[num%10];
+							num /= 10;
+							++i;
+							if (num == 0) {
+								break;
+							}
+						}
+					} else {
+						num = num & 0x7fff;
+						while (i < 5) {
+							dec[5 - i] = dig10[num%10];
+							num /= 10;
+							++i;
+							if (num == 0) {
+								break;
+							}
+						}
+						dec[5 - i] = '-';
+						++i;
+					}
+					if (!hwpush(port, dec + 6 - i, i, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'u') {
+					auto num = values[val];
+					auto dec[5];
+					auto i = 0;
+					while (i < 5) {
+						dec[4 - i] = dig10[num%10];
+						num /= 10;
+						++i;
+						if (num == 0) {
+							break;
+						}
+					}
+					if (!hwpush(port, dec + 5 - i, i, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'x' || ch == 'p') {
+					auto num = values[val];
+					auto hex[6];
+					hex[0] = '0';
+					hex[1] = 'x';
+					auto i = 0;
+					while (i < 4) {
+						hex[5 - i] = dig16[num%16];
+						num /= 16;
+						++i;
+					}
+					if (!hwpush(port, hex, 6, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'X') {
+					auto num = values[val];
+					auto hex[6];
+					hex[0] = '0';
+					hex[1] = 'x';
+					auto i = 0;
+					while (i < 4) {
+						hex[5 - i] = DIG16[num%16];
+						num /= 16;
+						++i;
+					}
+					if (!hwpush(port, hex, 6, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'c') {
+					if (!hwpush(port, values[val], 1, CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 's') {
+					if (!d_outf(port, values[val], NULL)) { return FALSE; }
+				} else if (ch == '%') {
+					auto escch[] = "%";
+					if (!hwpush(port, escch, sizeof(escch), CLOCKS_PER_SEC)) { return FALSE; }
+				} else if (ch == 'n') {
+				} else {
+					auto fmterr[] = "{format}";
+					if (!hwpush(port, fmterr, sizeof(fmterr), CLOCKS_PER_SEC)) { return FALSE; }
+				}
+				++val;
+				start = end + 1;
+				esc = FALSE;
+			} else if (format[end] == '%') {
+				if (!hwpush(port, format + start, end - start, CLOCKS_PER_SEC)) { return FALSE; }
+				start = end + 1;
+				esc = TRUE;
+			}
+			++end;
+		}
+		return hwpush(port, format + start, end - start, CLOCKS_PER_SEC);
+	}
+	while (format[end] != 0) {
+		++end;
+	}
+	return hwpush(port, format + start, end - start, CLOCKS_PER_SEC);
+}
+
+err_stall( void )
+{
+	auto now = clock();
+	auto beep_at = now + CLOCKS_PER_SEC;
+	auto wrapped_time = now > beep_at;
+	while (TRUE) {
+		now = clock();
+		if (wrapped_time == FALSE && now > beep_at) {
+			auto beep[] = "\a";
+			d_outf(__port_tty, beep, NULL);
+			beep_at = now + CLOCKS_PER_SEC;
+			wrapped_time = now > beep_at;
+		}
+		if (now < beep_at) {
+			wrapped_time = FALSE;
+		}
+	}
+}
+
+auto __port_mon = PORT_UNDEF; // The port index where the monitor is connected.
+
+d_printf(format, values)
+{
+	return d_outf(__port_mon, format, values) || d_outf(__port_tty, format, values);
+}
+
+d_require_hw(id)
+{
+	auto port = d_find_hw(id);
+	if (port == PORT_UNDEF) {
+		auto fmt[] = "Missing required hardware (%x)\nPlug in hardware and reboot\n";
+		auto vals[] = { id };
+		d_printf(fmt, vals);
+		err_stall();
+	}
+	return port;
+}
+
+d_init_monitor(mode)
+{
+	__port_mon = d_require_hw(HWID_MON);
+
+	auto font_metadata[] = { // Exactly this order.
+		FONT_CHAR_PX_WIDTH,
+		FONT_CHAR_PX_HEIGHT,
+		FONT_ATLAS_CHAR_WIDTH_COUNT,
+		FONT_ATLAS_CHAR_HEIGHT_COUNT,
+		FONT_CHAR_ASCII_START,
+		FONT_CHAR_ASCII_END,
+		FONT_CELL_PX_WIDTH,
+		FONT_CELL_PX_HEIGHT
+	};
+	if (
+		hwpusht(__port_mon, MON_MSG_TXTMODE, NULL, 0, CLOCKS_PER_SEC)                                           == FALSE ||
+		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADFONT, FONT_ATLAS, FONT_ATLAS_SIZE_WORDS, CLOCKS_PER_SEC * 10)   == FALSE ||
+		hwpusht(__port_mon, MON_MSG_TXTMODE_LOADFONTMETA, font_metadata, sizeof(font_metadata), CLOCKS_PER_SEC) == FALSE
+	) {
+		auto msg[] = "Monitor I/O error\n";
+		d_outf(__port_tty, msg, NULL);
+		err_stall();
+	}
+
+	return TRUE;
+}
+
+d_init_monitor_txtmode( void )
+{
+	return d_init_monitor(MON_MSG_TXTMODE);
+}
+
+i_print_sys_info( void )
+{
+	// Print XUN and calculate CPU speed.
+	{
+		auto  cycles          = 0;
+		auto  kcycles         = 0; // represents every 1,000 cycles.
+		auto  mcycles         = 0; // represents every 1,000,000 cycles.
+		auto  start           = clock();
+		const CYCLES_PER_LOOP = 5679 - 5581; // This is a constant that you get by comparing the number of instructions generated without the loop below vs. with it.
+
+		while (clock() - start < 1000) {
+			// We need to bend over backwards to avoid conditional code which impacts the number of cycles we perform every loop.
+			cycles  += CYCLES_PER_LOOP;
+			kcycles += cycles   / 1000;
+			mcycles += kcycles  / 1000;
+			cycles  -= (cycles  / 1000) * 1000;
+			kcycles -= (kcycles / 1000) * 1000;
+		}
+		{
+			auto s_xerxes[] = "XERXES(tm) Unified Nanocontroller @ ";
+			d_printf(s_xerxes, NULL);
+			auto s_zero[] = "0";
+			auto s_unit[] = "%u.";
+			if (mcycles > 0) {
+				auto s_mhz[] = "%u MHz\n";
+				d_printf(s_unit, &mcycles);
+				if (kcycles < 100) { d_printf(s_zero, NULL); }
+				if (kcycles < 10)  { d_printf(s_zero, NULL); }
+				d_printf(s_mhz, &kcycles);
+			} else if (kcycles > 0) {
+				auto s_khz[] = "%u KHz\n";
+				d_printf(s_unit, &kcycles);
+				if (cycles < 100) { d_printf(s_zero, NULL); }
+				if (cycles < 10)  { d_printf(s_zero, NULL); }
+				d_printf(s_khz, &cycles);
+			} else {
+				auto s_hz[] = "%u Hz\n";
+				d_printf(s_hz, &cycles);
+			}
+		}
+	}
+
+	// Print firmware version.
+	{
+		auto fmt[] = "XERXES(tm) Firmware v%u.%u.%u\n";
+		auto vals[] = { VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH };
+		d_printf(fmt, vals);
+	}
+
+	// Print connected devices.
+	{
+		auto s_ports[] = "Ports:\n";
+		auto s_id[]    = "  %u: %x\n";
+		auto s_noid[]  = "  %u: %n\n";
+		d_printf(s_ports, NULL);
+		auto i = 0;
+		while (i < NUM_PORTS) {
+			auto vals[] = { i, __hwids[i] };
+			if (__hwids[i] != 0) {
+				d_printf(s_id, vals);
+			} else {
+				d_printf(s_noid, vals);
+			}
+			++i;
+		}
+	}
+
+	// Calculate and print RAM status.
+	{
+		auto ram_remaining;
+		asm {
+			put 0xffff, $top.
+			sub.
+			mov ram_remaining.
+		}
+		auto fmt[] = "RAM available: %u/%u words\n";
+		auto vals[] = { ram_remaining, 0xffff };
+		d_printf(fmt, vals);
+	}
+}
+
+auto __port_kb = PORT_UNDEF; // The port index where the keyboard is connected.
+
+d_init_keyboard( void )
+{
+	__port_kb = d_require_hw(HWID_KB);
+}
+
+auto __port_disk = PORT_UNDEF; // The port index where the disk reader is connected.
+
+d_init_diskreader( void )
+{
+	__port_disk = d_require_hw(HWID_RDD); // [ ] There are TWO disk readers. We are looking for the second. Refactor this.
+}
+
+s_load_bootdisk( void )
+{
+	// [ ] Load program on the disk
+	// [ ] If no disk present print error message, spinloop
+}

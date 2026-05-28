@@ -1,7 +1,19 @@
+#include "sys_systable.xh"
 #include "def.xh"
+#include "firmware.xh"
 
-main(argc, argv)
+main(a,b)
 {
+	init_sys_table();
+	d_hwscan();
+	d_init_tty();
+	d_init_monitor_txtmode();
+	i_print_sys_info();
+//	d_init_diskreader();
+//	d_init_keyboard(); // Not really necessary because firmware takes no user input
+//	s_load_bootdisk();
+
 	while (TRUE) {}
-	return -1;
+
+	return 1;
 }
