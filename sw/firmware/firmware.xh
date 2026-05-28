@@ -1,9 +1,3 @@
-const CLOCKS_PER_SEC = 1000;
-
-/// @brief Returns the current clock state since the start of the program.
-/// @return The current clock state since the start of the program.
-clock( void );
-
 enum {
 	PACKET_HEADER_ID,       // The ID of the sending device.
 	PACKET_HEADER_CLOCK,    // The clock as reported by the sending device.
