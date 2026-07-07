@@ -1,0 +1,20 @@
+#include "syscall.xh"
+#include "font.xh"
+#include "version.xh"
+
+init_syscall_table( void )
+{
+	syscall_table[ 0] = VERSION_MAJOR;
+	syscall_table[ 1] = VERSION_MINOR;
+	syscall_table[ 2] = VERSION_PATCH;
+	syscall_table[ 3] = FONT_ATLAS_SIZE_WORDS;
+	syscall_table[ 4] = FONT_ATLAS;
+	syscall_table[ 5] = FONT_ATLAS_CHAR_WIDTH_COUNT;
+	syscall_table[ 6] = FONT_ATLAS_CHAR_HEIGHT_COUNT;
+	syscall_table[ 7] = FONT_CHAR_PX_WIDTH;
+	syscall_table[ 8] = FONT_CHAR_PX_HEIGHT;
+	syscall_table[ 9] = FONT_CELL_PX_WIDTH;
+	syscall_table[10] = FONT_CELL_PX_HEIGHT;
+	syscall_table[11] = FONT_CHAR_ASCII_START;
+	syscall_table[12] = FONT_CHAR_ASCII_END;
+}

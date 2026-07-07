@@ -1306,7 +1306,7 @@ static bool emit_operation(xcc_parser *p, unsigned operation_type, unsigned oper
 		case xbtoken::OPERATOR_LOGICAL_LESS:         return xcc_write_word(p, XWORD{XIS::LT});
 		case xbtoken::OPERATOR_LOGICAL_LESSEQUAL:    return xcc_write_word(p, XWORD{XIS::LE});
 		case xbtoken::OPERATOR_LOGICAL_GREATER:      return xcc_write_word(p, XWORD{XIS::GT});
-		case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL: return xcc_write_word(p, XWORD{XIS::LE});
+		case xbtoken::OPERATOR_LOGICAL_GREATEREQUAL: return xcc_write_word(p, XWORD{XIS::GE});
 		case xbtoken::OPERATOR_LOGICAL_EQUAL:        return xcc_write_word(p, XWORD{XIS::EQ});
 		case xbtoken::OPERATOR_LOGICAL_NOTEQUAL:     return xcc_write_word(p, XWORD{XIS::NE});
 		case xbtoken::OPERATOR_LOGICAL_NOT:

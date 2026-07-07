@@ -36,6 +36,42 @@ CC0_UTEST_BEGIN(xb_vm_if_assignment)
 }
 CC0_UTEST_END(xb_vm_if_assignment, false)
 
+CC0_UTEST_BEGIN(xb_vm_if_early_exit_assignment_true)
+{
+	const char CODE[] = "auto x = 0; auto i = 0; const N = 16; main(a,b) { if (i >= N) { x = 1; return; } x = 2; }";
+	XWORD binary[128];
+	clear_mem(binary, sizeof(binary) / sizeof(XWORD));
+	xcc_out out = xb(init_lexer(chars::view{CODE, sizeof(CODE), 0}), LIBB, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
+	print_err(out);
+	CC0_UTEST_ASSERT(out.errors, ==, 0);
+	
+	Computer m(true);
+	m.PowerOn();
+	m.BootDisk(binary, out.binary.size);
+	m.Run(1000);
+
+	CC0_UTEST_ASSERT(m.Peek(out.binary.size + 4).u, ==, 2)
+}
+CC0_UTEST_END(xb_vm_if_early_exit_assignment_true, false)
+
+CC0_UTEST_BEGIN(xb_vm_if_early_exit_assignment_false)
+{
+	const char CODE[] = "auto x = 0; auto i = 16; const N = 16; main(a,b) { if (i >= N) { x = 1; return; } x = 2; }";
+	XWORD binary[128];
+	clear_mem(binary, sizeof(binary) / sizeof(XWORD));
+	xcc_out out = xb(init_lexer(chars::view{CODE, sizeof(CODE), 0}), LIBB, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
+	print_err(out);
+	CC0_UTEST_ASSERT(out.errors, ==, 0);
+	
+	Computer m(true);
+	m.PowerOn();
+	m.BootDisk(binary, out.binary.size);
+	m.Run(1000);
+
+	CC0_UTEST_ASSERT(m.Peek(out.binary.size + 4).u, ==, 1)
+}
+CC0_UTEST_END(xb_vm_if_early_exit_assignment_false, false)
+
 CC0_UTEST_BEGIN(xb_vm_if_true_assignment)
 {
 	const char CODE[] = "auto x = 0x00fe; auto y = 10; auto z = 20; main(a,b) { if (y < z) { x = 0xfe00; } }";
