@@ -1,0 +1,6 @@
+/// @brief Compares the contents of two strings of equal size.
+/// @param a A string.
+/// @param b Another string.
+/// @param n The number of characters to compare.
+/// @returns 1 if the strings exactly match. 0 otherwise.
+strcmp(a, b, n);

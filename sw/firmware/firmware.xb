@@ -57,10 +57,13 @@ const MON_MSG_TXTMODE_SCROLL_UP    = 0x321b;
 const NUM_PORTS = 16;    // The number of ports on this machine.
 auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
 
+/// @brief Identifies devices on each port from the given port index. Utilizes recursion to avoid having to wait excessively long for each device to respond in turn. Instead the maximum wait time is the wait time for a single non-responsive port (1sec).
+/// @param port_index The port index to start the scan from.
+/// @returns True if the device on the port could be identified.
 __hwid_from(port_index)
 {
 	if (port_index >= NUM_PORTS) {
-		return;
+		return TRUE;
 	}
 
 	// The packet data.
@@ -102,17 +105,19 @@ __hwid_from(port_index)
 			auto now = clock();
 			if (now > poll_until) {
 				__hwids[port_index] = 0;
-				return;
+				return FALSE;
 			}
 		}
 		//asm ack.
 	}
 	__hwids[port_index] = id;
+	return TRUE;
 }
 
 d_hwscan( void )
 {
 	__hwid_from(0);
+	return TRUE;
 }
 
 const PORT_UNDEF = 0xffff; // The port index of an unfound device.
@@ -396,7 +401,7 @@ i_print_sys_info( void )
 	}
 
 	{
-		auto fmt[] = "syscall table: %x";
+		auto fmt[] = "syscall table: %x\n";
 		auto vals[] = { syscall_table };
 		d_printf(fmt, vals);
 	}

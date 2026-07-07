@@ -39,11 +39,10 @@ void Computer::ClearError(U16 code)
 {
 	ERR.u &= ~U16(1 << code);
 }
-#include <iostream>
+
 void Computer::Output(U16 port_index, U16 header_addr, U16 data_addr)
 {
 	if (GetPort(port_index) != NULL) {
-		std::cout << "pass " << port_index << std::endl;
 		Packet p;
 		for (XWORD i = XWORD{0}; i.u < Packet::HEADER_WORD_SIZE; ++i.u) {
 			p.header[i.u] = ATN(i, header_addr).u;
@@ -53,7 +52,6 @@ void Computer::Output(U16 port_index, U16 header_addr, U16 data_addr)
 		}
 		GetPort(port_index)->Output(p);
 	} else {
-		std::cout << "pass " << port_index << " error" << std::endl;
 		SetError(ERR_IO);
 	}
 }

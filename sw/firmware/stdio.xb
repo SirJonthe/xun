@@ -1,0 +1,12 @@
+#include "stdio.xh"
+#include "firmware.xh"
+
+printf(format, values)
+{
+	return d_printf(format, values);
+}
+
+gets(buf, n)
+{
+	while (1) {} // [ ] REMOVE THIS
+}

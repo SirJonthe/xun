@@ -1,0 +1,12 @@
+/// @brief Prints text on the monitor. Prints to TTY as a fallback. Stops on zero-terminator.
+/// @param format The message including format of provided values.
+/// @param values The values to print in accordance with the format string.
+/// @return 1 if the print was successful, 0 otherwise.
+/// @note All strings stop on zero-terminator.
+printf(format, values);
+
+/// @brief Gets input from the keyboard as a text string.
+/// @param buf The buffer to store the input into.
+/// @param n The maximum size of the input buffer.
+/// @return The number of characters that were input.
+gets(buf, n);

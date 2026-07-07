@@ -1,6 +1,6 @@
 #include "syscall.xh"
-#include "def.xh"
 #include "firmware.xh"
+#include "shell.xh"
 
 main(a,b)
 {
@@ -9,10 +9,11 @@ main(a,b)
 	d_init_tty();
 	d_init_monitor_txtmode();
 	i_print_sys_info();
-//	d_init_diskreader();
+	d_init_keyboard();
+	d_init_diskreader();
 //	s_load_bootdisk();
 
-	while (TRUE) {}
+	sh_start();
 
-	return 1;
+	return 0;
 }

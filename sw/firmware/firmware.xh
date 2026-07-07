@@ -51,6 +51,10 @@ d_init_monitor_txtmode( void );
 /// @brief Prints some handy information about the computer.
 i_print_sys_info( void );
 
+/// @brief Initializes a connected keyboard.
+/// @note A keyboard is required to be connected, so execution will lock if there is no keyboard.
+d_init_keyboard( void );
+
 /// @brief Initializes a connected disk reader.
 /// @note A disk reader is required to be connected, so execution will lock if there is no disk reader connected.
 d_init_diskreader( void );

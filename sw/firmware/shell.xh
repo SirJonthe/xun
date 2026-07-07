@@ -1,0 +1,5 @@
+/// @brief Indefinitely processes user input from a shell.
+sh_start( void );
+
+/// @brief Ends an ongoing shell function.
+sh_end( void );

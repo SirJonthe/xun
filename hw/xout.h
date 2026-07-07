@@ -20,7 +20,8 @@ public:
 	static constexpr U16      MSG_TXTMODE_SCROLL_UP    = 0x321b;         // Packet type that scrolls the character map up (only when in text mode).
 
 	/// @brief A single 32-bit color.
-	struct Color {
+	struct Color
+	{
 		U8 r; // Red.
 		U8 g; // Green.
 		U8 b; // Blue.
@@ -36,7 +37,8 @@ public:
 
 private:
 	/// @brief A palette of 16 32-bit colors.
-	struct Palette {
+	struct Palette
+	{
 		Color pal[16]; // The palette.
 	};
 

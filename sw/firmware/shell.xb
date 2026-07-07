@@ -1,0 +1,104 @@
+#include "shell.xh"
+#include "def.xh"
+#include "stdio.xh"
+#include "str.xh"
+
+auto sh_run = FALSE;
+
+auto wd[256];
+auto wd_n = 0;
+
+_wd_reset( void )
+{
+	wd[0] = '/';
+	wd[1] = 0;
+	wd_n = 1;
+}
+
+_wd_nav_back( void )
+{
+	while (wd_n > 1) {
+		wd_n--;
+		if (wd[wd_n] == '/') {
+			wd[wd_n] = 0;
+			return;
+		}
+	}
+}
+
+_wd_nav_fw(dir, n)
+{
+	if (n == 0 || dir == NULL) {
+		return FALSE;
+	}
+	if (wd_n + n > sizeof(wd)) {
+		return FALSE;
+	}
+	auto i = 0;
+	while (i < n) {
+		wd[wd_n] = dir[i];
+		++wd_n;
+		++i;
+	}
+	wd[wd_n] = 0;
+	return TRUE;
+}
+
+_wd_nav(navstr, n)
+{
+	static BACK[2] = "..";
+
+	if (n == 0 || navstr == NULL) {
+		return;
+	}
+	if (n == 1 && navstr[0] == '/') {
+		_wd_reset();
+		return;
+	}
+
+	auto a = 0;
+	auto b = 0;
+	while (b < n) {
+		if (navstr[b] == '/') {
+			if ((b - a) == 2 && strcmp(navstr, BACK, 2)) {
+				_wd_nav_back();
+			} else {
+				_wd_nav_fw(navstr + a, b - a);
+			}
+			a = b + 1;
+		}
+		++b;
+	}
+
+	if (a != b) {
+		if ((b - a) == 2 && strcmp(navstr, BACK, 2)) {
+			_wd_nav_back();
+		} else {
+			_wd_nav_fw(navstr + a, b - a);
+		}
+	}
+}
+
+sh_start( void )
+{
+	_wd_reset();
+
+	sh_run = TRUE;
+
+	while (sh_run) {
+		printf(wd, NULL);
+		{
+			static prompt[] = "> ";
+			printf(prompt, NULL);
+		}
+
+		auto in[256];
+		auto in_n = gets(in, sizeof(in));
+		// [ ] do something with "in"
+	}
+}
+
+sh_end( void )
+{
+	sh_run = FALSE;
+}

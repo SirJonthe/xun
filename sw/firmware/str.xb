@@ -1,0 +1,14 @@
+#include "str.xh"
+#include "def.xh"
+
+strcmp(a, b, n)
+{
+	auto i = 0;
+	while (i < n) {
+		if (a[i] != b[i]) {
+			return FALSE;
+		}
+		++i;
+	}
+	return TRUE;
+}
