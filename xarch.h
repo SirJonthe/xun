@@ -25,7 +25,8 @@ enum ERRMASK
 	ERR_OVERFLOW,  // Error: Arithmetic overflow.
 	ERR_UNDERFLOW, // Error: Arithmetid underflow.
 	ERR_UNDEF,     // Error: Undefined error.
-	ERR_IO         // Error: Generic I/O.
+	ERR_IO,        // Error: Generic I/O.
+	ERR_MEMBOUND   // Error: Memory boundry error.
 };
 
 /// @brief A byte value that can be used to access both signed and unsigned versions of itself.

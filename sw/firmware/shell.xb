@@ -89,34 +89,34 @@ _usr_reset( void )
 	usr_n = sizeof(default_usr);
 }
 
-auto mach[32];
-auto mach_n;
+auto host[32];
+auto host_n;
 
-_mach_reset( void )
+_host_reset( void )
 {
-	auto default_mach[] = "xun";
-	memcpy(mach, default_mach, sizeof(default_mach));
-	mach_n = sizeof(default_mach);
+	auto default_host[] = "xun";
+	memcpy(host, default_host, sizeof(default_host));
+	host_n = sizeof(default_host);
 }
 
 sh_start( void )
 {
 	_wd_reset();
 	_usr_reset();
-	_mach_reset();
+	_host_reset();
 
 	sh_run = TRUE;
 
 	while (sh_run) {
 		{
 			static prompt[] = "[%s@%s %s] $ ";
-			auto params[] = { usr, mach, wd };
+			auto params[] = { usr, host, wd };
 			printf(prompt, params);
 		}
 
 		auto in[256];
 		auto in_n = gets(in, sizeof(in));
-		// [ ] do something with "in"
+		// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
 	}
 }
 

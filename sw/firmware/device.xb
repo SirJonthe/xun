@@ -1,4 +1,5 @@
 #include "device.xh"
+#include "def.xh"
 
 cpuid( void )
 {
@@ -102,6 +103,21 @@ hwpend(port_index)
 	return msg_pending;
 }
 
+auto __hwpend_sweep_i = 0;
+hwpend_sweep( void )
+{
+	auto i = 0;
+	while (i < __NUM_HWPORTS) {
+		auto port_index = (__hwpend_sweep_i + i) % __NUM_HWPORTS;
+		if (hwpend(port_index)) {
+			__hwpend_sweep_i = (__hwpend_sweep_i + 1) % __NUM_HWPORTS;
+			return port_index;
+		}
+		++i;
+	}
+	return -1;
+}
+
 hwid(port_index)
 {
 	// The packet data.
@@ -174,6 +190,30 @@ hwpeek(port_index, header_ptr, data_ptr)
 const __IRQ_TABLE_SIZE = 256; // The number of software IRQ channels available.
 auto __irq_table[__IRQ_TABLE_SIZE]; // A table with function pointers to be called upon an interrupt request. Takes two arguments; a pointer to packet header data, and a pointer to packet payload data.
 
+irq_init( void )
+{
+	auto i = 0;
+	while (i < __IRQ_TABLE_SIZE) {
+		__irq_table[i] = NULL;
+		++i;
+	}
+}
+
+irq_set(irq, fn)
+{
+	if (irq < __IRQ_TABLE_SIZE) {
+		__irq_table[irq] = fn;
+	}
+}
+
+irq_get(irq)
+{
+	if (irq < __IRQ_TABLE_SIZE) {
+		return __irq_table[irq];
+	}
+	return NULL;
+}
+
 hwpoll(port_index, header_ptr, data_ptr)
 {
 	auto pending = hwpeek(port_index, header_ptr, data_ptr);
@@ -186,4 +226,14 @@ hwpoll(port_index, header_ptr, data_ptr)
 		}
 	}
 	return pending;
+}
+
+hwwait(header_ptr, data_ptr)
+{
+	auto i = hwpend_sweep();
+	if (i == -1) {
+		asm { wfi. }
+	}
+	i = hwpend_sweep();
+	return hwpoll(i, header_ptr, data_ptr);
 }

@@ -141,7 +141,11 @@ void Computer::DoCycle( void )
 		POP_STACK(1);
 		break;
 	case XIS::AT:
-		TOP = RAM[TOP.u];
+		if (TOP.u < MEM_SIZE_MAX) {
+			TOP = RAM[TOP.u];
+		} else {
+			SetError(ERR_MEMBOUND);
+		}
 		break;
 	case XIS::ADD:
 		LST.u += TOP.u;

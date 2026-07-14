@@ -46,7 +46,17 @@ hwpush(port_index, data_ptr, len, max_ms);
 /// @return 1 if the given port has pending messages on its bus. 0 otherwise.
 /// @sa hwpeek
 /// @sa hwpoll
+/// @sa hwpend_sweep
+/// @sa hwwait
 hwpend(port_index);
+
+/// @brief Checks all ports if an input buffer has pending messages for the computer to consume. Sweeps the ports incrementally. If a message is found on a port, then the next port will be scanned first next call in order to avoid scanning the same busy port forever.
+/// @return The port index with a pending message. -1 if there are no messages.
+/// @sa hwpeek
+/// @sa hwpoll
+/// @sa hwpend
+/// @sa hwwait
+hwpend_sweep( void );
 
 /// @brief Does a scan of the given port to retrieve the hardware ID of the connected device.
 /// @param port_index The port to scan.
@@ -66,9 +76,28 @@ hwscan(id);
 /// @return 1 if there was a message to consume. 0 otherwise.
 hwpeek(port_index, header_ptr, data_ptr);
 
+/// @brief Initializes the IRQ table.
+irq_init( void );
+
+/// @brief Attached a function to an IRQ table that is called whenever there is a message that is processed with the corresponding IRQ index.
+/// @param irq The IRQ index to 
+/// @param fn A function pointer taking a two parameters; pointer to a header, and a pointer to data.
+irq_set(irq, fn);
+
+/// @brief Reads the current function attached to a particular IRQ.
+/// @param irq The IRQ index to return the currently attached function.
+irq_get(irq);
+
 /// @brief Attempts to poll a message from a specific port index. Consumes the message. If there is an IRQ function associated with the header IRQ request, that function is executed.
 /// @param port_index The port to sniff for a message.
 /// @param header_ptr Pointer to the packet header.
 /// @param data_ptr Pointer to the packet payload.
 /// @return 1 if there was a message to consume. 0 otherwise.
 hwpoll(port_index, header_ptr, data_ptr);
+
+
+/// @brief Halts execution until there is something on the incoming FIFO queue.
+/// @param header_ptr Pointer to the packet header.
+/// @param data_ptr Pointer to the packet payload.
+/// @return 1
+hwwait(header_ptr, data_ptr);

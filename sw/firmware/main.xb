@@ -1,10 +1,12 @@
 #include "syscall.xh"
 #include "firmware.xh"
 #include "shell.xh"
+#include "device.xh"
 
 main(a,b)
 {
 	init_syscall_table();
+	irq_init();
 	d_hwscan();
 	d_init_tty();
 	d_init_monitor_txtmode();
