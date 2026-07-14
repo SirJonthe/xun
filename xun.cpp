@@ -496,9 +496,14 @@ void Computer::DoCycle( void )
 	case XIS::ERR:
 		PUSH_STACK(1);
 		TOP.u = ERR.u;
+		break;
 	case XIS::CERR:
 		ClearError(TOP.u);
 		POP_STACK(1);
+		break;
+	case XIS::WFI:
+		WaitForInput();
+		break;
 	default:
 		SetError(ERR_UNDEF);
 		break;

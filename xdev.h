@@ -105,9 +105,12 @@ private:
 	uint64_t      m_exec_ns;                  // Internal state representing the remainder of execution time left over after a given time slice.
 	uint64_t      m_ns_per_cycle;             // The number of pico seconds per cycle.
 	uint32_t      m_cycles_per_second;        // The number of cycles that can run per second. If 0, then the device will poll automatically when there is a message in the queue.
+	// TODO: Make this a LED strip device instead of taking a cost for every device.
 	uint32_t      m_external_state;           // An integer that represents some state that can be observed externally, for instance a flashing LED.
+	// TODO: Make this a LED strip device instead of taking a cost for every device.
 	uint32_t      m_external_state_reset[32]; // A millisecond timer that will reset the corresponding external state to zero when it hits zero.
 	U16           m_message_id_counter;       // A counter to give each message a unique ID. Note that messages split up over several packets carry the same message ID.
+	bool          m_wait_for_input;           // When true, the device does not cycle, and just checks for unhandled messages on the message queue. If there are messages, the flag is set to false.
 	bool          m_power;                    // The power state of the device.
 
 private:
@@ -154,7 +157,10 @@ protected:
 	/// @param state The external state value.
 	/// @param time_ms The amount of time in milliseconds to keep a non-zero state before it resets to zero.
 	/// @note The external state is only modified if the device is powered on.
-	void SetExternalState(uint32_t bit, bool state, uint32_t timer_ms = STATE_TIMER_FOREVER);
+	void SetExternalState(uint32_t bit, bool state, uint32_t timer_ms = STATE_TIMER_FOREVER); // TODO: Make this a LED strip device instead of taking a cost for every device.
+
+	/// @brief Stops cycling and just waits until there is anything on the message queue. When there is at least one message, cycling resumes until WaitForInput is called again.
+	void WaitForInput( void );
 
 protected:
 	/// @brief Abstract function that is intended to handle message types. Overwrite this to handle messages in a custom manner.

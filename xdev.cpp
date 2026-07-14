@@ -194,6 +194,13 @@ void Device::SetExternalState(uint32_t bit, bool state, uint32_t timer_ms)
 	}
 }
 
+void Device::WaitForInput( void )
+{
+	if (IsPoweredOn()) {
+		m_wait_for_input = true;
+	}
+}
+
 /// @brief Returns the next step in a Gray Code Sequence, which seemingly returns an index from a permuted sequence from 0..65535
 /// @return The Gray code.
 static U16 GrayCode( void )
@@ -204,7 +211,7 @@ static U16 GrayCode( void )
 	return gray;
 }
 
-Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_DID(GrayCode()), m_clock_ns(0), m_exec_ns(0), m_external_state(0), m_message_id_counter(0), m_power(false)
+Device::Device(const std::string &name, U16 HWID) : m_connection(nullptr), m_in_queue(), m_name(name), m_HWID(HWID), m_DID(GrayCode()), m_clock_ns(0), m_exec_ns(0), m_external_state(0), m_message_id_counter(0), m_power(false), m_wait_for_input(false)
 {
 	ClearExternalState();
 	SetCyclesPerSecond(60);
@@ -219,6 +226,7 @@ void Device::PowerOn( void )
 {
 	if (IsPoweredOff()) {
 		m_power = true;
+		m_wait_for_input = false;
 		m_clock_ns = 0;
 		m_exec_ns = 0;
 		m_message_id_counter = 0;
@@ -232,9 +240,14 @@ void Device::PowerOn( void )
 
 void Device::Cycle( void )
 {
-	if (m_cycles_per_second > 0 && IsPoweredOn()) {
-		Poll();
-		DoCycle();
+	if (IsPoweredOn()) {
+		if (m_wait_for_input && Pending()) {
+			m_wait_for_input = false;
+		}
+		if (m_cycles_per_second > 0 && !m_wait_for_input) {
+			Poll();
+			DoCycle();
+		}
 		m_clock_ns += m_ns_per_cycle;
 		CountDownExternalState(m_ns_per_cycle / 1000000ULL);
 	}
@@ -242,19 +255,42 @@ void Device::Cycle( void )
 
 void Device::Run(uint32_t ms)
 {
-	if (m_cycles_per_second > 0 && IsPoweredOn()) {
+	if (IsPoweredOn()) {
+		if (m_wait_for_input && Pending()) {
+			m_wait_for_input = false;
+		}
 		m_exec_ns += uint64_t(ms) * 1000000ULL;
-		while (m_cycles_per_second > 0 && m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
+		while (!m_wait_for_input && IsPoweredOn() && m_cycles_per_second > 0 && m_exec_ns >= m_ns_per_cycle) {
 			Poll();
 			DoCycle();
 			m_clock_ns += m_ns_per_cycle;
 			m_exec_ns -= m_ns_per_cycle;
 		}
-		if (m_cycles_per_second == 0) {
+		if (m_cycles_per_second > 0) {
+			if (IsPoweredOn() && m_exec_ns >= m_ns_per_cycle) {
+				const uint64_t rem = m_exec_ns % m_ns_per_cycle;
+				m_clock_ns += (m_exec_ns - rem);
+				m_exec_ns = rem;
+			}
+		} else {
 			m_exec_ns = 0;
 		}
+		CountDownExternalState(ms);
 	}
-	CountDownExternalState(ms);
+
+//	if (m_cycles_per_second > 0 && IsPoweredOn()) {
+//		m_exec_ns += uint64_t(ms) * 1000000ULL;
+//		while (m_cycles_per_second > 0 && m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
+//			Poll();
+//			DoCycle();
+//			m_clock_ns += m_ns_per_cycle;
+//			m_exec_ns -= m_ns_per_cycle;
+//		}
+//		if (m_cycles_per_second == 0) {
+//			m_exec_ns = 0;
+//		}
+//	}
+//	CountDownExternalState(ms);
 }
 
 void Device::PowerOff( void )
@@ -267,6 +303,7 @@ void Device::PowerOff( void )
 		m_message_id_counter = 0;
 		m_in_queue.Flush();
 		m_external_state = 0;
+		m_wait_for_input = false;
 		m_power = false;
 		ClearExternalState();
 	}

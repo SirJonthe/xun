@@ -4,7 +4,11 @@
 void Keyboard::ShiftState( void )
 {
 	for (uint32_t i = 0; i < KB_COUNT; ++i) {
-		m_state[i] = (m_state[i] << 1) & 0xf;
+		if (m_state[i] & 1 == 1) {
+			m_state[i] = ((m_state[i] << 1) & 0xf) | 1;
+		} else {
+			m_state[i] = (m_state[i] << 1) & 0xf;
+		}
 	}
 }
 

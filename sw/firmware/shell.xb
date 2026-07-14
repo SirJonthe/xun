@@ -79,17 +79,39 @@ _wd_nav(navstr, n)
 	}
 }
 
+auto usr[32];
+auto usr_n;
+
+_usr_reset( void )
+{
+	auto default_usr[] = "root";
+	memcpy(usr, default_usr, sizeof(default_usr));
+	usr_n = sizeof(default_usr);
+}
+
+auto mach[32];
+auto mach_n;
+
+_mach_reset( void )
+{
+	auto default_mach[] = "xun";
+	memcpy(mach, default_mach, sizeof(default_mach));
+	mach_n = sizeof(default_mach);
+}
+
 sh_start( void )
 {
 	_wd_reset();
+	_usr_reset();
+	_mach_reset();
 
 	sh_run = TRUE;
 
 	while (sh_run) {
-		printf(wd, NULL);
 		{
-			static prompt[] = "> ";
-			printf(prompt, NULL);
+			static prompt[] = "[%s@%s %s] $ ";
+			auto params[] = { usr, mach, wd };
+			printf(prompt, params);
 		}
 
 		auto in[256];

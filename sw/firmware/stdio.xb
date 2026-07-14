@@ -8,5 +8,8 @@ printf(format, values)
 
 gets(buf, n)
 {
-	while (1) {} // [ ] REMOVE THIS
+	auto loop = 1;
+	while (loop) {
+		
+	}
 }

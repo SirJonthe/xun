@@ -103,7 +103,7 @@ struct XIS
 		TD     = 0b10000000 + (78<<8), // Get days (0-6). Expand stack by 1.
 		TW     = 0b10000000 + (79<<8), // Get absolute number of weeks (0-30500 before wrap, approx. 600 years). Expans stack by 1.
 
-		// WFI  // Wait For Interrupt - Completely halts execution until an interrupt resumes execution
+		WFI    = 0b01000001 + (80<<8), // Wait For Input - Completely halts execution until there is data on the incoming internal message queue.
 		// ILSH // signed left shift (preserve sign bit)
 		// IRSH // signed right shift (preserve sign bit)
 

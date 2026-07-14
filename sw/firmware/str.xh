@@ -4,3 +4,9 @@
 /// @param n The number of characters to compare.
 /// @returns 1 if the strings exactly match. 0 otherwise.
 strcmp(a, b, n);
+
+/// @brief Copies memory from source to destination.
+/// @param dst The destination memory.
+/// @param src The source memory.
+/// @param n The number of elements to copy into destination from source.
+memcpy(dst, src, n);

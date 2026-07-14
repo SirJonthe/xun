@@ -119,7 +119,7 @@ struct xtoken
 	};
 };
 
-const signed X_TOKEN_COUNT = 104;
+const signed X_TOKEN_COUNT = 105;
 const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword ("nop",                     3, XIS::NOP),
 	new_keyword ("at",                      2, XIS::AT),
@@ -178,6 +178,7 @@ const token X_TOKENS[X_TOKEN_COUNT] = {
 	new_keyword("ofa",                      3, XIS::OFA),
 	new_keyword("ofb",                      3, XIS::OFB),
 	new_keyword("ofc",                      3, XIS::OFC),
+	new_keyword("wfi",                      3, XIS::WFI),
 
 	new_operator("@",                       1, xtoken::OPERATOR_DIRECTIVE_AT),
 	new_operator("&",                       1, xtoken::OPERATOR_DIRECTIVE_ADDR),

@@ -121,7 +121,6 @@ protected:
 	void DoPowerOn( void );
 
 	/// @brief Executes a single cycle on the machine.
-	/// @return The last executed instruction.
 	void DoCycle( void );
 
 public:
