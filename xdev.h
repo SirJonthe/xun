@@ -110,8 +110,8 @@ private:
 	// TODO: Make this a LED strip device instead of taking a cost for every device.
 	uint32_t      m_external_state_reset[32]; // A millisecond timer that will reset the corresponding external state to zero when it hits zero.
 	U16           m_message_id_counter;       // A counter to give each message a unique ID. Note that messages split up over several packets carry the same message ID.
-	bool          m_wait_for_input;           // When true, the device does not cycle, and just checks for unhandled messages on the message queue. If there are messages, the flag is set to false.
 	bool          m_power;                    // The power state of the device.
+	bool          m_wait_for_input;           // When true, the device does not cycle, and just checks for unhandled messages on the message queue. If there are messages, the flag is set to false.
 
 private:
 	/// @brief 
@@ -143,8 +143,16 @@ protected:
 
 	/// @brief Creates a new packet.
 	/// @param type The message type to attach to the new packet.
+	/// @param payload The payload. If null or unspecified, sets payload to zero.
 	/// @return The new packet.
 	Packet NewPacket(U16 type);
+
+	/// @brief Creates a new packet.
+	/// @param type The message type to attach to the new packet.
+	/// @param payload The payload. If null or unspecified, sets payload to zero.
+	/// @param size The number of words in the payload.
+	/// @return The new packet.
+	Packet NewPacket(U16 type, U16 *payload, U16 size);
 
 	/// @brief Automatically grabs top packet, acknowledges it, then passes the packet to a custom function for handling.
 	/// @return False if the message failed to be handled properly.
@@ -214,6 +222,10 @@ public:
 	/// @brief Checks if the device is powered off.
 	/// @return True if the device is powered off.
 	bool IsPoweredOff( void ) const;
+
+	/// @brief Checks if the device is idle and waiting for input before resuming.
+	/// @return True if the device is waiting.
+	bool IsWaitingForInput( void ) const;
 
 	/// @brief Sets the number of cycles to perform per second.
 	/// @param hz The number of cycles per second.

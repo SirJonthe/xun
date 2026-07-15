@@ -108,6 +108,11 @@ void Device::Output(const Device::Packet &msg)
 
 Device::Packet Device::NewPacket(U16 type)
 {
+	return NewPacket(type, nullptr, 0);
+}
+
+Device::Packet Device::NewPacket(U16 type, U16 *payload, U16 size)
+{
 	Device::Packet p = {
 		{
 			GetHWID(),
@@ -119,7 +124,16 @@ Device::Packet Device::NewPacket(U16 type)
 			m_message_id_counter++
 		}
 	};
-	for (uint32_t i = 0; i < sizeof(p.payload) / sizeof(U16); ++i) {
+	const uint32_t PAYLOAD_WORDS = sizeof(p.payload) / sizeof(U16);
+	
+	uint32_t i = 0;
+	if (payload != nullptr) {
+		size = size < PAYLOAD_WORDS ? size : PAYLOAD_WORDS;
+		for (; i < size; ++i) {
+			p.payload[i] = payload[i];
+		}
+	}
+	for (; i < PAYLOAD_WORDS; ++i) {
 		p.payload[i] = 0;
 	}
 	return p;
@@ -334,6 +348,11 @@ bool Device::IsPoweredOn( void ) const
 bool Device::IsPoweredOff( void ) const
 {
 	return !m_power;
+}
+
+bool Device::IsWaitingForInput( void ) const
+{
+	return m_wait_for_input;
 }
 
 void Device::SetCyclesPerSecond(uint32_t hz)

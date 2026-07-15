@@ -1,13 +1,17 @@
 enum {
-	PACKET_HEADER_ID,       // The ID of the sending device.
-	PACKET_HEADER_CLOCK,    // The clock as reported by the sending device.
-	PACKET_HEADER_TYPE,     // See TYPE_*.
-	PACKET_HEADER_SEQ,      // The index of a segmented message.
-	PACKET_HEADER_SIZE,     // The number of words in the payload.
-	PACKET_HEADER_IRQ,      // The IRQ to call on the receiving device.
-	PACKET_HEADER_MID,      // The message ID.
-	PACKET_HEADER_WORD_SIZE // The number of words in the packet header.
+	PACKET_HEADER_ID,        // The ID of the sending device.
+	PACKET_HEADER_CLOCK,     // The clock as reported by the sending device.
+	PACKET_HEADER_TYPE,      // See TYPE_*.
+	PACKET_HEADER_SEQ,       // The index of a segmented message.
+	PACKET_HEADER_SIZE,      // The number of words in the payload.
+	PACKET_HEADER_IRQ,       // The IRQ to call on the receiving device.
+	PACKET_HEADER_MID,       // The message ID.
+	PACKET_HEADER_WORD_SIZE, // The number of words in the packet header.
+	PACKET_PAYLOAD           // The start of the packet payload.
 };
+
+const PACKET_SIZE = 32;
+const PACKET_PAYLOAD_SIZE = PACKET_SIZE - PACKET_HEADER_WORD_SIZE;
 
 /// @brief Returns the CPU ID (unique to the CPU architecture).
 /// @return The CPU ID.
@@ -92,12 +96,18 @@ irq_get(irq);
 /// @param port_index The port to sniff for a message.
 /// @param header_ptr Pointer to the packet header.
 /// @param data_ptr Pointer to the packet payload.
-/// @return 1 if there was a message to consume. 0 otherwise.
+/// @return 1/true if there was a message to consume. 0/false otherwise.
 hwpoll(port_index, header_ptr, data_ptr);
 
+/// @brief Halts execution until there is something on the incoming FIFO queue on the specified port.
+/// @param port_index The port to sniff for a message.
+/// @param header_ptr Pointer to the packet header.
+/// @param data_ptr Pointer to the packet payload.
+/// @return 1/true
+hwwait(port_index, header_ptr, data_ptr);
 
 /// @brief Halts execution until there is something on the incoming FIFO queue.
 /// @param header_ptr Pointer to the packet header.
 /// @param data_ptr Pointer to the packet payload.
-/// @return 1
-hwwait(header_ptr, data_ptr);
+/// @return The port of the device where a packet was handled.
+hwwait_sweep(header_ptr, data_ptr);

@@ -41,8 +41,15 @@ Keyboard::Keyboard( void ) : Device("XERXES(tm) Keyboard Model N", XHWID_KB)
 
 void Keyboard::SetActive(uint32_t key)
 {
-	if (key < KB_COUNT) {
+	if (key < KB_COUNT && (m_state[key] & 1) == 0) {
 		m_state[key] &= 1;
+	}
+}
+
+void Keyboard::SetInactive(uint32_t key)
+{
+	if (key < KB_COUNT && (m_state[key] & 1) == 1) {
+		m_state[key] &= U8(~1);
 	}
 }
 

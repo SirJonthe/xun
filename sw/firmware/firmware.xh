@@ -39,6 +39,12 @@ d_require_hw(id);
 /// @note All strings stop on zero-terminator.
 d_printf(format, values);
 
+/// @brief Gets input from the keyboard as a text string.
+/// @param buf The buffer to store the input into.
+/// @param n The maximum size of the input buffer.
+/// @return The number of characters that were input.
+d_gets(buf, n);
+
 /// @brief Initializes a connected monitor.
 /// @param mode Sets the monitor to a specified mode.
 /// @note A monitor is required to be connected, so execution will lock if there is no monitor connected.
@@ -47,6 +53,16 @@ d_init_monitor(mode);
 /// @brief Initializes a connected monitor to text mode.
 /// @note A monitor is required to be connected, so execution will lock if there is no monitor connected.
 d_init_monitor_txtmode( void );
+
+/// @brief Returns the textmode cursor XY coordinates.
+/// @param x_ptr The output X coordinate pointer.
+/// @param y_ptr The output Y coordinate pointer.
+d_monitor_getxy(x_ptr, y_ptr);
+
+/// @brief Sets the textmode cursor XY coordinates.
+/// @param x The X coordinate.
+/// @param y The Y coordinate.
+d_monitor_setxy(x, y);
 
 /// @brief Prints some handy information about the computer.
 i_print_sys_info( void );

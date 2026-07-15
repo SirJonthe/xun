@@ -23,6 +23,12 @@ public:
 		STATE_HOLD     // 11
 	};
 
+	static constexpr U16 MSG_KBDELTA = 0xdf0e;
+
+	enum {
+		IRQ_STATECHANGE = 26,
+	};
+
 private:
 	U8 m_state[KB_COUNT];
 
@@ -47,8 +53,13 @@ public:
 	/// @brief Initializes a Keyboard.
 	Keyboard( void );
 
-	/// @brief Sets the active bit on the key.
+	/// @brief Sets the active bit on the key to 1.
+	/// @param key The key index.
 	void SetActive(uint32_t key);
+
+	/// @brief Sets the active bit on the key to 0.
+	/// @param key The key index.
+	void SetInactive(uint32_t key);
 
 	/// @brief Returns the state of a key.
 	/// @param key The key index to return the state of.

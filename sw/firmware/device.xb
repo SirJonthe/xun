@@ -228,12 +228,24 @@ hwpoll(port_index, header_ptr, data_ptr)
 	return pending;
 }
 
-hwwait(header_ptr, data_ptr)
+hwwait(port_index, header_ptr, data_ptr)
+{
+	while (TRUE) {
+		auto i = hwwait_sweep(header_ptr, data_ptr);
+		if (i == port_index) {
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+hwwait_sweep(header_ptr, data_ptr)
 {
 	auto i = hwpend_sweep();
 	if (i == -1) {
-		asm { wfi. }
+		asm wfi.
 	}
 	i = hwpend_sweep();
-	return hwpoll(i, header_ptr, data_ptr);
+	hwpoll(i, header_ptr, data_ptr);
+	return i;
 }

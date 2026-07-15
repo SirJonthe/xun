@@ -244,6 +244,22 @@ bool Monitor::HandlePacket(const Packet &msg)
 				Error("Payload size not 8");
 			}
 			return true;
+		case MSG_TXTMODE_GET_XY:
+			{	
+				Info("Get XY");
+				U16 XY[2] = { U16(m_cx), U16(m_cy) };
+				Output(NewPacket(MSG_TXTMODE_GET_XY, XY, 2));
+			}
+			return true;
+		case MSG_TXTMODE_SET_XY:
+			Info("Set XY");
+			if (msg.header[Device::Packet::HEADER_SIZE] == 2) {
+				m_cx = msg.payload[0];
+				m_cy = msg.payload[1];
+			} else {
+				Error("Payload size not 2");
+			}
+			return true;
 	}
 	return false;
 }

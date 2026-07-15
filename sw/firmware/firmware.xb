@@ -5,6 +5,7 @@
 #include "time.xh"
 #include "device.xh"
 #include "syscall.xh"
+#include "str.xh"
 
 sleep(ms)
 {
@@ -53,9 +54,20 @@ const MON_MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the 
 const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
 const MON_MSG_TXTMODE_SCROLL_DOWN  = 0x123a;
 const MON_MSG_TXTMODE_SCROLL_UP    = 0x321b;
+const MON_MSG_TXTMODE_GET_XY       = 0xd0d0;
+const MON_MSG_TXTMODE_SET_XY       = 0xd00d;
+
+const KB_IRQ_STATE = 26;
 
 const NUM_PORTS = 16;    // The number of ports on this machine.
 auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
+
+const PORT_UNDEF = 0xffff; // The port index of an unfound device.
+
+auto __port_tty  = PORT_UNDEF; // The port index where the TTY device is connected.
+auto __port_mon  = PORT_UNDEF; // The port index where the monitor is connected.
+auto __port_kb   = PORT_UNDEF; // The port index where the keyboard is connected.
+auto __port_disk = PORT_UNDEF; // The port index where the disk reader is connected.
 
 /// @brief Identifies devices on each port from the given port index. Utilizes recursion to avoid having to wait excessively long for each device to respond in turn. Instead the maximum wait time is the wait time for a single non-responsive port (1sec).
 /// @param port_index The port index to start the scan from.
@@ -120,8 +132,6 @@ d_hwscan( void )
 	return TRUE;
 }
 
-const PORT_UNDEF = 0xffff; // The port index of an unfound device.
-
 d_find_hw(id)
 {
 	auto i = 0;
@@ -133,8 +143,6 @@ d_find_hw(id)
 	}
 	return i;
 }
-
-auto __port_tty = PORT_UNDEF; // The port index where the TTY device is connected.
 
 d_init_tty( void )
 {
@@ -269,11 +277,75 @@ err_stall( void )
 	}
 }
 
-auto __port_mon = PORT_UNDEF; // The port index where the monitor is connected.
-
 d_printf(format, values)
 {
 	return d_outf(__port_mon, format, values) || d_outf(__port_tty, format, values);
+}
+
+auto __gets_buf = NULL;
+auto __gets_buf_max = 0;
+auto __gets_buf_n = 0;
+auto __gets_loop = 0;
+
+__handle_kb(header_ptr, data_ptr)
+{
+	auto i = 0;
+	auto key_chars[PACKET_PAYLOAD_SIZE + 1]; // One extra for terminator.
+	auto key_chars_n = 0;
+	memset(key_chars, 0, PACKET_PAYLOAD_SIZE + 1);
+	
+	while (i < header_ptr[PACKET_HEADER_SIZE] && (__gets_buf_n - 1) < __gets_buf_max) {
+		if (data_ptr[i+1]) {
+			key_chars[key_chars_n] = data_ptr[i];
+			++key_chars_n;
+
+			if (data_ptr[i] != '\b') {
+				__gets_buf[__gets_buf_n] = data_ptr[i];
+				++__gets_buf_n;
+				__gets_buf[__gets_buf_n] = 0;
+			}
+
+			if (data_ptr[i] == '\n') {
+				__gets_loop = 0;
+			}
+		}
+		i += 2;
+	}
+
+	if ((__gets_buf_n - 1) >= __gets_buf_max) {
+		__gets_loop = 0;
+	}
+
+	d_printf(key_chars, NULL);
+}
+
+d_gets(buf, n)
+{
+	if (buf == NULL || n < 2) {
+		return 0;
+	}
+	__gets_buf = buf;
+	__gets_buf_max = n;
+	__gets_buf_n = 0;
+	__gets_buf[0] = 0;
+	__gets_loop = 1;
+	
+	auto prev_irq_fn = irq_get(KB_IRQ_STATE);
+	irq_set(KB_IRQ_STATE, __handle_kb);
+
+	auto pkt[PACKET_SIZE];
+	
+	while (__gets_loop) {
+		hwwait_sweep(pkt, pkt + PACKET_PAYLOAD);
+	}
+
+	irq_set(KB_IRQ_STATE, prev_irq_fn);
+
+	__gets_buf = NULL;
+	n = __gets_buf_n;
+	__gets_buf_n = 0;
+	buf[__gets_buf_n] = 0;
+	return n;
 }
 
 d_require_hw(id)
@@ -318,6 +390,31 @@ d_init_monitor(mode)
 d_init_monitor_txtmode( void )
 {
 	return d_init_monitor(MON_MSG_TXTMODE);
+}
+
+d_monitor_getxy(x_ptr, y_ptr)
+{
+	auto pkt[PACKET_SIZE];
+	if (hwpusht(__port_mon, MON_MSG_TXTMODE_GET_XY, pkt + PACKET_PAYLOAD, 0, CLOCKS_PER_SEC) == 0) {
+		return;
+	}
+	pkt[PACKET_HEADER_TYPE] = 0;
+	while (pkt[PACKET_HEADER_TYPE] != MON_MSG_TXTMODE_GET_XY) {
+		auto waitstr[] = "waiting...";
+		auto donestr[] = "done (%x)\n";
+		d_printf(waitstr, NULL);
+		hwwait(__port_mon, pkt, pkt + PACKET_PAYLOAD);
+		auto prm[] = {pkt[PACKET_HEADER_TYPE]};
+		d_printf(donestr, prm);
+	}
+	*x_ptr = pkt[PACKET_PAYLOAD + 0];
+	*y_ptr = pkt[PACKET_PAYLOAD + 1];
+}
+
+d_monitor_setxy(x, y)
+{
+	auto data[2] = { x, y };
+	return hwpusht(__port_mon, MON_MSG_TXTMODE_SET_XY, data, 2, CLOCKS_PER_SEC);
 }
 
 i_print_sys_info( void )
@@ -407,14 +504,10 @@ i_print_sys_info( void )
 	}
 }
 
-auto __port_kb = PORT_UNDEF; // The port index where the keyboard is connected.
-
 d_init_keyboard( void )
 {
 	__port_kb = d_require_hw(HWID_KB);
 }
-
-auto __port_disk = PORT_UNDEF; // The port index where the disk reader is connected.
 
 d_init_diskreader( void )
 {

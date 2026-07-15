@@ -18,6 +18,8 @@ public:
 	static constexpr U16      MSG_TXTMODE_LOADFONTMETA = 0xaffe;         // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
 	static constexpr U16      MSG_TXTMODE_SCROLL_DOWN  = 0x123a;         // Packet type that scrolls the character map down (only when in text mode).
 	static constexpr U16      MSG_TXTMODE_SCROLL_UP    = 0x321b;         // Packet type that scrolls the character map up (only when in text mode).
+	static constexpr U16      MSG_TXTMODE_GET_XY       = 0xd0d0;         // When this packet is received, it sends back the X and Y coordinates of the caret using the same packet type.
+	static constexpr U16      MSG_TXTMODE_SET_XY       = 0xd00d;         // Packet type that sets the 
 
 	/// @brief A single 32-bit color.
 	struct Color

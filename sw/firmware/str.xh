@@ -5,6 +5,12 @@
 /// @returns 1 if the strings exactly match. 0 otherwise.
 strcmp(a, b, n);
 
+/// @brief Sets all elements in destination to the given value.
+/// @param dst The destination pointer.
+/// @param val The value to set the elements at the destination pointer.
+/// @param n The number of elements at the destination pointer to set.
+memset(dst, val, n);
+
 /// @brief Copies memory from source to destination.
 /// @param dst The destination memory.
 /// @param src The source memory.

@@ -6,29 +6,7 @@ printf(format, values)
 	return d_printf(format, values);
 }
 
-auto __caret_blink = 1;
-
-_hnd_caret_tmr(msg)
-{
-	__caret_blink = (__caret_blink + 1) & 1;
-}
-
-_hnd_kb(msg)
-{
-	__caret_blink = 1;
-}
-
 gets(buf, n)
 {
-//	irq_set(, _hnd_caret_tmr);
-//	irq_set(, _hnd_kb);
-
-	auto loop = 1;
-	while (loop) {
-//		loop = hwwait(); // TODO: port, header, data
-		// just read from the payload rather than keeping a separate state for this...
-	}
-
-//	irq_set(, NULL);
-//	irq_set(, NULL);
+	return d_gets(buf, n);
 }
