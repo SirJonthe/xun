@@ -30,7 +30,8 @@ public:
 	};
 
 private:
-	U8 m_state[KB_COUNT];
+	U8   m_state[KB_COUNT];
+	bool m_delta;
 
 private:
 	/// @brief Shifts the state of the keyboard.
@@ -41,13 +42,13 @@ private:
 
 protected:
 	/// @brief Updates the keyboard state.
-	virtual void DoCycle( void );
+	void DoCycle( void ) override;
 
 	/// @brief Clears the keyboard state.
-	virtual void DoPowerOn( void );
+	void DoPowerOn( void ) override;
 
 	/// @brief Clears the keyboard state.
-	virtual void DoPowerOff( void );
+	void DoPowerOff( void ) override;
 
 public:
 	/// @brief Initializes a Keyboard.
