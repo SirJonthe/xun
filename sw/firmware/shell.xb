@@ -94,7 +94,7 @@ auto host_n;
 
 _host_reset( void )
 {
-	auto default_host[] = "xun";
+	auto default_host[] = "nux";
 	memcpy(host, default_host, sizeof(default_host));
 	host_n = sizeof(default_host);
 }

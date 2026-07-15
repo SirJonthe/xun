@@ -290,9 +290,9 @@ auto __gets_loop = 0;
 __handle_kb(header_ptr, data_ptr)
 {
 	auto i = 0;
-	auto key_chars[PACKET_PAYLOAD_SIZE + 1]; // One extra for terminator.
+	auto key_chars[PACKET_PAYLOAD_CAP + 1]; // One extra for terminator.
 	auto key_chars_n = 0;
-	memset(key_chars, 0, PACKET_PAYLOAD_SIZE + 1);
+	memset(key_chars, 0, PACKET_PAYLOAD_CAP + 1);
 	
 	while (i < header_ptr[PACKET_HEADER_SIZE] && (__gets_buf_n - 1) < __gets_buf_max) {
 		if (data_ptr[i+1]) {

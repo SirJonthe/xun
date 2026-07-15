@@ -150,7 +150,7 @@ bool Device::Poll( void )
 		if (p.header[Packet::HEADER_TYPE] == Packet::TYPE_MULTIPACK) {
 			bool ret = true;
 			U16 i = 0;
-			const U16 MAX_PAYLOAD = p.header[Packet::HEADER_SIZE] <= Packet::PAYLOAD_WORD_SIZE ? p.header[Packet::HEADER_SIZE] : Packet::PAYLOAD_WORD_SIZE;
+			const U16 MAX_PAYLOAD = p.header[Packet::HEADER_SIZE] <= Packet::PAYLOAD_WORD_CAP ? p.header[Packet::HEADER_SIZE] : Packet::PAYLOAD_WORD_CAP;
 			while (i < MAX_PAYLOAD) {
 				Packet n;
 				for (U16 j = 0; j < Packet::HEADER_WORD_SIZE; ++j) {

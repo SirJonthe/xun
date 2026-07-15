@@ -25,9 +25,7 @@ public:
 
 	static constexpr U16 MSG_KBDELTA = 0xdf0e;
 
-	enum {
-		IRQ_STATECHANGE = 26,
-	};
+	static constexpr U16 IRQ_STATECHANGE = 26;
 
 private:
 	U8   m_state[KB_COUNT];

@@ -55,11 +55,11 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 				const Addr32 loc = { msg.payload[0], msg.payload[1] };
 //				if (loc.Flat() < GetCapacity()) {
 //					uint32_t n = 2;
-//					const uint32_t next = loc + Packet::PAYLOAD_WORD_SIZE - 2 < GetCapacity() ? loc + Packet::PAYLOAD_WORD_SIZE - 2 : GetCapacity();
+//					const uint32_t next = loc + Packet::PAYLOAD_WORD_CAP - 2 < GetCapacity() ? loc + Packet::PAYLOAD_WORD_CAP - 2 : GetCapacity();
 //					for (; n < next; ++n) {
 //						r.payload[n] = Read(loc + n - 2).u;
 //					}
-//					for (; n < Packet::PAYLOAD_WORD_SIZE; ++n) {
+//					for (; n < Packet::PAYLOAD_WORD_CAP; ++n) {
 //						r.payload[n] = 0;
 //					}
 //					r.payload[0] = (next & 0xffff0000) >> 16;
@@ -82,7 +82,7 @@ bool DiskReader::HandlePacket(const Device::Packet &msg)
 //				const Addr32 loc = { msg.payload[0], msg.payload[1] };
 //				if (loc < GetCapacity()) {
 //					uint32_t n = 2;
-//					const uint32_t next = loc + Packet::PAYLOAD_WORD_SIZE - 2 < GetCapacity() ? loc + Packet::PAYLOAD_WORD_SIZE - 2 : GetCapacity();
+//					const uint32_t next = loc + Packet::PAYLOAD_WORD_CAP - 2 < GetCapacity() ? loc + Packet::PAYLOAD_WORD_CAP - 2 : GetCapacity();
 //					for (; n < next; ++n) {
 //						Write(loc + n - 2, XWORD{msg.payload[n]});
 //					}

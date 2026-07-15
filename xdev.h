@@ -34,10 +34,10 @@ public:
 			HEADER_WORD_SIZE // The number of words in the header.
 		};
 		static constexpr uint32_t PACKET_WORD_SIZE  = 32;                                  // The total size (in words) of the packet.
-		static constexpr uint32_t PAYLOAD_WORD_SIZE = PACKET_WORD_SIZE - HEADER_WORD_SIZE; // The number of words in the payload.
+		static constexpr uint32_t PAYLOAD_WORD_CAP = PACKET_WORD_SIZE - HEADER_WORD_SIZE; // The number of words in the payload.
 		
 		U16 header[HEADER_WORD_SIZE];   // The packet header.
-		U16 payload[PAYLOAD_WORD_SIZE]; // The packet payload (user data).
+		U16 payload[PAYLOAD_WORD_CAP]; // The packet payload (user data).
 	};
 
 protected:

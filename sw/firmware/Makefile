@@ -1,4 +1,5 @@
-main.xb
-time.xb
-sys_systable.xb
-firmware.xb
+# Output binaries for
+# * Firmware
+# * Unix tools
+# * Place in some logical Unix file system hierarchy
+# * Bundle as TAR

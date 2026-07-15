@@ -11,7 +11,7 @@ enum {
 };
 
 const PACKET_SIZE = 32;
-const PACKET_PAYLOAD_SIZE = PACKET_SIZE - PACKET_HEADER_WORD_SIZE;
+const PACKET_PAYLOAD_CAP = PACKET_SIZE - PACKET_HEADER_WORD_SIZE;
 
 /// @brief Returns the CPU ID (unique to the CPU architecture).
 /// @return The CPU ID.

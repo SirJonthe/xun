@@ -202,7 +202,7 @@ bool Monitor::HandlePacket(const Packet &msg)
 		case MSG_TXTMODE_LOADFONT:
 			Info("Got font data");
 			for (uint32_t i = 0; i < msg.header[Device::Packet::HEADER_SIZE]; ++i) {
-				const uint32_t n = (msg.header[Device::Packet::HEADER_SEQ] * Device::Packet::PAYLOAD_WORD_SIZE + i) * 2;
+				const uint32_t n = (msg.header[Device::Packet::HEADER_SEQ] * Device::Packet::PAYLOAD_WORD_CAP + i) * 2;
 				if (n >= MEMORY_SIZE - 1) {
 					Error("Out of memory");
 					break;

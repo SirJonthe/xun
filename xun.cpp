@@ -47,7 +47,7 @@ void Computer::Output(U16 port_index, U16 header_addr, U16 data_addr)
 		for (XWORD i = XWORD{0}; i.u < Packet::HEADER_WORD_SIZE; ++i.u) {
 			p.header[i.u] = ATN(i, header_addr).u;
 		}
-		for (XWORD i = XWORD{0}; i.u < Packet::PAYLOAD_WORD_SIZE; ++i.u) {
+		for (XWORD i = XWORD{0}; i.u < Packet::PAYLOAD_WORD_CAP; ++i.u) {
 			p.payload[i.u] = ATN(i, data_addr).u;
 		}
 		GetPort(port_index)->Output(p);
@@ -72,7 +72,7 @@ void Computer::Peek(U16 port_index, U16 header_addr, U16 data_addr)
 		for (XWORD i = XWORD{0}; i.u < Packet::HEADER_WORD_SIZE; ++i.u) {
 			ATN(i, header_addr).u = p.header[i.u];
 		}
-		for (XWORD i = XWORD{0}; i.u < Packet::PAYLOAD_WORD_SIZE; ++i.u) {
+		for (XWORD i = XWORD{0}; i.u < Packet::PAYLOAD_WORD_CAP; ++i.u) {
 			ATN(i, data_addr).u = p.payload[i.u];
 		}
 	} else {
@@ -141,7 +141,7 @@ void Computer::DoCycle( void )
 		POP_STACK(1);
 		break;
 	case XIS::AT:
-		if (TOP.u < MEM_SIZE_MAX) {
+		if (uint32_t(TOP.u) < MEM_SIZE_MAX) {
 			TOP = RAM[TOP.u];
 		} else {
 			SetError(ERR_MEMBOUND);
