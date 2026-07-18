@@ -23,9 +23,15 @@ private:
 	{
 		friend class Computer;
 
+	private:
+		Computer *m_comp;
+
+	protected:
+		void DoInput( void ) override;
+
 	public:
 		/// @brief Constructs an IOPort object.
-		IOPort( void );
+		IOPort(Computer *comp);
 	};
 
 	/// @brief Returns the port at the given index.
@@ -114,14 +120,14 @@ private:
 protected:
 	/// @brief Turns the power off.
 	/// @note Not in use.
-	void DoPowerOff( void );
+	void DoPowerOff( void ) override;
 
 	/// @brief Turns the power on.
 	/// @note Not in use.
-	void DoPowerOn( void );
+	void DoPowerOn( void ) override;
 
 	/// @brief Executes a single cycle on the machine.
-	void DoCycle( void );
+	void DoCycle( void ) override;
 
 public:
 	/// @brief Constructs a new Computer object.
@@ -258,6 +264,10 @@ public:
 	/// @brief Returns the value of the C offset pointer.
 	/// @return The value of the C offset pointer.
 	U16 StackOffsetC( void ) const;
+
+	/// @brief Checks the ports if they have pending messages to be handled.
+	/// @return True if there is at least one pending message on at least one port.
+	bool Pending( void ) const override; // TODO: I think this is a hack... We should ideally we forwarding messages to the main computer input queue. That way we get a unified input queue that utilizes what we already have on-board.
 };
 
 #endif // XUN_H

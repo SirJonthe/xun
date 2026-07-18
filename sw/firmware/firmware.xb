@@ -282,31 +282,65 @@ d_printf(format, values)
 	return d_outf(__port_mon, format, values) || d_outf(__port_tty, format, values);
 }
 
-auto __gets_buf = NULL;
+enum {
+	KB_SPACE, KB_BACKSPACE, KB_ENTER,
+	KB_A, KB_B, KB_C, KB_D, KB_E, KB_F, KB_G, KB_H, KB_I, KB_J,
+	KB_K, KB_L, KB_M, KB_N, KB_O, KB_P, KB_Q, KB_R, KB_S, KB_T,
+	KB_U, KB_V, KB_W, KB_X, KB_Y, KB_Z,
+	KB_0, KB_1, KB_2, KB_3, KB_4, KB_5, KB_6, KB_7, KB_8, KB_9,
+	
+	// Keys that modify the behavior of other keys
+	KB_MOD_SHIFT,
+	
+	KB_COUNT
+};
+
+static __kblayout_lo[] = " \b\nabcdefghijklmnopqrstuvwxyz0123456789";
+static __kblayout_up[] = " \b\nABCDEFGHIJKLMNOPQRSTUVWXYZ)!@#$%^&*(";
+auto   __kblayout[]    = { __kblayout_lo, __kblayout_up };
+
+auto __gets_buf     = NULL;
 auto __gets_buf_max = 0;
-auto __gets_buf_n = 0;
-auto __gets_loop = 0;
+auto __gets_buf_n   = 0;
+auto __gets_loop    = 0;
+auto __gets_secret  = 0;
 
 __handle_kb(header_ptr, data_ptr)
 {
-	auto i = 0;
-	auto key_chars[PACKET_PAYLOAD_CAP + 1]; // One extra for terminator.
+	auto msg[] = "keys detected!";
+	d_printf(msg, NULL);
+
+	auto mode        = 0;
+	auto i           = 0;
 	auto key_chars_n = 0;
+	auto key_chars[PACKET_PAYLOAD_CAP + 1]; // One extra for terminator.
 	memset(key_chars, 0, PACKET_PAYLOAD_CAP + 1);
 	
 	while (i < header_ptr[PACKET_HEADER_SIZE] && (__gets_buf_n - 1) < __gets_buf_max) {
-		if (data_ptr[i+1]) {
-			key_chars[key_chars_n] = data_ptr[i];
-			++key_chars_n;
-
-			if (data_ptr[i] != '\b') {
-				__gets_buf[__gets_buf_n] = data_ptr[i];
-				++__gets_buf_n;
-				__gets_buf[__gets_buf_n] = 0;
+		if (data_ptr[i] == KB_MOD_SHIFT) {
+			mode = (data_ptr[i+1] & 1);
+		} else if (data_ptr[i+1] & 1) {
+			
+			auto ch = __kblayout[mode][data_ptr[i]];
+			
+			if (ch != '\n') {
+				if (__gets_secret) {
+					key_chars[key_chars_n] = '*';
+				} else {
+					key_chars[key_chars_n] = ch;
+				}
+				++key_chars_n;
+			} else {
+				__gets_loop = 0;
 			}
 
-			if (data_ptr[i] == '\n') {
-				__gets_loop = 0;
+			if (ch != '\b') {
+				__gets_buf[__gets_buf_n] = ch;
+				++__gets_buf_n;
+				__gets_buf[__gets_buf_n] = 0;
+			} else {
+				--__gets_buf_n;
+				__gets_buf[__gets_buf_n] = 0;
 			}
 		}
 		i += 2;
@@ -333,10 +367,26 @@ d_gets(buf, n)
 	auto prev_irq_fn = irq_get(KB_IRQ_STATE);
 	irq_set(KB_IRQ_STATE, __handle_kb);
 
+	auto prm[3];
+	auto fmt[] = "%x, %x, %u";
+
+	//
+	// Finding: hwwait_sweep seems to be overwriting the data coming after the payload...
+	//
+
 	auto pkt[PACKET_SIZE];
+	auto str0[] = "*"; // ERROR: Seems like hwwait_sweep overwrites this...
 	
+	prm[0] = str0;
+	prm[1] = pkt;
+	prm[2] = PACKET_SIZE;
+
+	//d_printf(fmt, prm);
+	d_printf(str0, NULL);
 	while (__gets_loop) {
-		hwwait_sweep(pkt, pkt + PACKET_PAYLOAD);
+		//hwwait_sweep(pkt, pkt + PACKET_PAYLOAD); // ERROR: I think this is writing too much memory in the payload.
+		d_printf(str0, NULL);
+		sleep(1000);
 	}
 
 	irq_set(KB_IRQ_STATE, prev_irq_fn);

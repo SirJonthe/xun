@@ -172,7 +172,7 @@ bool Device::Poll( void )
 	return false;
 }
 
-bool Device::HandlePacket(const Packet &msg) 
+bool Device::HandlePacket(const Packet &msg)
 {
 	switch (msg.header[Packet::HEADER_TYPE]) {
 		case Packet::TYPE_ERR:        /*Info("Got ERR");*/        return true;
@@ -195,6 +195,9 @@ void Device::DoPowerOn( void )
 void Device::DoPowerOff( void )
 {}
 
+void Device::DoInput( void )
+{}
+
 void Device::SetExternalState(uint32_t bit, bool state, uint32_t timer_ms)
 {
 	if (IsPoweredOn()) {
@@ -210,8 +213,15 @@ void Device::SetExternalState(uint32_t bit, bool state, uint32_t timer_ms)
 
 void Device::WaitForInput( void )
 {
-	if (IsPoweredOn()) {
+	if (IsPoweredOn() && !Pending()) { // TODO: This won't work because Pending checks the internal queue, not the port queues
 		m_wait_for_input = true;
+	}
+}
+
+void Device::Resume( void )
+{
+	if (IsPoweredOn()) {
+		m_wait_for_input = false;
 	}
 }
 
@@ -255,11 +265,8 @@ void Device::PowerOn( void )
 void Device::Cycle( void )
 {
 	if (IsPoweredOn()) {
-		if (m_wait_for_input && Pending()) {
-			m_wait_for_input = false;
-		}
 		if (m_cycles_per_second > 0 && !m_wait_for_input) {
-			Poll();
+			Poll(); // TODO: This needs a poll rate (integer that counts down to zero at every loop, calls Poll() when zero or less, then adds poll rate time to integer).
 			DoCycle();
 		}
 		m_clock_ns += m_ns_per_cycle;
@@ -270,12 +277,9 @@ void Device::Cycle( void )
 void Device::Run(uint32_t ms)
 {
 	if (IsPoweredOn()) {
-		if (m_wait_for_input && Pending()) {
-			m_wait_for_input = false;
-		}
 		m_exec_ns += uint64_t(ms) * 1000000ULL;
 		while (!m_wait_for_input && IsPoweredOn() && m_cycles_per_second > 0 && m_exec_ns >= m_ns_per_cycle) {
-			Poll();
+			Poll(); // TODO: This needs a poll rate (integer that counts down to zero at every loop, calls Poll() when zero or less, then adds poll rate time to integer).
 			DoCycle();
 			m_clock_ns += m_ns_per_cycle;
 			m_exec_ns -= m_ns_per_cycle;
@@ -291,20 +295,6 @@ void Device::Run(uint32_t ms)
 		}
 		CountDownExternalState(ms);
 	}
-
-//	if (m_cycles_per_second > 0 && IsPoweredOn()) {
-//		m_exec_ns += uint64_t(ms) * 1000000ULL;
-//		while (m_cycles_per_second > 0 && m_exec_ns >= m_ns_per_cycle && IsPoweredOn()) {
-//			Poll();
-//			DoCycle();
-//			m_clock_ns += m_ns_per_cycle;
-//			m_exec_ns -= m_ns_per_cycle;
-//		}
-//		if (m_cycles_per_second == 0) {
-//			m_exec_ns = 0;
-//		}
-//	}
-//	CountDownExternalState(ms);
 }
 
 void Device::PowerOff( void )
@@ -432,8 +422,10 @@ void Device::Disconnect( void )
 void Device::Input(const Device::Packet &msg)
 {
 	if (IsPoweredOn()) {
+		m_wait_for_input = false;
 		if (IsFull()) { Warn("Input buffer full"); }
 		m_in_queue.Pass(msg);
+		DoInput();
 		if (m_cycles_per_second == 0) {
 			m_clock_ns = msg.header[Packet::HEADER_CLOCK] * 1000000ULL;
 			Poll();

@@ -134,7 +134,7 @@ protected:
 
 	/// @brief Checks if there are unconsumed messages on the in-queue.
 	/// @return True if there are messages on the in-queue.
-	bool Pending( void ) const;
+	virtual bool Pending( void ) const; // HACK: This should not be virtual.
 
 	/// @brief Sends a message to the connected device's input queue.
 	/// @param msg The message.
@@ -168,7 +168,12 @@ protected:
 	void SetExternalState(uint32_t bit, bool state, uint32_t timer_ms = STATE_TIMER_FOREVER); // TODO: Make this a LED strip device instead of taking a cost for every device.
 
 	/// @brief Stops cycling and just waits until there is anything on the message queue. When there is at least one message, cycling resumes until WaitForInput is called again.
+	/// @sa Resume
 	void WaitForInput( void );
+
+	/// @brief Resumes execution as normal from WaitForInput.
+	/// @sa WaitForInput
+	void Resume( void );
 
 protected:
 	/// @brief Abstract function that is intended to handle message types. Overwrite this to handle messages in a custom manner.
@@ -185,6 +190,9 @@ protected:
 
 	/// @brief Overwrite this to perform some custom action during the power off phase.
 	virtual void DoPowerOff( void );
+
+	/// @brief Overwrite this to perform some custom action when there is an input.
+	virtual void DoInput( void );
 
 public:
 	/// @brief Creates a new Device object.

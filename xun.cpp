@@ -16,8 +16,16 @@
 
 #define XUN_NAME "XERXES(tm) Unified Nanocontroller [XUN(tm)]"
 
-Computer::IOPort::IOPort( void ) : Device(XUN_NAME, XHWID_XUN)
-{}
+void Computer::IOPort::DoInput( void )
+{
+	m_comp->Resume();
+	Info("Computer resumed");
+}
+
+Computer::IOPort::IOPort(Computer *comp) : Device(XUN_NAME, XHWID_XUN), m_comp(comp)
+{
+	// Leave cycles cycles per second above 0 because setting it to 0 means that the Poll function is called immediately on input. If that happens the message is consumed, meaning it is not available for the computer to read anymore.
+}
 
 Computer::IOPort *Computer::GetPort(U16 index)
 {
@@ -125,7 +133,7 @@ void Computer::DoPowerOn( void )
 		AT(XWORD{U16(i)}).u = U16(rand());
 	}
 }
-
+#include <sstream>
 void Computer::DoCycle( void )
 {
 	I.u = READI;
@@ -506,7 +514,21 @@ void Computer::DoCycle( void )
 		POP_STACK(1);
 		break;
 	case XIS::WFI:
-		WaitForInput();
+		{
+			std::ostringstream sout; // TODO: REMOVEME
+			for (uint32_t i = 0; i < NUM_PORTS; ++i) {  // TODO: REMOVEME
+				sout << m_ports[i].Pending() << " ";  // TODO: REMOVEME
+			}  // TODO: REMOVEME
+			Info(sout.str().c_str());  // TODO: REMOVEME
+
+			WaitForInput();
+			
+			if (IsWaitingForInput()) {  // TODO: REMOVEME
+				Info("Computer waiting");  // TODO: REMOVEME
+			} else {  // TODO: REMOVEME
+				Info("Cannot wait");  // TODO: REMOVEME
+			}  // TODO: REMOVEME
+		}
 		break;
 	default:
 		SetError(ERR_UNDEF);
@@ -514,7 +536,7 @@ void Computer::DoCycle( void )
 	}
 }
 
-Computer::Computer(bool debug) : Device(XUN_NAME, XHWID_XUN), m_storage(1<<21), m_debug(debug)
+Computer::Computer(bool debug) : Device(XUN_NAME, XHWID_XUN), m_ports{ IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this), IOPort(this) }, m_storage(1<<21), m_debug(debug)
 {
 	SetCyclesPerSecond(10000000U);
 
@@ -670,4 +692,14 @@ U16 Computer::StackOffsetB( void ) const
 U16 Computer::StackOffsetC( void ) const
 {
 	return C.u;
+}
+
+bool Computer::Pending( void ) const
+{
+	for (uint32_t i = 0; i < NUM_PORTS; ++i) {
+		if (m_ports[i].Pending()) {
+			return true;
+		}
+	}
+	return false;
 }
