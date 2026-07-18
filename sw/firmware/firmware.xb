@@ -86,7 +86,7 @@ __hwid_from(port_index)
 	auto size;
 	auto irq;
 	auto mid;
-	auto data[MAX_PAYLOAD_SIZE];
+	auto data[PACKET_PAYLOAD_CAP];
 
 	// First check if there is already an event on the bus we can peek.
 	if (hwpeek(port_index, &id, data) == 1) {
@@ -307,9 +307,6 @@ auto __gets_secret  = 0;
 
 __handle_kb(header_ptr, data_ptr)
 {
-	auto msg[] = "keys detected!";
-	d_printf(msg, NULL);
-
 	auto mode        = 0;
 	auto i           = 0;
 	auto key_chars_n = 0;
@@ -358,35 +355,19 @@ d_gets(buf, n)
 	if (buf == NULL || n < 2) {
 		return 0;
 	}
-	__gets_buf = buf;
+	__gets_buf     = buf;
 	__gets_buf_max = n;
-	__gets_buf_n = 0;
-	__gets_buf[0] = 0;
-	__gets_loop = 1;
+	__gets_buf_n   = 1;
+	__gets_buf[0]  = 0;
+	__gets_loop    = 1;
 	
 	auto prev_irq_fn = irq_get(KB_IRQ_STATE);
 	irq_set(KB_IRQ_STATE, __handle_kb);
-
-	auto prm[3];
-	auto fmt[] = "%x, %x, %u";
-
-	//
-	// Finding: hwwait_sweep seems to be overwriting the data coming after the payload...
-	//
-
-	auto pkt[PACKET_SIZE];
-	auto str0[] = "*"; // ERROR: Seems like hwwait_sweep overwrites this...
 	
-	prm[0] = str0;
-	prm[1] = pkt;
-	prm[2] = PACKET_SIZE;
+	auto pkt[PACKET_SIZE];
 
-	//d_printf(fmt, prm);
-	d_printf(str0, NULL);
 	while (__gets_loop) {
-		//hwwait_sweep(pkt, pkt + PACKET_PAYLOAD); // ERROR: I think this is writing too much memory in the payload.
-		d_printf(str0, NULL);
-		sleep(1000);
+		hwwait_sweep(pkt, pkt + PACKET_PAYLOAD);
 	}
 
 	irq_set(KB_IRQ_STATE, prev_irq_fn);

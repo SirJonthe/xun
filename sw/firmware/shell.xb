@@ -94,7 +94,7 @@ auto host_n;
 
 _host_reset( void )
 {
-	auto default_host[] = "nux";
+	auto default_host[] = "amestros";
 	memcpy(host, default_host, sizeof(default_host));
 	host_n = sizeof(default_host);
 }
@@ -116,6 +116,7 @@ sh_start( void )
 
 		auto in[256];
 		auto in_n = gets(in, sizeof(in));
+
 		// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
 	}
 }

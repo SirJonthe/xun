@@ -25,7 +25,7 @@ void Keyboard::DoCycle( void )
 		Info("State delta");
 		// TODO: Pressing all buttons at once will lead to overflow on the payload...
 		Device::Packet delta = NewPacket(MSG_KBDELTA);
-		delta.header[delta.HEADER_IRQ] = IRQ_STATECHANGE;
+		delta.header[Device::Packet::HEADER_IRQ] = IRQ_STATECHANGE;
 		for (uint32_t i = 0; i < KB_COUNT; ++i) {
 			if (m_state[i] != 0xf && m_state[i] != 0x0) {
 				if (delta.header[delta.HEADER_SIZE] + 2 > Device::Packet::PAYLOAD_WORD_CAP) {

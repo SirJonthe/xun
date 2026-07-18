@@ -27,7 +27,6 @@ auto __mid_counter = 0; // Message ID counter.
 // Constants.
 const PACKET_TYPE_PING = 3; // The constant representing a ping request.
 const PACKET_TYPE_DATA = 5; // The constant representing data transmission.
-const MAX_PAYLOAD_SIZE = 32 - PACKET_HEADER_WORD_SIZE;
 
 hwfull(port_index)
 {
@@ -59,8 +58,8 @@ hwpusht(port_index, msg_type, data_ptr, len, max_ms)
 	}
 
 	// Split the data up into several numbered packages.
-	auto n = len / MAX_PAYLOAD_SIZE;
-	if (len % MAX_PAYLOAD_SIZE > 0 || n == 0) {
+	auto n = len / PACKET_PAYLOAD_CAP;
+	if (len % PACKET_PAYLOAD_CAP > 0 || n == 0) {
 		++n;
 	}
 	while (n-- > 0) {
@@ -69,9 +68,9 @@ hwpusht(port_index, msg_type, data_ptr, len, max_ms)
 				return 0;
 			}
 		}
-		if (len > MAX_PAYLOAD_SIZE) {
-			size = MAX_PAYLOAD_SIZE;
-			len -= MAX_PAYLOAD_SIZE;
+		if (len > PACKET_PAYLOAD_CAP) {
+			size = PACKET_PAYLOAD_CAP;
+			len -= PACKET_PAYLOAD_CAP;
 		} else {
 			size = len;
 			len = 0;
@@ -80,7 +79,7 @@ hwpusht(port_index, msg_type, data_ptr, len, max_ms)
 			put &id, data_ptr.
 			pass. // Put the address of the header and the data, and send the values at the addresses to the selected port.
 		}
-		data_ptr += MAX_PAYLOAD_SIZE;
+		data_ptr += PACKET_PAYLOAD_CAP;
 		++seq;
 	}
 	return 1;
@@ -128,7 +127,7 @@ hwid(port_index)
 	auto size;
 	auto irq;
 	auto mid;
-	auto data[MAX_PAYLOAD_SIZE];
+	auto data[PACKET_PAYLOAD_CAP];
 
 	// First check if there is already an event on the bus we can peek.
 	if (hwpeek(port_index, &id, data) == 0) {
@@ -216,6 +215,10 @@ irq_get(irq)
 
 hwpoll(port_index, header_ptr, data_ptr)
 {
+	{
+		// ERROR: When commenting out this variable the IRQ functions are not called...
+		auto c;
+	}
 	auto pending = hwpeek(port_index, header_ptr, data_ptr);
 	if (pending) {
 		asm ack.

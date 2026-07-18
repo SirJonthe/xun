@@ -6,12 +6,12 @@ enum {
 	PACKET_HEADER_SIZE,      // The number of words in the payload.
 	PACKET_HEADER_IRQ,       // The IRQ to call on the receiving device.
 	PACKET_HEADER_MID,       // The message ID.
-	PACKET_HEADER_WORD_SIZE, // The number of words in the packet header.
-	PACKET_PAYLOAD           // The start of the packet payload.
+	PACKET_HEADER_WORD_SIZE  // The number of words in the packet header.
 };
 
-const PACKET_SIZE = 32;
-const PACKET_PAYLOAD_CAP = PACKET_SIZE - PACKET_HEADER_WORD_SIZE;
+const PACKET_SIZE        = 32; // The number of words in a full packet.
+const PACKET_PAYLOAD     = PACKET_HEADER_WORD_SIZE; // The index of the payload offset from the start of a packet.
+const PACKET_PAYLOAD_CAP = PACKET_SIZE - PACKET_HEADER_WORD_SIZE; // The number of words in a full payload.
 
 /// @brief Returns the CPU ID (unique to the CPU architecture).
 /// @return The CPU ID.
