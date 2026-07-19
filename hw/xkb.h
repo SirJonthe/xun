@@ -13,6 +13,7 @@ public:
 		KB_K, KB_L, KB_M, KB_N, KB_O, KB_P, KB_Q, KB_R, KB_S, KB_T,
 		KB_U, KB_V, KB_W, KB_X, KB_Y, KB_Z,
 		KB_0, KB_1, KB_2, KB_3, KB_4, KB_5, KB_6, KB_7, KB_8, KB_9,
+		KB_MIN, KB_EQ, KB_COMMA, KB_PERIOD, KB_FSLASH, KB_BSLASH, KB_LBRACK, KB_RBRACK, KB_SCOLON, KB_SQUOTE,
 		
 		// Keys that modify the behavior of other keys
 		KB_MOD_SHIFT,

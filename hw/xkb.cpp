@@ -22,13 +22,12 @@ void Keyboard::Clear( void )
 void Keyboard::DoCycle( void )
 {
 	if (m_delta) {
-		Info("State delta");
 		// TODO: Pressing all buttons at once will lead to overflow on the payload...
 		Device::Packet delta = NewPacket(MSG_KBDELTA);
 		delta.header[Device::Packet::HEADER_IRQ] = IRQ_STATECHANGE;
 		for (uint32_t i = 0; i < KB_COUNT; ++i) {
 			if (m_state[i] != 0xf && m_state[i] != 0x0) {
-				if (delta.header[delta.HEADER_SIZE] + 2 > Device::Packet::PAYLOAD_WORD_CAP) {
+				if (delta.header[Device::Packet::HEADER_SIZE] + 2 > Device::Packet::PAYLOAD_WORD_CAP) {
 					Error("State overflow"); // Shitty solution...
 					break;
 				}

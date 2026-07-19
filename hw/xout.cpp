@@ -171,22 +171,39 @@ bool Monitor::HandlePacket(const Packet &msg)
 				U8 *line = GetCurrentCharMapLine();
 				U8 *colors = GetCurrentColorMapLine();
 				for (uint32_t i = 0; i < msg.header[Device::Packet::HEADER_SIZE]; ++i) {
-					if (msg.payload[i] == '\a') {
+					const U16 col_ch = msg.payload[i];
+					switch (char(col_ch)) {
+					case '\a':
 						Info("<BEEP>");
 						SetExternalState(0, 1, 500);
-					} else if (msg.payload[i] != '\n') {
-						line[m_cx] = msg.payload[i] & 0x00ff;
-						colors[m_cx] = (msg.payload[i] & 0xff00) >> 8;
+						break;
+					case '\n':
+						Newline();
+						line = GetCurrentCharMapLine();
+						colors = GetCurrentColorMapLine();
+						break;
+					case '\b':
+						if (m_cx == 0) {
+							if (m_cy > 0) {
+								--m_cy;
+							}
+							m_cx = GetCharMapWidth();
+						} else {
+							--m_cx;
+						}
+						line[m_cx] = ' ';
+						colors[m_cx] = 0;
+						break;
+					default:
+						line[m_cx] = col_ch & 0x00ff;
+						colors[m_cx] = (col_ch & 0xff00) >> 8;
 						++m_cx;
 						if (m_cx >= GetCharMapWidth()) {
 							Newline();
 							line = GetCurrentCharMapLine();
 							colors = GetCurrentColorMapLine();
 						}
-					} else {
-						Newline();
-						line = GetCurrentCharMapLine();
-						colors = GetCurrentColorMapLine();
+						break;
 					}
 				}
 			} else if (m_mode == MSG_PIXMODE) {

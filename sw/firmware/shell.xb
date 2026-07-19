@@ -109,13 +109,20 @@ sh_start( void )
 
 	while (sh_run) {
 		{
-			static prompt[] = "[%s@%s %s] $ ";
+			static prompt[] = "\n[%s@%s %s] $ ";
 			auto params[] = { usr, host, wd };
 			printf(prompt, params);
 		}
 
 		auto in[256];
 		auto in_n = gets(in, sizeof(in));
+
+		// DEBUG: Just use this to verify input
+		{
+			static fmt[] = "\nyou typed: %s (%u)"; // BUG: Compiler does not handle escaped double quotes.
+			auto prm[] = { in, in_n };
+			printf(fmt, prm);
+		}
 
 		// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
 	}

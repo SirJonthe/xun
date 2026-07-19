@@ -19,7 +19,6 @@
 void Computer::IOPort::DoInput( void )
 {
 	m_comp->Resume();
-	Info("Computer resumed");
 }
 
 Computer::IOPort::IOPort(Computer *comp) : Device(XUN_NAME, XHWID_XUN), m_comp(comp)
@@ -133,7 +132,7 @@ void Computer::DoPowerOn( void )
 		AT(XWORD{U16(i)}).u = U16(rand());
 	}
 }
-#include <sstream>
+
 void Computer::DoCycle( void )
 {
 	I.u = READI;
@@ -514,21 +513,7 @@ void Computer::DoCycle( void )
 		POP_STACK(1);
 		break;
 	case XIS::WFI:
-		{
-			std::ostringstream sout; // TODO: REMOVEME
-			for (uint32_t i = 0; i < NUM_PORTS; ++i) {  // TODO: REMOVEME
-				sout << m_ports[i].Pending() << " ";  // TODO: REMOVEME
-			}  // TODO: REMOVEME
-			Info(sout.str().c_str());  // TODO: REMOVEME
-
-			WaitForInput();
-			
-			if (IsWaitingForInput()) {  // TODO: REMOVEME
-				Info("Computer waiting");  // TODO: REMOVEME
-			} else {  // TODO: REMOVEME
-				Info("Cannot wait");  // TODO: REMOVEME
-			}  // TODO: REMOVEME
-		}
+		WaitForInput();
 		break;
 	default:
 		SetError(ERR_UNDEF);
