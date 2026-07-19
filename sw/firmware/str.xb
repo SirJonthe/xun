@@ -13,6 +13,15 @@ strcmp(a, b, n)
 	return TRUE;
 }
 
+strlen(str)
+{
+	auto size = 0;
+	while (str[size] != 0) {
+		++size;
+	}
+	return size;
+}
+
 memset(dst, val, n)
 {
 	auto i = 0;

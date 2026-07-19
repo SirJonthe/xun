@@ -3,3 +3,5 @@ sh_start( void );
 
 /// @brief Ends an ongoing shell function.
 sh_end( void );
+
+sh_exec_line(line, line_n);

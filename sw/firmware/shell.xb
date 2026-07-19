@@ -2,6 +2,7 @@
 #include "def.xh"
 #include "stdio.xh"
 #include "str.xh"
+#include "firmware.xh"
 
 auto sh_run = FALSE;
 
@@ -117,18 +118,31 @@ sh_start( void )
 		auto in[256];
 		auto in_n = gets(in, sizeof(in));
 
-		// DEBUG: Just use this to verify input
-		{
-			static fmt[] = "\nyou typed: %s (%u)"; // BUG: Compiler does not handle escaped double quotes.
-			auto prm[] = { in, in_n };
-			printf(fmt, prm);
-		}
-
-		// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
+		sh_exec_line(in, in_n);
 	}
 }
 
 sh_end( void )
 {
 	sh_run = FALSE;
+}
+
+sh_exec_line(line, line_n)
+{
+	// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
+
+//	static builtin_exit[] = "exit";
+//	static builtin_shutdown[] = "shutdown";
+//	auto builtin_cmd[] = { builtin_exit, builtin_shutdown };
+//	auto builtin_fn[] = { sh_end, shutdown };
+//
+//	auto i = 0;
+//	while (i < 2) {
+//		if (strlen(builtin_cmd[i]) == line_n && strcmp(line, builtin_cmd[i], line_n)) {
+//			auto fn = builtin_fn[i];
+//			return fn();
+//		}
+//	}
+//
+//	return FALSE;
 }

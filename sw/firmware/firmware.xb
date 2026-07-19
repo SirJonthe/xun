@@ -325,29 +325,31 @@ __handle_kb(header_ptr, data_ptr)
 			
 			auto ch = __kblayout[__gets_mode][data_ptr[i]];
 			
-			if (ch != '\n') {
-				if (ch != '\b') {
-					if (__gets_secret) {
-						key_chars[key_chars_n] = '*';
-					} else {
+			if (key_chars_n == 0 || key_chars[key_chars_n - 1] != ch || ch == '\b') { // This deduplicates some repeated inputs (not sure why I have to make an exception for backspace, but if I don't then it seems to drop all backspace inputs)
+				if (ch != '\n') {
+					if (ch != '\b') {
+						if (__gets_secret) {
+							key_chars[key_chars_n] = '*';
+						} else {
+							key_chars[key_chars_n] = ch;
+						}
+						++key_chars_n;
+					} else if (__gets_buf_n > 1) {
 						key_chars[key_chars_n] = ch;
+						++key_chars_n;
 					}
-					++key_chars_n;
-				} else if (__gets_buf_n > 1) {
-					key_chars[key_chars_n] = ch;
-					++key_chars_n;
+				} else {
+					__gets_loop = 0;
 				}
-			} else {
-				__gets_loop = 0;
-			}
 
-			if (ch != '\b') {
-				__gets_buf[__gets_buf_n] = ch;
-				++__gets_buf_n;
-				__gets_buf[__gets_buf_n] = 0;
-			} else if (__gets_buf_n > 1) {
-				--__gets_buf_n;
-				__gets_buf[__gets_buf_n] = 0;
+				if (ch != '\b') {
+					__gets_buf[__gets_buf_n-1] = ch;
+					__gets_buf[__gets_buf_n] = 0;
+					++__gets_buf_n;
+				} else if (__gets_buf_n > 1) {
+					--__gets_buf_n;
+					__gets_buf[__gets_buf_n] = 0;
+				}
 			}
 		}
 		i += 2;
@@ -395,7 +397,10 @@ d_gets(buf, n)
 	__gets_buf = NULL;
 	n = __gets_buf_n;
 	__gets_buf_n = 0;
-	buf[__gets_buf_n] = 0;
+	
+	while (n > 0 && (buf[n-1] == 0 || buf[n-1] == '\n' || buf[n-1] == ' ')) { // Remove trailing white spaces.
+		--n;
+	}
 	return n;
 }
 

@@ -5,6 +5,11 @@
 /// @returns 1 if the strings exactly match. 0 otherwise.
 strcmp(a, b, n);
 
+/// @brief Gets the dynamic size of the string as defined by a trailing 0 terminator character.
+/// @param str The string.
+/// @returns The size of the string.
+strlen(str);
+
 /// @brief Sets all elements in destination to the given value.
 /// @param dst The destination pointer.
 /// @param val The value to set the elements at the destination pointer.
