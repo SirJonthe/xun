@@ -215,11 +215,15 @@ sleep(ms)
 
 run(bin)
 {
-	// TODO IMPL
-	return -1;
+	return bin();
 }
 
 shutdown( void )
 {
-	return hwpusht(hwscan(0x0004), 7, NULL, 0, CLOCKS_PER_SEC);
+	return hwpusht(hwscan(0x0004), 8, NULL, 0, CLOCKS_PER_SEC);
+}
+
+reboot( void )
+{
+	return hwpusht(hwscan(0x0004), 9, NULL, 0, CLOCKS_PER_SEC);
 }

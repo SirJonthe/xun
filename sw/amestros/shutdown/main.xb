@@ -1,0 +1,7 @@
+#include <stddef.xh>
+#include <sys.xh>
+
+main(argc, argv)
+{
+	return shutdown();
+}

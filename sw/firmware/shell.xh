@@ -5,3 +5,7 @@ sh_start( void );
 sh_end( void );
 
 sh_exec_line(line, line_n);
+
+sh_pwd( void );
+
+sh_clear( void );

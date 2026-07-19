@@ -65,7 +65,6 @@ void Monitor::DrawChar(char ch, char color_index, int x, int y)
 				}
 			}
 		} else if (ch != ' ' && ch != '\n' && ch != 0 && ch != '\t' && ch != '\r') {
-			// [X] tofu: just draw a box
 			for (int n = 0; n < GetCharPxWidth(); ++n) {
 				pixels[n * Monitor::STRIDE + 0] = colors.fg.r;
 				pixels[n * Monitor::STRIDE + 1] = colors.fg.g;

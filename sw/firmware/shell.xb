@@ -118,7 +118,11 @@ sh_start( void )
 		auto in[256];
 		auto in_n = gets(in, sizeof(in));
 
-		sh_exec_line(in, in_n);
+		//if (sh_exec_line(in, in_n) != EXIT_SUCCESS) {
+		//	static fmt[] = "\ncommand not found: %s";
+		//	auto prm[] = { in };
+		//	printf(fmt, prm);
+		//}
 	}
 }
 
@@ -127,22 +131,54 @@ sh_end( void )
 	sh_run = FALSE;
 }
 
-sh_exec_line(line, line_n)
-{
-	// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
-
-//	static builtin_exit[] = "exit";
-//	static builtin_shutdown[] = "shutdown";
-//	auto builtin_cmd[] = { builtin_exit, builtin_shutdown };
-//	auto builtin_fn[] = { sh_end, shutdown };
+//sh_exec_line(line, line_n)
+//{
+//	// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
 //
-//	auto i = 0;
-//	while (i < 2) {
-//		if (strlen(builtin_cmd[i]) == line_n && strcmp(line, builtin_cmd[i], line_n)) {
-//			auto fn = builtin_fn[i];
-//			return fn();
-//		}
+//	static cmd_exit[]     = "exit";
+//	static cmd_shutdown[] = "shutdown";
+//	static cmd_reboot[]   = "reboot";
+//	static cmd_pwd[]      = "pwd";
+//	{
+//		auto fmt[] = "%u (%u), %u (%u), %u (%u), %u (%u)\n";
+//		auto prm[] = { cmd_exit, sizeof(cmd_exit), cmd_shutdown, sizeof(cmd_shutdown), cmd_reboot, sizeof(cmd_reboot), cmd_pwd, sizeof(cmd_pwd) };
+//		printf(fmt, prm);
+//	}
+//	auto   cmd[4]          = { cmd_exit, cmd_shutdown, cmd_reboot, cmd_pwd };
+//	auto   fn[4]           = { sh_end, shutdown, reboot, sh_pwd };
+//
+//	{
+//		auto fmt[] = "%u (%u), %u (%u)\n";
+//		auto prm[] = { cmd, sizeof(cmd), fn, sizeof(fn) };
+//		printf(fmt, prm);
 //	}
 //
-//	return FALSE;
+//	auto i = 0;
+//	while (i < 4) {
+//		{
+//			auto fmt[] = "%s = %s...";
+//			auto prm[] = { line, cmd[i] };
+//			printf(fmt, prm);
+//		}
+//		if (strlen(cmd[i]) == line_n && strcmp(line, cmd[i], line_n)) {
+//			//{
+//			//	auto fmt[] = "true\n";
+//			//	printf(fmt, NULL);
+//			//}
+//			auto fn = fn[i];
+//			return fn();
+//		}
+//		{
+//			auto fmt[] = "false\n";
+//			printf(fmt, NULL);
+//		}
+//		++i;
+//	}
+//
+//	return -1;
+//}
+
+sh_pwd( void )
+{
+	printf(wd, NULL);
 }

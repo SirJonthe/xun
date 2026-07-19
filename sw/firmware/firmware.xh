@@ -12,6 +12,11 @@ run(bin);
 /// @warning Use this sparingly.
 shutdown( void );
 
+/// @brief Cycles the computer power off and on.
+/// @note The processor has no control to turn the computer off, so it relies on a specific type of circuit breaker being connected to the machine which it can communicate with.
+/// @warning Use this sparingly.
+reboot( void );
+
 /// @brief Performs a scan of all ports to populate a hardware ID table.
 d_hwscan( void );
 

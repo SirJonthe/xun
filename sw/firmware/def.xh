@@ -1,3 +1,4 @@
-const NULL  =  0; // Null value.
-const TRUE  =  1; // Boolean true.
-const FALSE =  0; // Boolean false.
+const NULL         = 0; // Null value.
+const TRUE         = 1; // Boolean true.
+const FALSE        = 0; // Boolean false.
+const EXIT_SUCCESS = 0;

@@ -38,7 +38,12 @@ run(bin)
 
 shutdown( void )
 {
-	return hwpusht(hwscan(0x0004), 7, NULL, 0, CLOCKS_PER_SEC);
+	return hwpusht(hwscan(0x0004), 8, NULL, 0, CLOCKS_PER_SEC);
+}
+
+reboot( void )
+{
+	return hwpusht(hwscan(0x0004), 9, NULL, 0, CLOCKS_PER_SEC);
 }
 
 const HWID_KB  = 0x0001; // Hardware ID of keyboard.
@@ -401,6 +406,7 @@ d_gets(buf, n)
 	while (n > 0 && (buf[n-1] == 0 || buf[n-1] == '\n' || buf[n-1] == ' ')) { // Remove trailing white spaces.
 		--n;
 	}
+	buf[n] = 0;
 	return n;
 }
 
