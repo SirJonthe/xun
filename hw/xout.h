@@ -18,6 +18,7 @@ public:
 	static constexpr U16      MSG_TXTMODE_LOADFONTMETA = 0xaffe;         // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
 	static constexpr U16      MSG_TXTMODE_SCROLL_DOWN  = 0x123a;         // Packet type that scrolls the character map down (only when in text mode).
 	static constexpr U16      MSG_TXTMODE_SCROLL_UP    = 0x321b;         // Packet type that scrolls the character map up (only when in text mode).
+	static constexpr U16      MSG_TXTMODE_CLEAR        = 0xded0;         // Clears the screen.
 	static constexpr U16      MSG_TXTMODE_GET_XY       = 0xd0d0;         // When this packet is received, it sends back the X and Y coordinates of the caret using the same packet type.
 	static constexpr U16      MSG_TXTMODE_SET_XY       = 0xd00d;         // Packet type that sets the 
 
@@ -72,6 +73,10 @@ private:
 	/// @brief Returns the pointer to the color index of the first character in the character map.
 	/// @return A pointer to the coloe index of the first character in the character map.
 	U8 *GetColorMap( void );
+
+	U8 *GetCharMapLine(uint32_t y);
+
+	U8 *GetColorMapLine(uint32_t y);
 
 	/// @brief Returns a pointer to the first character of the current scroll line in the character map.
 	/// @return A pointer to the first character of the current scroll line in the character map.

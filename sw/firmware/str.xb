@@ -40,3 +40,8 @@ memcpy(dst, src, n)
 	}
 	return TRUE;
 }
+
+is_white(ch)
+{
+	return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n';
+}

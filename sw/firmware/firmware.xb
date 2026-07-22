@@ -59,6 +59,7 @@ const MON_MSG_TXTMODE_LOADFONT     = 0xabcd; // Writes the local bitfont to the 
 const MON_MSG_TXTMODE_LOADFONTMETA = 0xaffe; // Writes metadata about the bitfont to the monitor (such as width and height of the atlas, width and height of individual characters, etc.)
 const MON_MSG_TXTMODE_SCROLL_DOWN  = 0x123a;
 const MON_MSG_TXTMODE_SCROLL_UP    = 0x321b;
+const MON_MSG_TXTMODE_CLEAR        = 0xded0;
 const MON_MSG_TXTMODE_GET_XY       = 0xd0d0;
 const MON_MSG_TXTMODE_SET_XY       = 0xd00d;
 
@@ -477,6 +478,11 @@ d_monitor_setxy(x, y)
 {
 	auto data[2] = { x, y };
 	return hwpusht(__port_mon, MON_MSG_TXTMODE_SET_XY, data, 2, CLOCKS_PER_SEC);
+}
+
+d_monitor_txtclear( void )
+{
+	return hwpusht(__port_mon, MON_MSG_TXTMODE_CLEAR, NULL, 0, CLOCKS_PER_SEC);
 }
 
 i_print_sys_info( void )

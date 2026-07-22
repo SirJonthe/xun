@@ -118,11 +118,11 @@ sh_start( void )
 		auto in[256];
 		auto in_n = gets(in, sizeof(in));
 
-		//if (sh_exec_line(in, in_n) != EXIT_SUCCESS) {
-		//	static fmt[] = "\ncommand not found: %s";
-		//	auto prm[] = { in };
-		//	printf(fmt, prm);
-		//}
+		if (sh_exec_line(in, in_n) != EXIT_SUCCESS) {
+			static fmt[] = "\ncommand not found: %s";
+			auto prm[] = { in };
+			printf(fmt, prm);
+		}
 	}
 }
 
@@ -131,52 +131,49 @@ sh_end( void )
 	sh_run = FALSE;
 }
 
-//sh_exec_line(line, line_n)
-//{
-//	// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
-//
-//	static cmd_exit[]     = "exit";
-//	static cmd_shutdown[] = "shutdown";
-//	static cmd_reboot[]   = "reboot";
-//	static cmd_pwd[]      = "pwd";
-//	{
-//		auto fmt[] = "%u (%u), %u (%u), %u (%u), %u (%u)\n";
-//		auto prm[] = { cmd_exit, sizeof(cmd_exit), cmd_shutdown, sizeof(cmd_shutdown), cmd_reboot, sizeof(cmd_reboot), cmd_pwd, sizeof(cmd_pwd) };
-//		printf(fmt, prm);
-//	}
-//	auto   cmd[4]          = { cmd_exit, cmd_shutdown, cmd_reboot, cmd_pwd };
-//	auto   fn[4]           = { sh_end, shutdown, reboot, sh_pwd };
-//
-//	{
-//		auto fmt[] = "%u (%u), %u (%u)\n";
-//		auto prm[] = { cmd, sizeof(cmd), fn, sizeof(fn) };
-//		printf(fmt, prm);
-//	}
-//
-//	auto i = 0;
-//	while (i < 4) {
-//		{
-//			auto fmt[] = "%s = %s...";
-//			auto prm[] = { line, cmd[i] };
-//			printf(fmt, prm);
-//		}
-//		if (strlen(cmd[i]) == line_n && strcmp(line, cmd[i], line_n)) {
-//			//{
-//			//	auto fmt[] = "true\n";
-//			//	printf(fmt, NULL);
-//			//}
-//			auto fn = fn[i];
-//			return fn();
-//		}
-//		{
-//			auto fmt[] = "false\n";
-//			printf(fmt, NULL);
-//		}
-//		++i;
-//	}
-//
-//	return -1;
-//}
+sh_exec_line(line, line_n)
+{
+	// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
+
+	static cmd_exit[]     = "exit";
+	static cmd_shutdown[] = "shutdown";
+	static cmd_reboot[]   = "reboot";
+	static cmd_pwd[]      = "pwd";
+	static cmd_clear[]    = "clear";
+	{
+		auto fmt[] = "%u (%u), %u (%u), %u (%u), %u (%u), %u (%u)\n";
+		auto prm[] = { cmd_exit, sizeof(cmd_exit), cmd_shutdown, sizeof(cmd_shutdown), cmd_reboot, sizeof(cmd_reboot), cmd_pwd, sizeof(cmd_pwd), cmd_clear, sizeof(cmd_clear) };
+		printf(fmt, prm);
+	}
+
+	const NUM_CMD = 5;
+	auto cmd[NUM_CMD] = { cmd_exit, cmd_shutdown, cmd_reboot, cmd_pwd, cmd_clear };
+	auto fn[NUM_CMD]  = { sh_end, shutdown, reboot, sh_pwd, d_monitor_txtclear };
+
+	auto i = 0;
+	while (i < NUM_CMD) {
+		{
+			auto fmt[] = "%s = %s...";
+			auto prm[] = { line, cmd[i] };
+			printf(fmt, prm);
+		}
+		if (strlen(cmd[i]) == line_n && strcmp(line, cmd[i], line_n)) {
+			{
+				auto fmt[] = "true\n";
+				printf(fmt, NULL);
+			}
+			auto fn = fn[i];
+			return fn();
+		}
+		{
+			auto fmt[] = "false\n";
+			printf(fmt, NULL);
+		}
+		++i;
+	}
+
+	return -1;
+}
 
 sh_pwd( void )
 {

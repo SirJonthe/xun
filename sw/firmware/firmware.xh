@@ -69,6 +69,9 @@ d_monitor_getxy(x_ptr, y_ptr);
 /// @param y The Y coordinate.
 d_monitor_setxy(x, y);
 
+/// @brief Clears the screen from text when in text mode.
+d_monitor_txtclear( void );
+
 /// @brief Prints some handy information about the computer.
 i_print_sys_info( void );
 

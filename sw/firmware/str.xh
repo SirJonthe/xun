@@ -21,3 +21,8 @@ memset(dst, val, n);
 /// @param src The source memory.
 /// @param n The number of elements to copy into destination from source.
 memcpy(dst, src, n);
+
+/// @brief Checks if a character is a white character.
+/// @param ch The character.
+/// @returns 1/true if the character is a white character.
+//is_white(ch); // BUG [compiler]: Uncommenting this breaks gets() inputs (IRQ call table corruption?)
