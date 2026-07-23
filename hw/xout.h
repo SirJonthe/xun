@@ -74,8 +74,14 @@ private:
 	/// @return A pointer to the coloe index of the first character in the character map.
 	U8 *GetColorMap( void );
 
+	/// @brief Returns the pointer to the character line.
+	/// @param y The Y coordinate of the line.
+	/// @returns The character line.
 	U8 *GetCharMapLine(uint32_t y);
 
+	/// @brief Returns the pointer to the color line.
+	/// @param y The Y coordinate of the line.
+	/// @return The color line.
 	U8 *GetColorMapLine(uint32_t y);
 
 	/// @brief Returns a pointer to the first character of the current scroll line in the character map.
@@ -95,6 +101,10 @@ private:
 
 	/// @brief Renders the entire character map unto the video memory.
 	void DrawCharMap( void );
+
+	/// @brief Removes all text and resets color of the given line.
+	/// @param y The line Y coordinate to clear.
+	void ClearCharLine(uint32_t y);
 
 protected:
 	/// @brief Powers on the monitor.

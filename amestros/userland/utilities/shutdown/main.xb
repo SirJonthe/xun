@@ -1,5 +1,5 @@
-#include <stddef.xh>
-#include <sys.xh>
+#include <stddef>
+#include <sys>
 
 main(argc, argv)
 {

@@ -1,0 +1,7 @@
+fs_open();
+
+fs_write();
+
+fs_read();
+
+fs_close();

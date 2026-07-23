@@ -113,7 +113,7 @@ private:
 	PowerControlUnit          m_PCU;              // Can physically turn power off.
 	Teleprinter               m_tty;              // A teleprinter that can output text to the host terminal.
 	DiskReader                m_external_reader;  // An external disk reader that the user can put a disk into.
-	Disk                      m_storage;          // The on-board persistent storage.
+	Disk                      m_storage;          // The on-board persistent storage (automatically inserted in the internal reader on boot).
 	IOPort                    m_ports[NUM_PORTS]; // The I/O ports of the computer.
 	bool                      m_debug;            // Indicates if the machine is in debug mode. We do some additional safe-guarding like emitting HALTs in all unused memory slots.
 

@@ -132,6 +132,16 @@ void Monitor::DrawCharMap( void )
 	}
 }
 
+void Monitor::ClearCharLine(uint32_t y)
+{
+	U8 *line = GetCharMapLine(y);
+	U8 *color = GetColorMapLine(y);
+	for (uint32_t x = 0; x < GetCharMapWidth(); ++x) {
+		line[x] = ' ';
+		color[x] = 0;
+	}
+}
+
 void Monitor::DoPowerOn( void )
 {
 	Clear();
@@ -160,12 +170,7 @@ void Monitor::Newline( void )
 	if ((m_cy - m_scroll) >= GetCharMapHeight()) {
 		++m_scroll;
 	}
-	U8 *line = GetCurrentCharMapLine();
-	U8 *colors = GetCurrentColorMapLine();
-	for (uint32_t n = 0; n < GetCharMapWidth(); ++n) {
-		line[n] = ' ';
-		colors[n] = 0;
-	}
+	ClearCharLine(m_cy);
 }
 
 bool Monitor::HandlePacket(const Packet &msg) 
@@ -239,16 +244,14 @@ bool Monitor::HandlePacket(const Packet &msg)
 			}
 			return true;
 		case MSG_TXTMODE_SCROLL_DOWN:
-			Newline();
+			if (m_scroll < m_cy) {
+				++m_scroll;
+				ClearCharLine(m_scroll + GetCharMapHeight() - 1);
+			}
 			return true;
 		case MSG_TXTMODE_CLEAR:
 			for (uint32_t y = 0; y < GetCharMapHeight(); ++y) {
-				U8 *line = GetCharMapLine(y);
-				U8 *color = GetColorMapLine(y);
-				for (uint32_t x = 0; x < GetCharMapWidth(); ++x) {
-					line[x] = ' ';
-					color[x] = 0;
-				}
+				ClearCharLine(y);
 			}
 			m_cy = 0;
 			m_cx = 0;

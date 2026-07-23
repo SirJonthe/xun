@@ -1,0 +1,23 @@
+/// @brief Returns the smallest of two values.
+/// @param a The first value.
+/// @param b The second value.
+/// @returns The smallest value.
+min2(a, b);
+
+/// @brief Returns the greatest of two values.
+/// @param a The first value.
+/// @param b The second value.
+/// @returns The greatest value.
+max2(a, b);
+
+/// @brief Returns the smallest value in an array of values.
+/// @param v An array of values.
+/// @param b The number of elements in the array.
+/// @returns The smallest value.
+min(v, n);
+
+/// @brief Returns the greatest value in an array of values.
+/// @param v An array of values.
+/// @param b The number of elements in the array.
+/// @returns The greatest value.
+max(v, n);

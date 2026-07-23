@@ -1,6 +1,9 @@
 #include "syscall.xh"
 #include "font.xh"
 #include "version.xh"
+#include "stdio.xh"
+#include "string.xh"
+#include "time.xh"
 
 init_syscall_table( void )
 {
@@ -17,4 +20,11 @@ init_syscall_table( void )
 	syscall_table[10] = FONT_CELL_PX_HEIGHT;
 	syscall_table[11] = FONT_CHAR_ASCII_START;
 	syscall_table[12] = FONT_CHAR_ASCII_END;
+	syscall_table[13] = printf;
+	syscall_table[14] = gets;
+	syscall_table[15] = strcmp;
+	syscall_table[16] = strlen;
+	syscall_table[17] = memset;
+	syscall_table[18] = memcpy;
+	syscall_table[19] = clock;
 }

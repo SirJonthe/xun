@@ -15,7 +15,7 @@ main(a,b)
 	d_init_diskreader();
 //	s_load_bootdisk();
 
-	sh_start();
+	sh_start(); // [ ] This should actually be "read some settings file to see what to boot", and "sh" should just be a program like any other.
 
 	return 0;
 }

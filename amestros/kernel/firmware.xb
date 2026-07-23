@@ -5,7 +5,7 @@
 #include "time.xh"
 #include "device.xh"
 #include "syscall.xh"
-#include "str.xh"
+#include "string.xh"
 
 sleep(ms)
 {
@@ -70,10 +70,11 @@ auto __hwids[NUM_PORTS]; // The hardware ID:s of each port.
 
 const PORT_UNDEF = 0xffff; // The port index of an unfound device.
 
-auto __port_tty  = PORT_UNDEF; // The port index where the TTY device is connected.
-auto __port_mon  = PORT_UNDEF; // The port index where the monitor is connected.
-auto __port_kb   = PORT_UNDEF; // The port index where the keyboard is connected.
-auto __port_disk = PORT_UNDEF; // The port index where the disk reader is connected.
+auto __port_tty      = PORT_UNDEF; // The port index where the TTY device is connected.
+auto __port_mon      = PORT_UNDEF; // The port index where the monitor is connected.
+auto __port_kb       = PORT_UNDEF; // The port index where the keyboard is connected.
+auto __port_int_disk = PORT_UNDEF; // The port index where the internal disk reader is connected.
+auto __port_ext_disk = PORT_UNDEF; // The port index where the external disk reader is connected.
 
 /// @brief Identifies devices on each port from the given port index. Utilizes recursion to avoid having to wait excessively long for each device to respond in turn. Instead the maximum wait time is the wait time for a single non-responsive port (1sec).
 /// @param port_index The port index to start the scan from.
@@ -138,9 +139,9 @@ d_hwscan( void )
 	return TRUE;
 }
 
-d_find_hw(id)
+d_find_hw(id, from_port)
 {
-	auto i = 0;
+	auto i = from_port;
 	while (i < NUM_PORTS && __hwids[i] != id) {
 		++i;
 	}
@@ -152,7 +153,7 @@ d_find_hw(id)
 
 d_init_tty( void )
 {
-	__port_tty = d_find_hw(HWID_TTY);
+	__port_tty = d_find_hw(HWID_TTY, 0);
 	if (__port_tty == PORT_UNDEF) {
 		return FALSE;
 	}
@@ -411,9 +412,9 @@ d_gets(buf, n)
 	return n;
 }
 
-d_require_hw(id)
+d_require_hw(id, from_port)
 {
-	auto port = d_find_hw(id);
+	auto port = d_find_hw(id, from_port);
 	if (port == PORT_UNDEF) {
 		auto fmt[] = "Missing required hardware (%x)\nPlug in hardware and reboot\n";
 		auto vals[] = { id };
@@ -425,7 +426,7 @@ d_require_hw(id)
 
 d_init_monitor(mode)
 {
-	__port_mon = d_require_hw(HWID_MON);
+	__port_mon = d_require_hw(HWID_MON, 0);
 
 	auto font_metadata[] = { // Exactly this order.
 		FONT_CHAR_PX_WIDTH,
@@ -574,12 +575,14 @@ i_print_sys_info( void )
 
 d_init_keyboard( void )
 {
-	__port_kb = d_require_hw(HWID_KB);
+	__port_kb = d_require_hw(HWID_KB, 0);
 }
 
 d_init_diskreader( void )
 {
-	__port_disk = d_require_hw(HWID_RDD); // [ ] There are TWO disk readers. We are looking for the second. Refactor this.
+	// We just happen to know that the internal reader is connected after the external reader, but if this changes we get errors that might be hard to debug.
+	__port_int_disk = d_require_hw(HWID_RDD, 0);
+	__port_ext_disk = d_require_hw(HWID_RDD, __port_int_disk);
 }
 
 s_load_bootdisk( void )

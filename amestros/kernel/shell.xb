@@ -1,7 +1,7 @@
 #include "shell.xh"
 #include "def.xh"
 #include "stdio.xh"
-#include "str.xh"
+#include "string.xh"
 #include "firmware.xh"
 
 auto sh_run = FALSE;
@@ -141,7 +141,7 @@ sh_exec_line(line, line_n)
 	static cmd_pwd[]      = "pwd";
 	static cmd_clear[]    = "clear";
 	{
-		auto fmt[] = "%u (%u), %u (%u), %u (%u), %u (%u), %u (%u)\n";
+		auto fmt[] = "\n%u (%u), %u (%u), %u (%u), %u (%u), %u (%u)\n";
 		auto prm[] = { cmd_exit, sizeof(cmd_exit), cmd_shutdown, sizeof(cmd_shutdown), cmd_reboot, sizeof(cmd_reboot), cmd_pwd, sizeof(cmd_pwd), cmd_clear, sizeof(cmd_clear) };
 		printf(fmt, prm);
 	}
@@ -158,10 +158,10 @@ sh_exec_line(line, line_n)
 			printf(fmt, prm);
 		}
 		if (strlen(cmd[i]) == line_n && strcmp(line, cmd[i], line_n)) {
-			{
-				auto fmt[] = "true\n";
-				printf(fmt, NULL);
-			}
+			//{
+			//	auto fmt[] = "true\n";
+			//	printf(fmt, NULL);
+			//}
 			auto fn = fn[i];
 			return fn();
 		}

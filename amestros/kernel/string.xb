@@ -1,4 +1,4 @@
-#include "str.xh"
+#include "string.xh"
 #include "def.xh"
 
 strcmp(a, b, n)

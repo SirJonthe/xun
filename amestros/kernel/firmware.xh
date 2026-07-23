@@ -22,10 +22,11 @@ d_hwscan( void );
 
 /// @brief Scans hardware ID table for the given ID and returns the index in the table corresponding to the port index of the connected device.
 /// @param id The ID to scan for.
+/// @param from_port The port index to start the search from.
 /// @return The port index of the device with the given ID.
 /// @note Requires that d_hwscan has been run before call.
 /// @sa d_hwscan
-d_find_hw(id);
+d_find_hw(id, from_port);
 
 /// @brief Initialized the on-board TTY console.
 /// @return 1 if the TTY was found, 0 otherwise.
@@ -33,9 +34,10 @@ d_init_tty( void );
 
 /// @brief Scans hardware ID table for the given ID and returns the index in the table corresponding to the port index of the connected device. If the device is not found, execution locks.
 /// @param id The ID to scan for.
+/// @param from_port The port index to start the search from.
 /// @return The port index of the device with the given ID.
 /// @note Completely locks execution if the ID is not found, requiring a physical reboot.
-d_require_hw(id);
+d_require_hw(id, from_port);
 
 /// @brief Prints text on the monitor. Prints to TTY as a fallback. Stops on zero-terminator.
 /// @param format The message including format of provided values.
