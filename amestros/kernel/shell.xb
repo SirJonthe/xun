@@ -131,6 +131,48 @@ sh_end( void )
 	sh_run = FALSE;
 }
 
+__sh_end( void )
+{
+	static fmt[] = "exit\n";
+	printf(fmt, NULL);
+	return sh_end();
+}
+
+__sh_shutdown( void )
+{
+	static fmt[] = "shutdown\n";
+	printf(fmt, NULL);
+	return shutdown();
+}
+
+__sh_reboot( void )
+{
+	static fmt[] = "reboot\n";
+	printf(fmt, NULL);
+	return reboot();
+}
+
+__sh_shutdown( void )
+{
+	static fmt[] = "shutdown\n";
+	printf(fmt, NULL);
+	return shutdown();
+}
+
+__sh_pwd( void )
+{
+	static fmt[] = "pwd\n";
+	printf(fmt, NULL);
+	return sh_pwd();
+}
+
+__sh_clear( void )
+{
+	static fmt[] = "clear\n";
+	printf(fmt, NULL);
+	return d_monitor_txtclear();
+}
+
 sh_exec_line(line, line_n)
 {
 	// [ ] do something with "in" (generally, split by white space, fopen("/bin/" + first_word), load all other words as parameters, call buf() and return its value.
@@ -140,15 +182,15 @@ sh_exec_line(line, line_n)
 	static cmd_reboot[]   = "reboot";
 	static cmd_pwd[]      = "pwd";
 	static cmd_clear[]    = "clear";
-	{
-		auto fmt[] = "\n%u (%u), %u (%u), %u (%u), %u (%u), %u (%u)\n";
-		auto prm[] = { cmd_exit, sizeof(cmd_exit), cmd_shutdown, sizeof(cmd_shutdown), cmd_reboot, sizeof(cmd_reboot), cmd_pwd, sizeof(cmd_pwd), cmd_clear, sizeof(cmd_clear) };
-		printf(fmt, prm);
-	}
+	//{
+	//	auto fmt[] = "\n%u (%u), %u (%u), %u (%u), %u (%u), %u (%u)\n";
+	//	auto prm[] = { cmd_exit, sizeof(cmd_exit), cmd_shutdown, sizeof(cmd_shutdown), cmd_reboot, sizeof(cmd_reboot), cmd_pwd, sizeof(cmd_pwd), cmd_clear, sizeof(cmd_clear) };
+	//	printf(fmt, prm);
+	//}
 
 	const NUM_CMD = 5;
 	auto cmd[NUM_CMD] = { cmd_exit, cmd_shutdown, cmd_reboot, cmd_pwd, cmd_clear };
-	auto fn[NUM_CMD]  = { sh_end, shutdown, reboot, sh_pwd, d_monitor_txtclear };
+	auto fn[NUM_CMD]  = { __sh_end, __sh_shutdown, __sh_reboot, __sh_pwd, __sh_clear };
 
 	auto i = 0;
 	while (i < NUM_CMD) {
@@ -159,16 +201,17 @@ sh_exec_line(line, line_n)
 		}
 		if (strlen(cmd[i]) == line_n && strcmp(line, cmd[i], line_n)) {
 			//{
-			//	auto fmt[] = "true\n";
-			//	printf(fmt, NULL);
+			//	auto fmt[] = "\n%s";
+			//	auto prm[] = {cmd[i]};
+			//	printf(fmt, prm);
 			//}
 			auto fn = fn[i];
 			return fn();
 		}
-		{
-			auto fmt[] = "false\n";
-			printf(fmt, NULL);
-		}
+		//{
+		//	auto fmt[] = "false\n";
+		//	printf(fmt, NULL);
+		//}
 		++i;
 	}
 
