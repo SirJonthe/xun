@@ -2111,3 +2111,12 @@ CC0_UTEST_BEGIN(xb_lex_and_parse_typed_expr)
 	}
 }
 CC0_UTEST_END(xb_lex_and_parse_typed_expr, false)
+
+CC0_UTEST_BEGIN(xb_lex_and_parse_fail_undef_fn)
+{
+	const char CODE[] = "fn(); main(a, b) { fn(); }";
+	XWORD binary[128];
+	xcc_out out = xb(init_lexer(chars::view{CODE, sizeof(CODE), 0}), LIBB, xcc_binary{binary, sizeof(binary) / sizeof(XWORD), 0});
+	CC0_UTEST_ASSERT(out.errors, !=, 0);
+}
+CC0_UTEST_END(xb_lex_and_parse_fail_undef_fn, false)
